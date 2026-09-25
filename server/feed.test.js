@@ -142,6 +142,20 @@ test('partial (flyer) imports update only the cost of known items', async () => 
   assert.ok(db.prepare("SELECT 1 FROM feed_items WHERE code='F9'").get(), 'new flyer items are still added');
 });
 
+test('deleting an import removes only its unlisted, untouched items', async () => {
+  await feed.importFile({ supplierId, fileName: 'test.csv', buffer: buf('code,name,price\nD1,Listed,10\nD2,Unlisted,10\nD3,Updated later,10\n') });
+  const imp = db.prepare("SELECT id FROM feed_imports WHERE file_name='test.csv'").get();
+  feed.listFeedItems({ feedIds: [db.prepare("SELECT id FROM feed_items WHERE code='D1'").get().id] });
+  await feed.importFile({ supplierId, fileName: 'other.csv', buffer: buf('code,name,price\nD3,Updated later,12\n') });
+  const r = feed.deleteImport(imp.id);
+  const codes = db.prepare('SELECT code FROM feed_items ORDER BY code').all().map((x) => x.code);
+  assert.deepEqual(codes, ['D1', 'D3']); // D1 listed, D3 owned by the newer import
+  assert.equal(r.itemsDeleted, 1);
+  assert.equal(r.itemsKeptBecauseListed, 1);
+  assert.ok(db.prepare("SELECT 1 FROM products WHERE supplier_code='D1'").get(), 'listed product untouched');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM feed_imports WHERE id = ?').get(imp.id).n, 0);
+});
+
 test('re-import reprices listed products from the new cost', async () => {
   await feed.importFile({ supplierId, fileName: 'a.csv', buffer: buf('code,name,price\nQ1,Thing,100\n') });
   feed.listFeedItems({ feedIds: [db.prepare("SELECT id FROM feed_items WHERE code='Q1'").get().id] });

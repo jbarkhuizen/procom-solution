@@ -248,6 +248,7 @@ admin.post('/feed/import', wrap((req) => {
   const b = req.body || {};
   return feed.importFeed({ supplierId: b.supplierId, token: b.token, mapping: b.mapping || {}, pricesIncludeVat: Boolean(b.pricesIncludeVat), completeList: b.completeList !== false });
 }));
+admin.delete('/feed/imports/:id', wrap((req) => orNotFound(feed.deleteImport(req.params.id))));
 admin.post('/feed/images/retry', wrap(() => {
   const n = getDb().prepare("UPDATE feed_items SET image_status = 'pending' WHERE image_status = 'failed'").run().changes;
   if (n) startImageDownloads();

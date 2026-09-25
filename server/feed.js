@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { getDb } from './db.js';
 import { getSettings } from './settings.js';
 import { parseRandToCents, clampInt } from './util.js';
-import { storeProductImage, copyUpload } from './images.js';
+import { storeProductImage, copyUpload, deleteUpload } from './images.js';
 import { saveProduct, repriceProducts } from './catalog.js';
 import { parseFeedFile, guessMapping, normHeader, FIELDS } from './feed-parsers.js';
 import { startImageDownloads } from './remote-images.js';
@@ -229,6 +229,30 @@ export async function importFeed({ supplierId, token, mapping, pricesIncludeVat 
   previews.delete(token);
   if (stats.imagesQueued) startImageDownloads(db);
   return stats;
+}
+
+// Undoes an import: removes its history row plus the feed items whose most
+// recent data came from it. Items touched by a later import, and items
+// already listed in the shop, are kept -- products are never affected.
+export function deleteImport(id, db = getDb()) {
+  const imp = db.prepare('SELECT * FROM feed_imports WHERE id = ?').get(id);
+  if (!imp) return null;
+  const doomed = db
+    .prepare(`SELECT f.id, f.image FROM feed_items f
+      LEFT JOIN products p ON p.supplier_id = f.supplier_id AND p.supplier_code = f.code
+      WHERE f.supplier_id = ? AND f.source_file = ? AND f.imported_at = ? AND p.id IS NULL`)
+    .all(imp.supplier_id, imp.file_name, imp.created_at);
+  const kept = db.prepare('SELECT COUNT(*) n FROM feed_items WHERE supplier_id = ? AND source_file = ? AND imported_at = ?')
+    .get(imp.supplier_id, imp.file_name, imp.created_at).n - doomed.length;
+  const tx = db.transaction(() => {
+    const del = db.prepare('DELETE FROM feed_items WHERE id = ?');
+    for (const f of doomed) del.run(f.id);
+    db.prepare('DELETE FROM feed_imports WHERE id = ?').run(id);
+  });
+  tx();
+  // Feed photos are only used by feed rows (listed products own copies).
+  for (const f of doomed) if (f.image) deleteUpload(f.image);
+  return { itemsDeleted: doomed.length, itemsKeptBecauseListed: kept };
 }
 
 // Convenience for scripts/tests: parse + import in one go with auto-mapping.

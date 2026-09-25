@@ -239,6 +239,23 @@ document.addEventListener('click', (e) => {
 
 const productState = { q: '', category: '', status: '', fulfilment: '', page: 1, selected: new Set() };
 
+// Cost excl VAT -> + VAT -> purchase price (what we pay the supplier) ->
+// + profit -> selling price. Profit % is on the purchase price, i.e. the
+// markup actually achieved after rounding up to the next rand.
+// (VAT-registered businesses reclaim input VAT, so profit is then
+// selling price excl VAT minus cost excl VAT.)
+function priceBreakdown(costCents, priceCents, cfg) {
+  const rate = (Number(cfg.vatRatePct) || 0) / 100;
+  const cost = Number(costCents) || 0;
+  const vat = Math.round(cost * rate);
+  const purchase = cost + vat;
+  const price = Number(priceCents) || 0;
+  const profit = cfg.vatRegistered ? Math.round(price / (1 + rate)) - cost : price - purchase;
+  const base = cfg.vatRegistered ? cost : purchase;
+  const profitPct = base > 0 ? `${((profit / base) * 100).toFixed(1)}%` : '—';
+  return { cost, vat, purchase, profit, profitPct, price };
+}
+
 function availability(p) {
   if (p.fulfilment === 'stock') return p.stockQty > 0 ? `<span class="badge ok">${p.stockQty} in stock</span>` : '<span class="badge bad">0 stock</span>';
   return p.supplierInStock ? '<span class="badge ok">Warehouse</span>' : '<span class="badge bad">Supplier out</span>';
@@ -249,7 +266,7 @@ routes.products = async (id, arg) => {
   if (id && id !== 'list') return productEditor(id);
   if (id === 'list' && arg) Object.assign(productState, { category: arg, page: 1 });
   setTop('Catalogue', 'Products', `<button class="btn" data-action="reprice" title="Recalculate every auto-priced product from cost + markup">Reprice all</button><button class="btn btn-primary" data-go="#/products/new">+ Product</button>`);
-  const cats = await categoryOptions();
+  const [cats, cfg] = await Promise.all([categoryOptions(), siteSettings()]);
   const s = productState;
   const q = new URLSearchParams({ q: s.q, category: s.category, status: s.status, fulfilment: s.fulfilment, page: s.page });
   const res = await api(`/products?${q}`);
@@ -264,7 +281,7 @@ routes.products = async (id, arg) => {
     <div id="bulk"></div>
     <div class="panel table-wrap">
       <table class="catalog">
-        <thead><tr><th class="check"><input type="checkbox" id="p-all" aria-label="Select all"></th><th></th><th>Product</th><th>Category</th><th class="num">Cost</th><th class="num">Price</th><th class="num">Margin</th><th>Availability</th><th>Status</th></tr></thead>
+        <thead><tr><th class="check"><input type="checkbox" id="p-all" aria-label="Select all"></th><th></th><th>Product</th><th>Category</th><th class="num">Cost excl VAT</th><th class="num">VAT ${cfg.vatRatePct}%</th><th class="num">Purchase price</th><th class="num">Profit</th><th class="num">Selling price</th><th>Availability</th><th>Status</th></tr></thead>
         <tbody>${
           res.items
             .map(
@@ -273,14 +290,19 @@ routes.products = async (id, arg) => {
           <td>${p.image ? `<img class="thumb" src="${h(p.image)}" alt="">` : '<div class="thumb-empty"></div>'}</td>
           <td><strong>${h(p.name)}</strong><br><span class="muted">${h(p.brand)} · ${h(p.sku)}${p.featured ? ' · ★ featured' : ''}</span></td>
           <td>${p.categoryName ? h(p.categoryName) : '<span class="badge warn">None</span>'}</td>
-          <td class="num">${rand(p.costCents)}</td>
-          <td class="num"><strong>${rand(p.priceCents)}</strong>${p.priceMode === 'manual' ? '<br><span class="muted">manual</span>' : ''}</td>
-          <td class="num ${p.marginCents < 0 ? 'money-up' : ''}">${rand(p.marginCents)}</td>
+          ${(() => {
+            const b = priceBreakdown(p.costCents, p.priceCents, cfg);
+            return `<td class="num">${rand(b.cost)}</td>
+          <td class="num muted">${rand(b.vat)}</td>
+          <td class="num">${rand(b.purchase)}</td>
+          <td class="num ${b.profit < 0 ? 'money-up' : 'money-down'}">${rand(b.profit)}<br><span class="muted">${b.profitPct}</span></td>
+          <td class="num"><strong>${rand(b.price)}</strong>${p.priceMode === 'manual' ? '<br><span class="muted">manual</span>' : ''}</td>`;
+          })()}
           <td>${availability(p)}</td>
           <td>${p.active ? '<span class="badge published">Live</span>' : '<span class="badge draft">Hidden</span>'}</td>
         </tr>`,
             )
-            .join('') || '<tr><td colspan="9" class="empty">No products match. Use the Warehouse feed to list items quickly.</td></tr>'
+            .join('') || '<tr><td colspan="11" class="empty">No products match. Use the Warehouse feed to list items quickly.</td></tr>'
         }</tbody>
       </table>
     </div>
@@ -402,7 +424,7 @@ async function productEditor(id) {
           <label class="field"><span>Selling price (R)</span><input name="price" type="number" step="0.01" min="0" value="${toRands(d.priceCents)}"></label>
           <label class="field"><span>“Was” price (R, optional)</span><input name="compareAt" type="number" step="0.01" min="0" value="${toRands(d.compareAtCents)}"></label>
         </div>
-        <div><span class="field-label">Customer pays</span><div class="price-preview" id="price-preview"></div><p class="mini-help" id="price-help"></p></div>
+        <div><span class="field-label">Price breakdown</span><div id="price-preview" style="margin-top:0.4rem"></div><p class="mini-help" id="price-help"></p></div>
       </div>
 
       <div class="panel stack gap-3">
@@ -441,24 +463,44 @@ async function productEditor(id) {
     );
   renderGallery();
 
+  // Same inheritance as the server: product markup, else nearest category, else site default.
+  const { list: allCats } = await categories();
+  const inheritedMarkup = (categoryId) => {
+    const seen = new Set();
+    for (let c = allCats.find((x) => x.id === categoryId); c && !seen.has(c.id); c = allCats.find((x) => x.id === c.parentId)) {
+      seen.add(c.id);
+      if (c.markupPct != null) return { pct: Number(c.markupPct), from: `category “${c.name}”` };
+    }
+    return { pct: Number(cfg.defaultMarkupPct), from: 'site default' };
+  };
+
   const updatePricing = () => {
     const manual = form.priceMode.value === 'manual';
     form.price.readOnly = !manual;
     form.price.style.opacity = manual ? 1 : 0.6;
-    const cost = Number(form.cost.value) || 0;
-    const m = form.markupPct.value === '' ? null : Number(form.markupPct.value);
-    const vat = 1 + cfg.vatRatePct / 100;
-    let price;
-    if (manual) price = Math.round((Number(form.price.value) || 0) * 100);
-    else if (m != null) price = Math.ceil((cost * vat * (1 + m / 100) * 100) / 100) * 100;
-    else price = p && p.priceMode === 'auto' && Number(toRands(p.costCents)) === cost ? p.priceCents : null;
-    const landed = cfg.vatRegistered ? null : Math.round(cost * vat * 100);
-    setHtml($('#price-preview', root), price == null ? '<span class="muted" style="font-size:1rem">Calculated on save (inherits category markup)</span>' : h(rand(price)));
-    const margin = price == null ? null : cfg.vatRegistered ? Math.round(price / vat) - Math.round(cost * 100) : price - landed;
-    $('#price-help', root).textContent = [
-      landed != null ? `Landed cost incl. supplier VAT: ${rand(landed)}` : 'VAT-registered: margin shown excl. VAT',
-      margin != null ? `Margin: ${rand(margin)}` : '',
-    ].filter(Boolean).join(' · ');
+    const costCents = Math.round((Number(form.cost.value) || 0) * 100);
+    const own = form.markupPct.value === '' ? null : Number(form.markupPct.value);
+    const markup = own != null ? { pct: own, from: 'this product' } : inheritedMarkup(form.categoryId.value);
+    const rate = cfg.vatRatePct / 100;
+    // Mirrors server/pricing.js: cost x (1+VAT) x (1+markup), rounded up to the next rand.
+    const priceCents = manual
+      ? Math.round((Number(form.price.value) || 0) * 100)
+      : Math.ceil(Math.round(costCents * (1 + rate) * (1 + markup.pct / 100)) / 100) * 100;
+    if (!manual) form.price.value = (priceCents / 100).toFixed(2);
+    const b = priceBreakdown(costCents, priceCents, cfg);
+    setHtml(
+      $('#price-preview', root),
+      `<div class="meta-list" style="font-family:var(--font);font-size:0.9rem;letter-spacing:0">
+        <div><span>Cost price (excl VAT)</span><span>${rand(b.cost)}</span></div>
+        <div><span>+ VAT ${cfg.vatRatePct}%</span><span>${rand(b.vat)}</span></div>
+        <div><span><strong>= Purchase price</strong></span><strong>${rand(b.purchase)}</strong></div>
+        <div><span>+ Profit ${manual ? '(manual price)' : `${markup.pct}% (${h(markup.from)})`}</span><span class="${b.profit < 0 ? 'money-up' : 'money-down'}">${rand(b.profit)} · ${b.profitPct}</span></div>
+        <div style="border-bottom:0"><span><strong>= Selling price</strong></span><strong class="price-preview">${rand(b.price)}</strong></div>
+      </div>`,
+    );
+    $('#price-help', root).textContent = manual
+      ? 'Manual price: it stays fixed even if the supplier cost changes.'
+      : 'Rounded up to the next rand, so the actual profit % can be slightly above the markup. Recalculated automatically when the supplier cost changes.';
     $$('[data-show]', root).forEach((el) => el.classList.toggle('hidden', el.dataset.show !== form.fulfilment.value));
   };
   form.addEventListener('input', updatePricing);
@@ -547,8 +589,8 @@ routes.feed = async () => {
       </div>
       <div class="panel">
         <div class="section-head"><h3>Recent imports</h3>${facets.pendingImages ? `<span class="badge info">${facets.pendingImages} photos downloading</span>` : ''}</div>
-        <div class="table-wrap"><table class="catalog"><thead><tr><th>File</th><th class="num">Rows</th><th class="num">New</th><th class="num">Cost changes</th><th class="num">Repriced</th></tr></thead><tbody>
-          ${facets.imports.map((i) => `<tr><td>${h(i.file_name)} <span class="badge neutral">${h(i.format || 'xlsx')}</span><br><span class="muted">${h(fmtDate(i.created_at))}</span></td><td class="num">${i.rows_total}</td><td class="num">${i.rows_new}</td><td class="num">${i.price_changes}</td><td class="num">${i.products_repriced}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">—</td></tr>'}
+        <div class="table-wrap"><table class="catalog"><thead><tr><th>File</th><th class="num">Rows</th><th class="num">New</th><th class="num">Cost changes</th><th class="num">Repriced</th><th></th></tr></thead><tbody>
+          ${facets.imports.map((i) => `<tr style="cursor:default"><td>${h(i.file_name)} <span class="badge neutral">${h(i.format || 'xlsx')}</span><br><span class="muted">${h(fmtDate(i.created_at))}</span></td><td class="num">${i.rows_total}</td><td class="num">${i.rows_new}</td><td class="num">${i.price_changes}</td><td class="num">${i.products_repriced}</td><td class="num"><button class="btn small btn-danger" data-del-import="${h(i.id)}" data-file="${h(i.file_name)}">Delete</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">—</td></tr>'}
         </tbody></table></div>
         <button class="btn small" id="retry-photos" style="margin-top:0.6rem">Retry failed photo downloads</button>
       </div>
@@ -644,6 +686,22 @@ routes.feed = async () => {
       fail(err);
       $('#import-status', root).textContent = '';
     } finally {
+      btn.disabled = false;
+    }
+  });
+
+  root.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-del-import]');
+    if (!btn) return;
+    const ok = confirm(`Delete the import “${btn.dataset.file}”?\n\nThis removes it from the history and deletes the warehouse items that came only from this file.\n\nProducts already listed in your shop are NOT affected, and items updated by a newer import are kept.`);
+    if (!ok) return;
+    btn.disabled = true;
+    try {
+      const r = await api(`/feed/imports/${encodeURIComponent(btn.dataset.delImport)}`, { method: 'DELETE' });
+      toast(`Import deleted · ${r.itemsDeleted} warehouse item(s) removed${r.itemsKeptBecauseListed ? ` · ${r.itemsKeptBecauseListed} kept (listed in shop)` : ''}`);
+      reload();
+    } catch (err) {
+      fail(err);
       btn.disabled = false;
     }
   });
