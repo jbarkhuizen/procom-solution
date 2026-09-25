@@ -31,9 +31,9 @@ async function renderCategories() {
 
 async function renderFeatured() {
   const el = document.getElementById('hero-featured');
-  setHtml(el, '<div class="aspect-square skeleton"></div>'.repeat(4));
+  setHtml(el, '<div class="h-44 skeleton"></div>'.repeat(4));
   let { items } = await api('/api/products?featured=1&pageSize=4');
-  if (items.length < 4) items = items.concat((await api('/api/products?sort=newest&pageSize=8')).items.filter((p) => !items.some((f) => f.id === p.id))).slice(0, 4);
+  if (items.length < 4) items = items.concat((await api('/api/products?sort=newest&pageSize=10')).items.filter((p) => !items.some((f) => f.id === p.id))).slice(0, 4);
   if (!items.length) {
     el.classList.add('hidden');
     return;
@@ -42,10 +42,10 @@ async function renderFeatured() {
     el,
     items
       .map(
-        (p) => `<a href="${productUrl(p)}" class="group bg-cream/85 border-2 border-charcoal/15 rounded-sm p-3 hover:border-terracotta transition-colors">
-        <div class="aspect-square bg-white rounded-sm overflow-hidden flex items-center justify-center mb-2">${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" class="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform">` : ''}</div>
-        <p class="text-xs font-medium leading-tight line-clamp-2 group-hover:text-terracotta">${esc(p.name)}</p>
-        <p class="text-terracotta font-semibold text-sm mt-1">${formatRand(p.priceCents)}</p>
+        (p) => `<a href="${productUrl(p)}" class="group bg-cream/85 border-2 border-charcoal/15 rounded-sm p-2.5 hover:border-terracotta transition-colors">
+        <div class="h-28 bg-white rounded-sm overflow-hidden flex items-center justify-center mb-2">${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" class="pc-img group-hover:scale-105 transition-transform">` : ''}</div>
+        <p class="text-[0.72rem] font-medium leading-tight line-clamp-2 group-hover:text-terracotta">${esc(p.name)}</p>
+        <p class="text-terracotta font-semibold text-[0.8rem] mt-1">${formatRand(p.priceCents)}</p>
       </a>`,
       )
       .join(''),
@@ -54,8 +54,8 @@ async function renderFeatured() {
 
 async function renderNew() {
   const el = document.getElementById('new-products');
-  setHtml(el, skeletonCards(8));
-  const { items } = await api('/api/products?sort=newest&pageSize=8');
+  setHtml(el, skeletonCards(10));
+  const { items } = await api('/api/products?sort=newest&pageSize=10');
   remember(items);
   if (!items.length) {
     setHtml(el, '<p class="text-espresso/60 col-span-full">New products are being added — check back soon.</p>');

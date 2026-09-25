@@ -83,8 +83,8 @@ async function load() {
   form.sort.value = s.sort;
   form.inStock.checked = s.inStock;
   renderHeader(s);
-  setHtml(grid, skeletonCards(8));
-  const params = new URLSearchParams({ page: s.page, sort: s.sort, pageSize: 24 });
+  setHtml(grid, skeletonCards(10));
+  const params = new URLSearchParams({ page: s.page, sort: s.sort, pageSize: 30 });
   if (s.category) params.set('category', s.category);
   if (s.q) params.set('q', s.q);
   if (s.brand) params.set('brand', s.brand);

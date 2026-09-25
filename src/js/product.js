@@ -43,12 +43,12 @@ function setMeta(p) {
 
 function gallery(p) {
   if (!p.images.length) {
-    return `<div class="aspect-square bg-white border border-charcoal/10 rounded-sm flex items-center justify-center"><span class="text-espresso/35 text-xs uppercase tracking-[0.2em]">Photo coming soon</span></div>`;
+    return `<div class="h-52 bg-white border border-charcoal/10 rounded-sm flex items-center justify-center"><span class="text-espresso/35 text-xs uppercase tracking-[0.2em]">Photo coming soon</span></div>`;
   }
   const thumbs = p.images.length > 1
     ? `<div class="gallery-thumb-strip flex-wrap">${p.images.map((src, i) => `<button type="button" class="gallery-thumb-btn bg-white" data-thumb="${i}" aria-label="Show image ${i + 1}" ${i === 0 ? 'aria-current="true"' : ''}><img src="${esc(src)}" alt="" class="w-full h-full object-contain"></button>`).join('')}</div>`
     : '';
-  return `<div class="aspect-square bg-white border border-charcoal/10 rounded-sm overflow-hidden flex items-center justify-center"><img id="main-img" src="${esc(p.images[0])}" alt="${esc(p.name)}" class="w-full h-full object-contain p-6"></div>${thumbs}`;
+  return `<div class="h-52 md:h-60 bg-white border border-charcoal/10 rounded-sm overflow-hidden flex items-center justify-center p-4"><img id="main-img" src="${esc(p.images[0])}" alt="${esc(p.name)}" class="pd-img"></div>${thumbs}`;
 }
 
 async function load() {
@@ -70,35 +70,48 @@ async function load() {
   const sale = p.compareAtCents && p.compareAtCents > p.priceCents;
   const crumbs = ['<a href="/" class="hover:text-terracotta">Home</a>', '<a href="/shop.html" class="hover:text-terracotta">Shop</a>', ...breadcrumb.map((c) => `<a href="/shop.html?category=${encodeURIComponent(c.slug)}" class="hover:text-terracotta">${esc(c.name)}</a>`)];
   const specs = p.specs.length
-    ? `<div class="spec-panel mt-8"><table class="w-full text-sm"><tbody>${p.specs.map((s) => `<tr class="border-b border-charcoal/10 last:border-0"><th class="text-left font-semibold py-2.5 pr-4 align-top w-2/5">${esc(s.label)}</th><td class="py-2.5 text-espresso/75">${esc(s.value)}</td></tr>`).join('')}</tbody></table></div>`
+    ? `<div class="spec-panel mt-5"><table class="w-full text-[0.82rem]"><tbody>${p.specs.map((s) => `<tr class="border-b border-charcoal/10 last:border-0"><th class="text-left font-semibold py-1.5 pr-4 align-top w-2/5">${esc(s.label)}</th><td class="py-1.5 text-espresso/75">${esc(s.value)}</td></tr>`).join('')}</tbody></table></div>`
     : '';
   setHtml(
     root,
-    `<nav class="text-xs text-espresso/50 mb-6" aria-label="Breadcrumb">${crumbs.join(' / ')}</nav>
-    <div class="grid md:grid-cols-2 gap-10 lg:gap-14 items-start">
+    `<nav class="text-xs text-espresso/50 mb-4" aria-label="Breadcrumb">${crumbs.join(' / ')}</nav>
+    <div class="grid md:grid-cols-[minmax(0,280px)_1fr] gap-6 lg:gap-10 items-start">
       <div class="md:sticky md:top-24">${gallery(p)}</div>
       <div>
         ${p.brand ? `<p class="eyebrow mb-3">${esc(p.brand)}</p>` : ''}
-        <h1 class="font-serif text-3xl md:text-4xl leading-tight tracking-tight mb-4">${esc(p.name)}</h1>
-        <p class="mb-4"><span class="text-3xl font-semibold text-terracotta">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-espresso/45 ml-2">${formatRand(p.compareAtCents)}</s>` : ''}</p>
-        <div class="flex flex-wrap items-center gap-3 mb-6">${availabilityPill(p)}<span class="text-xs text-espresso/60">${esc(p.availability)}</span></div>
-        ${p.shortDescription ? `<p class="text-espresso/80 leading-relaxed mb-6">${esc(p.shortDescription)}</p>` : ''}
+        <h1 class="font-serif text-2xl md:text-[1.75rem] leading-tight tracking-tight mb-2">${esc(p.name)}</h1>
+        <p class="mb-2"><span class="text-2xl font-semibold text-terracotta">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-espresso/45 ml-2">${formatRand(p.compareAtCents)}</s>` : ''}</p>
+        <div class="flex flex-wrap items-center gap-2 mb-3">${availabilityPill(p)}<span class="text-xs text-espresso/60">${esc(p.availability)}</span></div>
+        ${p.shortDescription ? `<p class="text-sm text-espresso/80 leading-relaxed mb-3">${esc(p.shortDescription)}</p>` : ''}
         ${p.inStock ? `<div class="flex flex-wrap items-center gap-3 mb-3">
           <div class="qty"><button type="button" data-step="-1" aria-label="Decrease">−</button><input id="qty" type="number" value="${min}" min="${min}" ${p.stockQty != null ? `max="${Number(p.stockQty)}"` : ''} aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase">+</button></div>
-          <button type="button" id="add-btn" class="magnetic-btn flex-1 min-w-[12rem] bg-charcoal text-cream rounded-full px-8 py-3.5 text-sm font-semibold brutal hover:bg-terracotta">Add to cart</button>
+          <button type="button" id="add-btn" class="magnetic-btn flex-1 sm:flex-none sm:w-60 bg-charcoal text-cream rounded-full px-6 py-2.5 text-sm font-semibold brutal hover:bg-terracotta">Add to cart</button>
         </div>
         ${min > 1 ? `<p class="text-xs text-espresso/60 mb-3">Sold in quantities of ${min} or more.</p>` : ''}` : `<p class="text-sm text-espresso/70 mb-4">This item is currently unavailable. WhatsApp us and we'll let you know when it's back or suggest an alternative.</p>`}
         <a href="${esc(whatsappLink(site, `Hi Procom, I have a question about ${p.name} (${p.sku}).`))}" target="_blank" rel="noopener noreferrer" class="inline-flex text-sm font-semibold border-2 border-charcoal rounded-full px-5 py-2.5 hover:bg-charcoal hover:text-cream transition-colors">Ask about this product</a>
-        <div class="flex items-start gap-2.5 rounded-sm border border-charcoal/10 bg-linen/60 p-4 text-sm text-espresso/70 mt-8">
+        <div class="flex items-start gap-2 rounded-sm border border-charcoal/10 bg-linen/60 px-3 py-2.5 text-xs text-espresso/70 mt-4">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 mt-0.5"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Delivered nationwide via PUDO locker or courier, or local delivery in Pretoria East. Delivery options and costs are shown at checkout.</span>
         </div>
-        ${p.description ? `<div class="rich-text text-espresso/80 leading-relaxed mt-8">${paragraphs(p.description)}</div>` : ''}
+        ${p.description ? `<div class="rich-text text-sm text-espresso/80 leading-relaxed mt-5">${paragraphs(p.description)}</div>` : ''}
         ${specs}
-        <p class="text-xs text-espresso/45 mt-6">SKU: ${esc(p.sku)}</p>
+        <p class="text-xs text-espresso/45 mt-3">SKU: ${esc(p.sku)}</p>
       </div>
     </div>`,
   );
+
+  // Show a photo at up to 1.4x its real pixels (CSS max-width/height then
+  // keep it inside the frame): 113px supplier photos render ~158px and stay
+  // crisp, while sharper uploaded photos fill the frame.
+  const mainImg = document.getElementById('main-img');
+  if (mainImg) {
+    const fit = () => {
+      if (!mainImg.naturalWidth) return;
+      mainImg.style.width = `${Math.round(mainImg.naturalWidth * 1.4)}px`;
+    };
+    mainImg.addEventListener('load', fit);
+    if (mainImg.complete) fit();
+  }
 
   root.addEventListener('click', (e) => {
     const thumb = e.target.closest('[data-thumb]');

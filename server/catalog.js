@@ -190,7 +190,7 @@ export function getPublicProductBySlug(slug, db = getDb()) {
   const product = rowToProduct(row);
   const breadcrumb = categoryChain(row.category_id, db).reverse().map((c) => ({ name: c.name, slug: c.slug }));
   const related = db
-    .prepare(`${PRODUCT_SELECT} WHERE p.active = 1 AND p.category_id = ? AND p.id != ? ORDER BY p.featured DESC, RANDOM() LIMIT 4`)
+    .prepare(`${PRODUCT_SELECT} WHERE p.active = 1 AND p.category_id = ? AND p.id != ? ORDER BY p.featured DESC, RANDOM() LIMIT 5`)
     .all(row.category_id, row.id)
     .map((r) => rowToProduct(r));
   return { product, breadcrumb, related };

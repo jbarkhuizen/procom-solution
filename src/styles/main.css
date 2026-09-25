@@ -539,6 +539,11 @@ select option { background-color: #fffdf8; color: #1a1612; }
 .product-card { position: relative; background: var(--card-soft); transition: border-color 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease; }
 .product-card:hover { transform: translateY(-3px); box-shadow: 6px 6px 0 0 color-mix(in srgb, var(--color-charcoal) 18%, transparent); }
 .product-card .img-wrap { background: #fff; }
+/* Supplier photos are ~113px; never enlarge them much beyond that or they blur. */
+.pc-img { width: auto; height: auto; max-width: min(80%, 124px); max-height: 124px; object-fit: contain; }
+/* Product page photo; product.js further caps it at 1.6x its real pixel size. */
+.pd-img { width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+.gallery-thumb-btn { width: 44px; height: 44px; background: #fff; }
 .product-card .img-wrap img { mix-blend-mode: multiply; }
 [data-theme="dark"] .product-card .img-wrap img { mix-blend-mode: normal; }
 

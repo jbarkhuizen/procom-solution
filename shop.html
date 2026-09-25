@@ -13,17 +13,17 @@
 <body class="font-sans antialiased" data-page="shop">
 <!-- @include shell-top -->
 
-<main id="main" class="flex-1 px-6 sm:px-10 lg:px-14 py-10 md:py-14">
+<main id="main" class="flex-1 px-5 sm:px-8 lg:px-12 py-6 md:py-8">
   <div class="mx-auto w-full max-w-7xl">
-    <nav class="text-xs text-espresso/50 mb-4" aria-label="Breadcrumb" id="crumbs"><a href="/" class="hover:text-terracotta">Home</a> / <span class="text-espresso/80">Shop</span></nav>
-    <div class="flex flex-wrap items-end justify-between gap-4 mb-3">
-      <h1 class="font-serif text-4xl md:text-5xl tracking-tight" id="shop-title">All products</h1>
+    <nav class="text-xs text-espresso/50 mb-2" aria-label="Breadcrumb" id="crumbs"><a href="/" class="hover:text-terracotta">Home</a> / <span class="text-espresso/80">Shop</span></nav>
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-2">
+      <h1 class="font-serif text-3xl md:text-[2.4rem] tracking-tight leading-tight" id="shop-title">All products</h1>
       <p class="text-sm text-espresso/60" id="result-count" aria-live="polite"></p>
     </div>
-    <p class="text-espresso/75 leading-relaxed max-w-2xl mb-6 hidden" id="shop-desc"></p>
-    <div id="subcats" class="flex flex-wrap gap-2 mb-6"></div>
+    <p class="text-sm text-espresso/75 leading-relaxed max-w-2xl mb-3 hidden" id="shop-desc"></p>
+    <div id="subcats" class="flex flex-wrap gap-2 mb-3"></div>
 
-    <form id="filters" class="flex flex-wrap items-center gap-3 border-y border-charcoal/10 py-4 mb-8">
+    <form id="filters" class="flex flex-wrap items-center gap-2 border-y border-charcoal/10 py-2.5 mb-5">
       <label class="sr-only" for="f-q">Search</label>
       <input id="f-q" name="q" type="search" placeholder="Search in results…" class="form-input !w-auto flex-1 min-w-[12rem] !rounded-full !py-2">
       <label class="sr-only" for="f-brand">Brand</label>
@@ -39,8 +39,8 @@
       <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer"><input id="f-stock" name="inStock" type="checkbox" value="1" class="accent-terracotta w-4 h-4"> In stock only</label>
     </form>
 
-    <div id="grid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"></div>
-    <nav id="pager" class="pager flex flex-wrap justify-center gap-1.5 mt-12" aria-label="Pages"></nav>
+    <div id="grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
+    <nav id="pager" class="pager flex flex-wrap justify-center gap-1.5 mt-8" aria-label="Pages"></nav>
   </div>
 </main>
 
