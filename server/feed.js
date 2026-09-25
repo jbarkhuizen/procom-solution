@@ -31,6 +31,35 @@ export function parseMinOrderQty(name) {
   return m ? clampInt(m[1], 1, 10_000, 1) : 1;
 }
 
+// Supplier section headings are kept verbatim: re-casing mangles product
+// acronyms (PETG, RFID, CR-PLA), and they're only used for admin filtering.
+function sectionTitle(text) {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+// No brand column: SMD workbooks have one sheet per brand, so a real sheet
+// name ("Logitech") is a good guess; generic ones ("Sheet1") are not.
+function sheetBrand(format, tableName) {
+  return format === 'xlsx' && tableName && !/^sheet\s*\d*$/i.test(tableName) ? tableName : '';
+}
+
+// Single-brand pricelists (e.g. Creality's) have no brand column, but most
+// names start with the brand. If one first word covers 40%+ of a table's
+// items, apply it to the items still without a brand.
+function fillDominantBrand(tableItems) {
+  const missing = tableItems.filter((it) => !it.brand);
+  if (!missing.length) return;
+  const counts = new Map();
+  for (const it of tableItems) {
+    const w = (it.name.split(' ')[0] || '').replace(/[^A-Za-z0-9&-]/g, '');
+    if (w.length > 1) counts.set(w.toLowerCase(), { word: w, n: (counts.get(w.toLowerCase())?.n || 0) + 1 });
+  }
+  const top = [...counts.values()].sort((a, b) => b.n - a.n)[0];
+  if (!top || top.n / tableItems.length < 0.4) return;
+  const brand = top.word === top.word.toUpperCase() ? top.word[0] + top.word.slice(1).toLowerCase() : top.word;
+  for (const it of missing) it.brand = brand;
+}
+
 function columnIndex(headers, header) {
   if (!header) return -1;
   const n = normHeader(header);
@@ -47,11 +76,20 @@ export function itemsFromTables(parsed, mapping = {}, { pricesIncludeVat = false
     const guess = guessMapping(table.headers);
     const col = {};
     for (const f of FIELDS) col[f] = columnIndex(table.headers, mapping[f] === undefined ? guess[f] : mapping[f]);
+    let section = ''; // e.g. "FDM PRINTERS" heading rows between product groups
+    const tableStart = items.length;
     table.rows.forEach((row, i) => {
       const get = (f) => (col[f] >= 0 ? String(row[col[f]] ?? '').trim() : '');
       const code = get('code');
       const name = get('name').replace(/\s+/g, ' ');
       let costCents = parseRandToCents(get('cost'));
+      // No code and no price: a section heading or a note, never a product.
+      // Short text becomes the category for the rows below (links ignored).
+      if (!code && costCents == null) {
+        const text = (name || row.map((c) => String(c ?? '').trim()).find((c) => c && !/^https?:\/\//i.test(c)) || '').trim();
+        if (text && text.length <= 80) section = sectionTitle(text);
+        return;
+      }
       if (!code) return void problems.noCode++;
       if (!name) return void problems.noName++;
       if (costCents == null || costCents <= 0) return void problems.noCost++;
@@ -60,9 +98,8 @@ export function itemsFromTables(parsed, mapping = {}, { pricesIncludeVat = false
       items.push({
         code,
         name,
-        // SMD workbooks: one sheet per brand, so the sheet name is a sensible fallback.
-        brand: get('brand') || (parsed.format === 'xlsx' ? table.name : ''),
-        category: get('category'),
+        brand: get('brand') || sheetBrand(parsed.format, table.name),
+        category: get('category') || section,
         costCents,
         minOrderQty: get('moq') ? clampInt(get('moq'), 1, 10_000, 1) : parseMinOrderQty(name),
         sheet: table.name,
@@ -70,6 +107,7 @@ export function itemsFromTables(parsed, mapping = {}, { pricesIncludeVat = false
         imageUrl,
       });
     });
+    fillDominantBrand(items.slice(tableStart));
   }
   return { items, problems };
 }

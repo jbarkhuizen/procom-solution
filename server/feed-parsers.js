@@ -16,13 +16,14 @@ const ALIASES = {
   category: ['category', 'group', 'product type', 'type', 'department', 'product category', 'category name'],
   // Order = priority: true cost columns first; retail/RRP only as a last resort
   // (the preview shows what matched, and the admin can change it).
-  cost: ['cost excl vat', 'cost ex vat', 'cost', 'price excl vat', 'price ex vat', 'dealer price', 'price', 'unit price', 'wholesale price', 'cost price', 'your price', 'nett price', 'net price', 'price incl vat', 'selling price', 'retail price', 'retail', 'rrp'],
+  cost: ['cost excl vat', 'cost ex vat', 'cost', 'price excl vat', 'price ex vat', 'wholesale', 'wholesale price', 'dealer price', 'dealer', 'trade price', 'trade', 'reseller price', 'price', 'unit price', 'cost price', 'your price', 'nett price', 'net price', 'price incl vat', 'selling price', 'retail price', 'retail', 'rrp', 'rsp'],
   image: ['image', 'image url', 'picture', 'pictures', 'photo', 'image link', 'img', 'image src', 'thumbnail', 'main image'],
   moq: ['moq', 'min order qty', 'minimum order quantity', 'min qty', 'pack size', 'minimum quantity'],
 };
 
 export function normHeader(h) {
   return String(h ?? '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // "ProductCode" -> "Product Code"
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();

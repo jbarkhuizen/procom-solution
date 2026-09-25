@@ -134,6 +134,26 @@ test('import via preview token; flyer-style partial imports never mark products 
   assert.equal(r.productsMarkedOut, 1);
 });
 
+test('single-brand lists: camelCase headings, "Wholesale" cost, section rows, dominant brand', async () => {
+  const csv = [
+    'ProductCode,Creality code,ProductDescription,RSP,Wholesale,ETA / NOTE,Link',
+    ',,FDM PRINTERS,,,,',
+    'ENDER-3V3,1001020552,Creality Ender 3V3 3D Printer,6499,4699,PROMO,https://example.com/e3',
+    'CR-K2,1002110119,Creality K2 3D Printer,12999,9599,,',
+    ',,CREALITY HYPER PLA (up to 600mm/s),,,,https://example.com/hyper',
+    '3301010335,,Hyper PLA High Speed White Filament 1Kg,449.99,289.99,,',
+    ',,For information on engraving parameters please see the very long note on our wiki page that goes on and on and on,,,NEW,',
+    '4008030178,,Creality Ease air purifier filter,TBC,,OCTOBER,',
+  ].join('\n');
+  const { items: out, problems } = await items('creality.csv', csv);
+  assert.deepEqual(out.map((i) => [i.code, i.costCents, i.category, i.brand]), [
+    ['ENDER-3V3', 469900, 'FDM PRINTERS', 'Creality'],
+    ['CR-K2', 959900, 'FDM PRINTERS', 'Creality'],
+    ['3301010335', 28999, 'CREALITY HYPER PLA (up to 600mm/s)', 'Creality'],
+  ]);
+  assert.deepEqual(problems, { noCode: 0, noName: 0, noCost: 1 }); // "TBC" price; headings/notes aren't problems
+});
+
 test('partial (flyer) imports update only the cost of known items', async () => {
   await feed.importFile({ supplierId, fileName: 'full.csv', buffer: buf('code,name,brand,category,price\nF1,Lotus Floating Shelf,Fenda,Furniture,200\n') });
   await feed.importFile({ supplierId, fileName: 'flyer.csv', buffer: buf('code,name,brand,price\nF1,Lotus Floating Shelf - Set,Lotus,150\nF9,New Promo Item,Lotus,50\n'), completeList: false });
