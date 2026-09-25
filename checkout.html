@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Checkout — Procom Solutions</title>
+<meta name="robots" content="noindex">
+<!-- @include head -->
+<script type="module" src="/src/js/checkout.js"></script>
+</head>
+<body class="font-sans antialiased" data-page="checkout">
+<!-- @include shell-top -->
+
+<main id="main" class="flex-1 px-6 sm:px-10 lg:px-14 py-10 md:py-14">
+  <div class="mx-auto w-full max-w-6xl">
+    <p class="eyebrow mb-3">Secure checkout</p>
+    <h1 class="font-serif text-4xl md:text-5xl tracking-tight mb-8">Checkout</h1>
+    <div id="notice" class="hidden rounded-sm border-2 p-4 text-sm mb-6"></div>
+
+    <div id="empty" class="hidden text-center py-20">
+      <p class="font-serif text-2xl mb-2">Your cart is empty</p>
+      <a href="/shop.html" class="inline-flex mt-4 bg-charcoal text-cream rounded-full px-5 py-2.5 text-sm font-semibold hover:bg-terracotta">Browse products</a>
+    </div>
+
+    <form id="checkout-form" class="grid lg:grid-cols-[1fr_380px] gap-10 items-start" novalidate>
+      <div class="space-y-10">
+        <fieldset>
+          <legend class="font-serif text-2xl tracking-tight mb-4">1. Your details</legend>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div><label class="form-label" for="firstName">First name</label><input class="form-input" id="firstName" name="firstName" autocomplete="given-name" required></div>
+            <div><label class="form-label" for="lastName">Last name</label><input class="form-input" id="lastName" name="lastName" autocomplete="family-name" required></div>
+            <div><label class="form-label" for="email">Email</label><input class="form-input" id="email" name="email" type="email" autocomplete="email" required></div>
+            <div><label class="form-label" for="phone">Cellphone</label><input class="form-input" id="phone" name="phone" type="tel" autocomplete="tel" required placeholder="082 000 0000"></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend class="font-serif text-2xl tracking-tight mb-1">2. Delivery</legend>
+          <p class="text-sm text-espresso/60 mb-4">Order weight: <span id="weight">—</span></p>
+          <div id="ship-options" class="space-y-6"></div>
+
+          <div id="pudo-fields" class="hidden mt-6">
+            <label class="form-label" for="pudoLocker">PUDO locker (name or code)</label>
+            <input class="form-input" id="pudoLocker" name="pudoLocker" placeholder="e.g. Menlyn Maine PUDO – CG123">
+            <p class="text-xs text-espresso/55 mt-1.5">Find your nearest locker at <a class="underline hover:text-terracotta" href="https://customer.pudo.co.za/" target="_blank" rel="noopener noreferrer">pudo.co.za</a>. For Locker-to-Door, please fill in your address below too.</p>
+          </div>
+
+          <div id="address-fields" class="grid sm:grid-cols-2 gap-4 mt-6">
+            <div class="sm:col-span-2"><label class="form-label" for="addressLine1">Street address</label><input class="form-input" id="addressLine1" name="addressLine1" autocomplete="address-line1"></div>
+            <div class="sm:col-span-2"><label class="form-label" for="addressLine2">Complex / unit (optional)</label><input class="form-input" id="addressLine2" name="addressLine2" autocomplete="address-line2"></div>
+            <div><label class="form-label" for="suburb">Suburb</label><input class="form-input" id="suburb" name="suburb" autocomplete="address-level3"></div>
+            <div><label class="form-label" for="city">City</label><input class="form-input" id="city" name="city" autocomplete="address-level2"></div>
+            <div><label class="form-label" for="province">Province</label>
+              <select class="form-input" id="province" name="province" autocomplete="address-level1">
+                <option value="">Select…</option><option>Gauteng</option><option>Western Cape</option><option>KwaZulu-Natal</option><option>Eastern Cape</option><option>Free State</option><option>Limpopo</option><option>Mpumalanga</option><option>North West</option><option>Northern Cape</option>
+              </select>
+            </div>
+            <div><label class="form-label" for="postalCode">Postal code</label><input class="form-input" id="postalCode" name="postalCode" autocomplete="postal-code" inputmode="numeric"></div>
+          </div>
+          <div class="mt-4"><label class="form-label" for="notes">Delivery notes (optional)</label><textarea class="form-input" id="notes" name="notes" rows="2" placeholder="Gate code, best time to deliver…"></textarea></div>
+        </fieldset>
+
+        <fieldset>
+          <legend class="font-serif text-2xl tracking-tight mb-4">3. Payment</legend>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <label class="ship-option"><input type="radio" name="paymentMethod" value="payfast_card" checked><span><span class="block text-sm font-semibold">Card</span><span class="block text-xs text-espresso/60">Visa, Mastercard via Payfast</span></span></label>
+            <label class="ship-option"><input type="radio" name="paymentMethod" value="payfast_eft"><span><span class="block text-sm font-semibold">Instant EFT</span><span class="block text-xs text-espresso/60">Pay from your bank via Payfast</span></span></label>
+          </div>
+          <label class="flex items-start gap-2.5 text-sm mt-5 cursor-pointer"><input type="checkbox" name="terms" required class="mt-1 accent-terracotta"> <span>I accept the <a href="/terms.html" target="_blank" class="underline hover:text-terracotta">Terms &amp; Conditions</a> and <a href="/returns.html" target="_blank" class="underline hover:text-terracotta">Returns Policy</a>.</span></label>
+        </fieldset>
+      </div>
+
+      <aside class="lg:sticky lg:top-24 border-2 border-charcoal rounded-sm p-6 bg-linen/40 brutal">
+        <p class="font-serif text-xl mb-4">Order summary</p>
+        <div id="summary-items" class="space-y-3 text-sm mb-4"></div>
+        <dl class="text-sm space-y-2 border-t border-charcoal/15 pt-4">
+          <div class="flex justify-between"><dt class="text-espresso/70">Subtotal</dt><dd id="sum-subtotal">R 0.00</dd></div>
+          <div class="flex justify-between"><dt class="text-espresso/70">Delivery</dt><dd id="sum-shipping">—</dd></div>
+          <div class="flex justify-between text-lg font-semibold border-t border-charcoal/15 pt-3"><dt>Total</dt><dd id="sum-total">R 0.00</dd></div>
+        </dl>
+        <p id="form-error" class="hidden text-sm text-terracotta font-medium mt-4" role="alert"></p>
+        <button type="submit" id="pay-btn" class="w-full mt-5 bg-charcoal text-cream rounded-full px-6 py-4 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Pay securely with Payfast</button>
+        <p class="text-[0.7rem] text-espresso/55 mt-3 text-center">You'll be redirected to Payfast to complete payment.</p>
+      </aside>
+    </form>
+  </div>
+</main>
+
+<!-- @include shell-bottom -->
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Get in Touch — Procom Solutions</title>
+<meta name="description" content="Contact Procom Solutions in Pretoria — WhatsApp, phone or email. Ask about products, sourcing or your order.">
+<link rel="canonical" href="https://www.procompretoria.co.za/contact.html">
+<!-- @include head -->
+<script type="module" src="/src/js/contact.js"></script>
+</head>
+<body class="font-sans antialiased" data-page="contact">
+<!-- @include shell-top -->
+
+<main id="main" class="flex-1 px-6 sm:px-10 lg:px-14 py-12 md:py-20">
+  <div class="mx-auto max-w-6xl grid md:grid-cols-2 gap-14 md:gap-20">
+    <div>
+      <p class="eyebrow mb-4">Get in touch</p>
+      <h1 class="font-serif text-4xl md:text-5xl leading-[1.05] mb-8 tracking-[-0.02em]">We reply fastest<br>on WhatsApp.</h1>
+      <div class="flex flex-col max-w-sm text-espresso/85 text-lg">
+        <a data-site-href="tel" data-site="contactPhone" href="tel:+27826639608" class="contact-link font-medium">082 663 9608</a>
+        <a data-site-href="whatsapp" href="https://api.whatsapp.com/send?phone=27826639608" class="contact-link font-medium" target="_blank" rel="noopener noreferrer">WhatsApp us</a>
+        <a data-site-href="mailto" data-site="contactEmail" href="mailto:lapanzaonline@gmail.com" class="contact-link font-medium break-all">lapanzaonline@gmail.com</a>
+        <p class="pt-5 text-espresso/55 text-sm leading-relaxed">Pretoria East, Gauteng<br><span data-site="hours"></span></p>
+      </div>
+      <p class="text-sm text-espresso/65 leading-relaxed mt-10 max-w-md">Looking for something that isn't listed? Send us the model number or a photo — our warehouse partner carries thousands of products and we'll quote you.</p>
+    </div>
+    <form id="contact-form" class="border-2 border-charcoal rounded-sm p-7 md:p-9 bg-linen/40 brutal-lg space-y-4 self-start">
+      <p class="font-serif text-2xl tracking-tight mb-2">Send us a message</p>
+      <div><label class="form-label" for="c-name">Name</label><input class="form-input" id="c-name" name="name" required autocomplete="name"></div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div><label class="form-label" for="c-email">Email</label><input class="form-input" id="c-email" name="email" type="email" required autocomplete="email"></div>
+        <div><label class="form-label" for="c-phone">Phone (optional)</label><input class="form-input" id="c-phone" name="phone" type="tel" autocomplete="tel"></div>
+      </div>
+      <div><label class="form-label" for="c-msg">Message</label><textarea class="form-input" id="c-msg" name="message" rows="5" required></textarea></div>
+      <div class="hidden" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+      <button type="submit" class="w-full bg-charcoal text-cream rounded-full px-6 py-3.5 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Send message</button>
+      <p id="c-result" class="text-sm hidden" role="status"></p>
+    </form>
+  </div>
+</main>
+
+<!-- @include shell-bottom -->
+</body>
+</html>

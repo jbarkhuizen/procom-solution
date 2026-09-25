@@ -1,0 +1,44 @@
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="site-grain" aria-hidden="true"></div>
+
+<div class="announce-bar brand-lock text-center text-[0.7rem] tracking-[0.14em] uppercase font-semibold px-4 py-2" data-site="announcement">Nationwide delivery via PUDO &amp; courier · Secure Payfast checkout</div>
+
+<div id="sidebar-drawer" class="hidden md:hidden fixed inset-0 z-50 bg-cream overflow-y-auto px-6 py-6">
+  <div class="flex justify-end mb-4">
+    <button type="button" data-drawer-close class="border-2 border-charcoal rounded-full px-4 py-2 text-xs uppercase tracking-wide font-semibold">Close</button>
+  </div>
+  <nav data-site-nav class="site-sidebar text-sm" aria-label="Categories"></nav>
+</div>
+
+<div class="md:flex">
+  <aside id="catalogue-sidebar" class="aside-panel hidden md:block w-72 shrink-0 sticky top-0 h-screen overflow-y-auto px-6 pt-8 pb-10" aria-label="Categories">
+    <nav data-site-nav class="site-sidebar text-sm"></nav>
+  </aside>
+
+  <div class="flex-1 min-w-0 flex flex-col min-h-screen">
+    <header id="site-header" class="sticky top-0 z-40 nav-blur border-b border-charcoal/10">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-3 flex items-center gap-3">
+        <a href="/" class="md:hidden brand-mark font-serif text-lg tracking-tight font-semibold shrink-0">Procom <span class="mark-sub">Solutions</span></a>
+        <form action="/shop.html" method="get" role="search" class="hidden sm:flex flex-1 max-w-xl items-center gap-2 border-2 border-charcoal/20 focus-within:border-terracotta rounded-full pl-4 pr-1.5 py-1 transition-colors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" class="shrink-0 opacity-60"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <label for="header-search" class="sr-only">Search products</label>
+          <input id="header-search" name="q" type="search" placeholder="Search headsets, routers, chargers…" autocomplete="off" class="flex-1 min-w-0 bg-transparent outline-none text-sm py-1.5">
+          <button type="submit" class="bg-charcoal text-cream rounded-full px-4 py-1.5 text-xs font-semibold hover:bg-terracotta transition-colors">Search</button>
+        </form>
+        <div class="flex items-center gap-2 ml-auto">
+          <a href="/shop.html" class="sm:hidden w-9 h-9 inline-flex items-center justify-center rounded-full border-2 border-charcoal" aria-label="Search products">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          </a>
+          <button type="button" class="theme-toggle-btn md:hidden !mt-0" data-theme-toggle aria-label="Toggle dark mode">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z"/></svg>
+          </button>
+          <button type="button" data-drawer-open class="md:hidden border-2 border-charcoal rounded-full px-3 py-1.5 text-xs uppercase tracking-wide font-semibold" aria-controls="sidebar-drawer">Menu</button>
+          <button type="button" data-cart-open class="relative inline-flex items-center gap-2 bg-charcoal text-cream rounded-full pl-3 pr-4 py-2 text-xs font-semibold hover:bg-terracotta transition-colors" aria-label="Open cart">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 2H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
+            <span class="hidden sm:inline">Cart</span>
+            <span class="cart-count hidden" data-cart-count>0</span>
+          </button>
+        </div>
+      </div>
+    </header>

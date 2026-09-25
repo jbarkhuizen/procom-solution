@@ -1,0 +1,33 @@
+{
+  "name": "procom-solutions",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Procom Solutions — computer equipment & tech storefront + admin (a Lapanza business)",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "concurrently -n site,api -c cyan,magenta \"npm run dev:site\" \"npm run dev:api\"",
+    "dev:site": "vite",
+    "dev:api": "node --watch server/index.js",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "test": "node --test \"server/**/*.test.js\""
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "cookie-parser": "^1.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.5",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.6",
+    "concurrently": "^10.0.4",
+    "tailwindcss": "^4.0.6",
+    "vite": "^6.1.0"
+  }
+}

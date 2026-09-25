@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /checkout
+Sitemap: https://www.procompretoria.co.za/sitemap.xml

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Thank you — Procom Solutions</title>
+<meta name="robots" content="noindex">
+<!-- @include head -->
+<script type="module" src="/src/js/complete.js"></script>
+</head>
+<body class="font-sans antialiased" data-page="complete">
+<!-- @include shell-top -->
+
+<main id="main" class="flex-1 px-6 sm:px-10 py-16 md:py-24">
+  <div class="mx-auto max-w-xl text-center">
+    <p class="eyebrow mb-4" id="c-eyebrow">Order received</p>
+    <h1 class="font-serif text-4xl md:text-5xl tracking-tight mb-5" id="c-title">Thank you!</h1>
+    <p class="text-espresso/75 leading-relaxed mb-8" id="c-body">We're confirming your payment with Payfast…</p>
+    <div class="border-2 border-charcoal rounded-sm p-6 bg-linen/40 brutal text-left hidden" id="c-card">
+      <dl class="text-sm space-y-2">
+        <div class="flex justify-between"><dt class="text-espresso/65">Order number</dt><dd class="font-semibold" id="c-number"></dd></div>
+        <div class="flex justify-between"><dt class="text-espresso/65">Status</dt><dd id="c-status"></dd></div>
+        <div class="flex justify-between"><dt class="text-espresso/65">Total</dt><dd id="c-total"></dd></div>
+        <div class="flex justify-between"><dt class="text-espresso/65">Confirmation sent to</dt><dd id="c-email"></dd></div>
+      </dl>
+    </div>
+    <div class="flex flex-wrap justify-center gap-3 mt-10">
+      <a href="/shop.html" class="inline-flex bg-charcoal text-cream rounded-full px-6 py-3 text-sm font-semibold hover:bg-terracotta">Continue shopping</a>
+      <a data-site-href="whatsapp" href="https://api.whatsapp.com/send?phone=27826639608" target="_blank" rel="noopener noreferrer" class="inline-flex border-2 border-charcoal rounded-full px-6 py-3 text-sm font-semibold hover:bg-charcoal hover:text-cream">Questions? WhatsApp us</a>
+    </div>
+  </div>
+</main>
+
+<!-- @include shell-bottom -->
+</body>
+</html>

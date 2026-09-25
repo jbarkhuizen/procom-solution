@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "procom-api", "runtimeExecutable": "node", "runtimeArgs": ["server/index.js"], "port": 8788 },
+    { "name": "procom-site", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--port", "5174", "--strictPort"], "port": 5174 }
+  ]
+}

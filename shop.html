@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shop — Procom Solutions</title>
+<meta name="description" content="Browse computer peripherals, networking, audio, mobile accessories, smart home and more at Procom Solutions. Nationwide delivery.">
+<link rel="canonical" href="https://www.procompretoria.co.za/shop.html">
+<meta property="og:title" content="Shop — Procom Solutions">
+<meta property="og:type" content="website">
+<!-- @include head -->
+<script type="module" src="/src/js/shop.js"></script>
+</head>
+<body class="font-sans antialiased" data-page="shop">
+<!-- @include shell-top -->
+
+<main id="main" class="flex-1 px-6 sm:px-10 lg:px-14 py-10 md:py-14">
+  <div class="mx-auto w-full max-w-7xl">
+    <nav class="text-xs text-espresso/50 mb-4" aria-label="Breadcrumb" id="crumbs"><a href="/" class="hover:text-terracotta">Home</a> / <span class="text-espresso/80">Shop</span></nav>
+    <div class="flex flex-wrap items-end justify-between gap-4 mb-3">
+      <h1 class="font-serif text-4xl md:text-5xl tracking-tight" id="shop-title">All products</h1>
+      <p class="text-sm text-espresso/60" id="result-count" aria-live="polite"></p>
+    </div>
+    <p class="text-espresso/75 leading-relaxed max-w-2xl mb-6 hidden" id="shop-desc"></p>
+    <div id="subcats" class="flex flex-wrap gap-2 mb-6"></div>
+
+    <form id="filters" class="flex flex-wrap items-center gap-3 border-y border-charcoal/10 py-4 mb-8">
+      <label class="sr-only" for="f-q">Search</label>
+      <input id="f-q" name="q" type="search" placeholder="Search in results…" class="form-input !w-auto flex-1 min-w-[12rem] !rounded-full !py-2">
+      <label class="sr-only" for="f-brand">Brand</label>
+      <select id="f-brand" name="brand" class="form-input !w-auto !rounded-full !py-2 text-sm"><option value="">All brands</option></select>
+      <label class="sr-only" for="f-sort">Sort</label>
+      <select id="f-sort" name="sort" class="form-input !w-auto !rounded-full !py-2 text-sm">
+        <option value="featured">Featured</option>
+        <option value="newest">Newest</option>
+        <option value="price-asc">Price: low to high</option>
+        <option value="price-desc">Price: high to low</option>
+        <option value="name">Name A–Z</option>
+      </select>
+      <label class="inline-flex items-center gap-2 text-sm font-medium cursor-pointer"><input id="f-stock" name="inStock" type="checkbox" value="1" class="accent-terracotta w-4 h-4"> In stock only</label>
+    </form>
+
+    <div id="grid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"></div>
+    <nav id="pager" class="pager flex flex-wrap justify-center gap-1.5 mt-12" aria-label="Pages"></nav>
+  </div>
+</main>
+
+<!-- @include shell-bottom -->
+</body>
+</html>

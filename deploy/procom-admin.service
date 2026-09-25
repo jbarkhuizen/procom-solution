@@ -1,0 +1,17 @@
+[Unit]
+Description=Procom Solutions backend (Express + better-sqlite3)
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/opt/procom/app
+Environment=NODE_ENV=production
+Environment=PORT=8788
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
