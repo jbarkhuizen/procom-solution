@@ -1,6 +1,6 @@
 # Procom Solutions
 
-Online store for **www.procompretoria.co.za**: computer equipment, tech and
+Online store for **www.procomsolutions.co.za**: computer equipment, tech and
 more, run by Lapanza. Most products are dropshipped straight from the
 supplier's warehouse (SMD). The storefront reuses lapanza3d.co.za's design
 system (fonts, palette, layout, components).

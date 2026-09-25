@@ -219,7 +219,7 @@ export function ensureSchema(conn) {
 export const DEFAULT_SETTINGS = {
   siteName: 'Procom Solutions',
   tagline: 'Computer equipment, tech & more — delivered across South Africa',
-  contactEmail: 'lapanzaonline@gmail.com',
+  contactEmail: 'procompretoria@gmail.com',
   contactPhone: '082 663 9608',
   whatsappNumber: '27826639608',
   hours: 'Mon–Fri 08:00–17:00 · Sat 09:00–13:00',
@@ -229,7 +229,7 @@ export const DEFAULT_SETTINGS = {
   vatRatePct: 15,
   defaultMarkupPct: 10,
   defaultWeightG: 1000,
-  ownerNotifyEmail: 'lapanzaonline@gmail.com',
+  ownerNotifyEmail: 'procompretoria@gmail.com',
   legalEntity: 'Lapanza (trading as Procom Solutions)',
 };
 

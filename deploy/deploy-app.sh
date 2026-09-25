@@ -3,16 +3,22 @@
 # First run clones the repo; later runs pull, rebuild and restart.
 #
 #   ssh -i ~/.ssh/lapanza_vps_deploy deploy@<VPS_IP>
-#   bash /opt/procom/app/deploy/deploy-app.sh
+#   bash /opt/procomsolutions/app/deploy/deploy-app.sh
 
 set -euo pipefail
 
 REPO_URL="${PROCOM_REPO_URL:-https://github.com/jbarkhuizen/procom-solution.git}"
-APP_DIR="/opt/procom/app"
+APP_DIR="/opt/procomsolutions/app"
 
 if [ ! -d "$APP_DIR/.git" ]; then
+  sudo mkdir -p /opt/procomsolutions && sudo chown deploy:deploy /opt/procomsolutions
+  if [ -e "$APP_DIR" ]; then
+    # e.g. the old placeholder page -- keep it, never delete.
+    BACKUP="$APP_DIR.pre-store-$(date +%Y%m%d%H%M%S)"
+    echo "==> Moving existing non-git $APP_DIR aside to $BACKUP"
+    mv "$APP_DIR" "$BACKUP"
+  fi
   echo "==> Cloning repo (first run)"
-  sudo mkdir -p /opt/procom && sudo chown deploy:deploy /opt/procom
   git clone "$REPO_URL" "$APP_DIR"
 fi
 
@@ -42,19 +48,19 @@ if [ ! -f .env ]; then
 fi
 
 echo "==> Installing/refreshing systemd service"
-sudo cp deploy/procom-admin.service /etc/systemd/system/procom-admin.service
+sudo cp deploy/procomsolutions-admin.service /etc/systemd/system/procomsolutions-admin.service
 sudo systemctl daemon-reload
-sudo systemctl enable procom-admin
-sudo systemctl restart procom-admin
+sudo systemctl enable procomsolutions-admin
+sudo systemctl restart procomsolutions-admin
 
-if [ ! -f /etc/nginx/conf.d/procom.conf ]; then
+if [ ! -f /etc/nginx/conf.d/procomsolutions.conf ]; then
   echo "==> Installing nginx vhost (first run)"
-  sudo cp deploy/nginx-procom.conf /etc/nginx/conf.d/procom.conf
+  sudo cp deploy/nginx-procomsolutions.conf /etc/nginx/conf.d/procomsolutions.conf
   sudo nginx -t
   sudo systemctl reload nginx
 else
   # certbot appends HTTPS blocks to the live file -- never overwrite it.
-  echo "==> nginx vhost exists -- leaving /etc/nginx/conf.d/procom.conf as-is (certbot manages it)"
+  echo "==> nginx vhost exists -- leaving /etc/nginx/conf.d/procomsolutions.conf as-is (certbot manages it)"
   sudo nginx -t
   sudo systemctl reload nginx
 fi
@@ -63,6 +69,6 @@ sleep 2
 echo ""
 echo "==================================================================="
 curl -fsS http://127.0.0.1:8788/api/health && echo "  <- API healthy"
-echo "Status: sudo systemctl status procom-admin"
-echo "Logs:   sudo journalctl -u procom-admin -n 100"
+echo "Status: sudo systemctl status procomsolutions-admin"
+echo "Logs:   sudo journalctl -u procomsolutions-admin -n 100"
 echo "==================================================================="

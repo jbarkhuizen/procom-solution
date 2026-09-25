@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=deploy
-WorkingDirectory=/opt/procom/app
+WorkingDirectory=/opt/procomsolutions/app
 Environment=NODE_ENV=production
 Environment=PORT=8788
 Environment=HOST=127.0.0.1
