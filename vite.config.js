@@ -26,12 +26,11 @@ export default defineConfig({
   plugins: [htmlIncludes(), tailwindcss()],
   server: {
     port: 5174, // lapanza3d dev uses 5173
-    proxy: {
-      '/api': 'http://127.0.0.1:8788',
-      '/uploads': 'http://127.0.0.1:8788',
-      '/admin': 'http://127.0.0.1:8788',
-      '/sitemap.xml': 'http://127.0.0.1:8788',
-    },
+    // Object form (not the string shorthand): the shorthand sets
+    // changeOrigin, rewriting Host to 127.0.0.1:8788, which the API's
+    // same-origin check then rejects for every admin save. nginx preserves
+    // Host in production; this keeps dev identical.
+    proxy: Object.fromEntries(['/api', '/uploads', '/admin', '/sitemap.xml'].map((p) => [p, { target: 'http://127.0.0.1:8788', changeOrigin: false }])),
   },
   build: {
     rollupOptions: {

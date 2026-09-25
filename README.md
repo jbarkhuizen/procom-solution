@@ -35,8 +35,11 @@ to the admin.
   nearest category, else the site default (10%). Change any of them and
   auto-priced products follow. Products can be switched to a manual price.
   The rounding rule is `roundRetail()` in `server/pricing.js`.
-- **Warehouse feed:** upload SMD `.xlsx` pricelists (photos included) in
-  admin, then pick items to list. Monthly re-uploads reprice listed products
+- **Warehouse feed:** upload supplier files as **XLSX, CSV, JSON, XML or PDF**
+  (PDF: pricelist tables or promo flyers). Columns are auto-matched and shown
+  in an editable preview before import. Embedded XLSX photos and photo URLs
+  (downloaded in the background, private addresses refused) are imported.
+  Then pick items to list. Monthly re-uploads reprice listed products
   and mark discontinued ones out of stock. Items the supplier only sells in
   bulk ("order in qty of 36") are flagged and hidden by default.
 - **Orders:** Payfast (card / Instant EFT). Each paid order gets a supplier

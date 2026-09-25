@@ -536,22 +536,24 @@ routes.feed = async () => {
   const root = view(`
     <div class="grid-2" style="margin-bottom:1rem">
       <div class="panel stack gap-3">
-        <div class="section-head"><h3>1 · Upload a supplier pricelist</h3></div>
-        <p class="mini-help">SMD .xlsx files as received (Cash wholesale, Home and Beyond, Infant Essential). Photos embedded in the sheet are imported. Re-uploading next month’s list updates costs and <strong>reprices listed products automatically</strong>; listed items missing from the new list are marked out of stock.</p>
-        <form id="import-form" class="grid-2" style="align-items:end">
+        <div class="section-head"><h3>1 · Upload a supplier file</h3></div>
+        <p class="mini-help"><strong>Excel (.xlsx), CSV, JSON, XML or PDF.</strong> Photos embedded in Excel sheets and photo URLs in CSV/JSON/XML are imported. PDFs can be a pricelist table or a promo flyer. You’ll see a preview and can fix the column matching before anything is saved. Re-importing a full pricelist updates costs and <strong>reprices listed products automatically</strong>.</p>
+        <form id="preview-form" class="grid-2" style="align-items:end">
           <label class="field"><span>Supplier</span><select name="supplierId">${options(suppliers.map((x) => ({ value: x.id, label: x.name })), s.supplierId)}</select></label>
-          <label class="field"><span>Pricelist (.xlsx)</span><input type="file" name="file" accept=".xlsx" required></label>
-          <button class="btn btn-primary" type="submit">Import</button>
+          <label class="field"><span>File</span><input type="file" name="file" accept=".xlsx,.csv,.tsv,.txt,.json,.xml,.pdf" required></label>
+          <button class="btn btn-primary" type="submit">Preview</button>
           <span class="mini-help" id="import-status">${last ? `Last import: ${h(last.file_name)} · ${h(fmtDate(last.created_at))}` : 'No imports yet.'}</span>
         </form>
       </div>
       <div class="panel">
-        <div class="section-head"><h3>Recent imports</h3></div>
+        <div class="section-head"><h3>Recent imports</h3>${facets.pendingImages ? `<span class="badge info">${facets.pendingImages} photos downloading</span>` : ''}</div>
         <div class="table-wrap"><table class="catalog"><thead><tr><th>File</th><th class="num">Rows</th><th class="num">New</th><th class="num">Cost changes</th><th class="num">Repriced</th></tr></thead><tbody>
-          ${facets.imports.map((i) => `<tr><td>${h(i.file_name)}<br><span class="muted">${h(fmtDate(i.created_at))}</span></td><td class="num">${i.rows_total}</td><td class="num">${i.rows_new}</td><td class="num">${i.price_changes}</td><td class="num">${i.products_repriced}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">—</td></tr>'}
+          ${facets.imports.map((i) => `<tr><td>${h(i.file_name)} <span class="badge neutral">${h(i.format || 'xlsx')}</span><br><span class="muted">${h(fmtDate(i.created_at))}</span></td><td class="num">${i.rows_total}</td><td class="num">${i.rows_new}</td><td class="num">${i.price_changes}</td><td class="num">${i.products_repriced}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">—</td></tr>'}
         </tbody></table></div>
+        <button class="btn small" id="retry-photos" style="margin-top:0.6rem">Retry failed photo downloads</button>
       </div>
     </div>
+    <div id="mapping-panel"></div>
 
     <div class="panel" style="margin-bottom:1rem">
       <div class="section-head"><h3>2 · Pick items to sell</h3><span class="muted">${res.total} match${res.total === 1 ? '' : 'es'}</span></div>
@@ -627,24 +629,86 @@ routes.feed = async () => {
     reload();
   });
 
-  $('#import-form', root).addEventListener('submit', async (e) => {
+  $('#preview-form', root).addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     s.supplierId = fd.get('supplierId');
     const btn = e.target.querySelector('button');
     btn.disabled = true;
-    $('#import-status', root).textContent = 'Importing… large lists with photos can take a minute.';
+    $('#import-status', root).textContent = 'Reading file… large files with photos can take a minute.';
     try {
-      const r = await api('/feed/import', { method: 'POST', form: fd });
-      toast(`Imported ${r.rowsTotal} rows · ${r.rowsNew} new · ${r.priceChanges} cost changes · ${r.productsRepriced} products repriced${r.productsMarkedOut ? ` · ${r.productsMarkedOut} marked out of stock` : ''}`);
-      s.page = 1;
-      reload();
+      const pv = await api('/feed/preview', { method: 'POST', form: fd });
+      $('#import-status', root).textContent = '';
+      showMapping(pv, s.supplierId, suppliers);
     } catch (err) {
       fail(err);
-      btn.disabled = false;
       $('#import-status', root).textContent = '';
+    } finally {
+      btn.disabled = false;
     }
   });
+
+  $('#retry-photos', root).addEventListener('click', async () => {
+    try {
+      const r = await api('/feed/images/retry', { method: 'POST' });
+      toast(r.queued ? `Retrying ${r.queued} photo(s) in the background` : 'No failed photos to retry');
+    } catch (err) { fail(err); }
+  });
+
+  // Step 1b: show detected columns; any change re-runs the mapped preview.
+  function showMapping(pv, supplierId, supplierList) {
+    const panel = $('#mapping-panel', root);
+    const FIELD_LABELS = [
+      ['code', 'Product code *'], ['name', 'Name *'], ['cost', 'Cost price *'], ['brand', 'Brand'],
+      ['category', 'Category'], ['image', 'Photo URL'], ['moq', 'Min. order qty'],
+    ];
+    const headerOpts = pv.headers.map((x) => ({ value: x, label: x || '(blank heading)' }));
+    const supplierName = supplierList.find((x) => x.id === supplierId)?.name || '';
+    setHtml(panel, `<div class="panel stack gap-3" style="margin-bottom:1rem;border:2px solid var(--brand)">
+      <div class="section-head"><h3>Preview · ${h(pv.fileName)}</h3>
+        <span><span class="badge info">${h(pv.format.toUpperCase())}</span> <span class="muted">${pv.totalRows} rows in ${pv.tables.length} ${pv.tables.length === 1 ? 'table' : 'tables/sheets'} · supplier: ${h(supplierName)}</span></span></div>
+      ${pv.warnings.map((w) => `<p class="mini-help" style="color:var(--warn)">⚠ ${h(w)}</p>`).join('')}
+      <p class="mini-help">Check which column holds each field. Columns were matched automatically; change any that are wrong.</p>
+      <div class="grid-4" id="map-fields">${FIELD_LABELS.map(([f, label]) => `<label class="field"><span>${h(label)}</span><select data-map="${f}">${options(headerOpts, pv.mapping[f] || '', { empty: '(not in file)' })}</select></label>`).join('')}</div>
+      <div class="toolbar" style="margin:0">
+        <label class="field checkbox"><input type="checkbox" id="m-vat"><span>Prices in this file <strong>include</strong> VAT</span></label>
+        <label class="field checkbox"><input type="checkbox" id="m-complete" ${pv.completeListDefault ? 'checked' : ''}><span>This is the supplier’s <strong>complete</strong> list (listed items missing from it go out of stock)</span></label>
+      </div>
+      <div id="map-result"><p class="muted">Checking…</p></div>
+      <div class="row-card-actions"><button class="btn btn-ghost" id="m-cancel" style="color:inherit">Cancel</button><button class="btn btn-primary" id="m-import" disabled>Import</button></div>
+    </div>`);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const currentMapping = () => Object.fromEntries($$('[data-map]', panel).map((sel) => [sel.dataset.map, sel.value]));
+    const refresh = async () => {
+      try {
+        const r = await api('/feed/preview/map', { method: 'POST', body: { token: pv.token, mapping: currentMapping(), pricesIncludeVat: $('#m-vat', panel).checked } });
+        const skipped = Object.entries(r.problems).filter(([, n]) => n).map(([k, n]) => `${n} without ${{ noCode: 'a code', noName: 'a name', noCost: 'a price' }[k]}`);
+        setHtml($('#map-result', panel), `<p><strong>${r.usable}</strong> products ready to import${skipped.length ? ` <span class="muted">· skipped: ${h(skipped.join(', '))}</span>` : ''}</p>
+          <div class="table-wrap"><table class="catalog"><thead><tr><th>Code</th><th>Name</th><th>Brand</th><th>Category</th><th class="num">Cost excl VAT</th><th>MOQ</th><th>Photo</th></tr></thead><tbody>
+          ${r.sample.map((it) => `<tr><td>${h(it.code)}</td><td>${h(it.name)}</td><td>${h(it.brand)}</td><td>${h(it.category)}</td><td class="num">${rand(it.costCents)}</td><td>${it.minOrderQty}</td><td>${it.hasPhoto ? '✓' : '—'}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No usable rows with this mapping — Code, Name and Cost are required.</td></tr>'}
+          </tbody></table></div>`);
+        $('#m-import', panel).disabled = !r.usable;
+      } catch (err) { fail(err); }
+    };
+    panel.addEventListener('change', refresh);
+    refresh();
+    $('#m-cancel', panel).addEventListener('click', () => setHtml(panel, ''));
+    $('#m-import', panel).addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      e.target.textContent = 'Importing…';
+      try {
+        const r = await api('/feed/import', { method: 'POST', body: { supplierId, token: pv.token, mapping: currentMapping(), pricesIncludeVat: $('#m-vat', panel).checked, completeList: $('#m-complete', panel).checked } });
+        toast(`Imported ${r.rowsTotal} rows · ${r.rowsNew} new · ${r.priceChanges} cost changes · ${r.productsRepriced} repriced${r.productsMarkedOut ? ` · ${r.productsMarkedOut} marked out of stock` : ''}${r.imagesQueued ? ` · ${r.imagesQueued} photos downloading` : ''}`);
+        s.page = 1;
+        reload();
+      } catch (err) {
+        fail(err);
+        e.target.disabled = false;
+        e.target.textContent = 'Import';
+      }
+    });
+  }
 
   root.addEventListener('click', async (e) => {
     const pg = e.target.closest('[data-page]');

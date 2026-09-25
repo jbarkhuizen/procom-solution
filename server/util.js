@@ -20,12 +20,21 @@ export function uniqueSlug(db, table, base, excludeId = '') {
 }
 
 // Accepts 'R1,299.00', '1299', 1299.5 -> integer cents. Returns null if unparseable.
+// Accepts 'R1,299.00', 'R10 999.00', '1299', 1299.5 and decimal-comma
+// '1 299,00' / '1.299,00' -> integer cents. Returns null if unparseable.
 export function parseRandToCents(value) {
   if (value == null || value === '') return null;
   if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value * 100) : null;
-  const cleaned = String(value).replace(/[^0-9.,-]/g, '').replace(/,/g, '');
-  if (!cleaned) return null;
-  const n = Number(cleaned);
+  let s = String(value).replace(/[^0-9.,-]/g, '');
+  if (!s) return null;
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma > lastDot && /,\d{1,2}$/.test(s)) {
+    s = s.replace(/\./g, '').replace(',', '.'); // comma is the decimal separator
+  } else {
+    s = s.replace(/,/g, '');
+  }
+  const n = Number(s);
   return Number.isFinite(n) ? Math.round(n * 100) : null;
 }
 

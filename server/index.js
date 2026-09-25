@@ -21,6 +21,7 @@ const { buildPayfastRedirect, verifyItn, payfastMode } = await import('./payfast
 const { storeProductImage, isAllowedImage, MAX_IMAGE_BYTES } = await import('./images.js');
 const { startBackupSchedule, createBackup, listBackups } = await import('./backups.js');
 const { escapeHtml } = await import('./util.js');
+const { startImageDownloads, resumePendingDownloads } = await import('./remote-images.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -237,10 +238,20 @@ admin.post('/suppliers', wrap((req) => catalog.saveSupplier(req.body || {})));
 admin.put('/suppliers/:id', wrap((req) => orNotFound(catalog.saveSupplier(req.body || {}, req.params.id))));
 admin.delete('/suppliers/:id', wrap((req) => ({ ok: orNotFound(catalog.deleteSupplier(req.params.id)) })));
 
-admin.post('/feed/import', sheetUpload.single('file'), wrap(async (req) => {
-  if (!req.file) throw new Error('Choose a .xlsx pricelist to upload');
-  if (!/\.xlsx$/i.test(req.file.originalname)) throw new Error('Only .xlsx files are supported');
-  return feed.importPricelist({ supplierId: req.body.supplierId, fileName: req.file.originalname, buffer: req.file.buffer });
+// Two-step import: upload -> preview (auto-detected columns, editable) -> import.
+admin.post('/feed/preview', sheetUpload.single('file'), wrap(async (req) => {
+  if (!req.file) throw new Error('Choose a file to upload (.xlsx, .csv, .json, .xml or .pdf)');
+  return feed.previewFeedFile({ fileName: req.file.originalname, buffer: req.file.buffer });
+}));
+admin.post('/feed/preview/map', wrap((req) => feed.previewMapped(req.body || {})));
+admin.post('/feed/import', wrap((req) => {
+  const b = req.body || {};
+  return feed.importFeed({ supplierId: b.supplierId, token: b.token, mapping: b.mapping || {}, pricesIncludeVat: Boolean(b.pricesIncludeVat), completeList: b.completeList !== false });
+}));
+admin.post('/feed/images/retry', wrap(() => {
+  const n = getDb().prepare("UPDATE feed_items SET image_status = 'pending' WHERE image_status = 'failed'").run().changes;
+  if (n) startImageDownloads();
+  return { queued: n };
 }));
 admin.get('/feed', wrap((req) => feed.listFeed({ ...req.query, singleUnit: req.query.singleUnit === '1', withImage: req.query.withImage === '1', changed: req.query.changed === '1' })));
 admin.get('/feed/facets', wrap((req) => feed.feedFacets(req.query.supplierId)));
@@ -304,4 +315,5 @@ app.use((err, _req, res, _next) => {
 });
 
 startBackupSchedule();
+resumePendingDownloads();
 app.listen(PORT, HOST, () => console.log(`Procom API on http://${HOST}:${PORT} (admin: /admin/, Payfast ${payfastMode()})`));

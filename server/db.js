@@ -18,8 +18,24 @@ export function openDb(file) {
   conn.pragma('journal_mode = WAL');
   conn.pragma('foreign_keys = ON');
   ensureSchema(conn);
+  migrate(conn);
   seedDefaults(conn);
   return conn;
+}
+
+// Additive column migrations for databases created by earlier versions.
+// Idempotent: each column is only added when missing.
+const COLUMN_MIGRATIONS = [
+  ['feed_items', 'image_url', "TEXT NOT NULL DEFAULT ''"],   // remote photo from CSV/JSON/XML feeds
+  ['feed_items', 'image_status', "TEXT NOT NULL DEFAULT ''"], // '' | pending | failed
+  ['feed_imports', 'format', "TEXT NOT NULL DEFAULT 'xlsx'"],
+];
+
+export function migrate(conn) {
+  for (const [table, column, def] of COLUMN_MIGRATIONS) {
+    const has = conn.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+    if (!has) conn.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`).run();
+  }
 }
 
 // Money columns are integer cents (*_cents). Weights are grams.

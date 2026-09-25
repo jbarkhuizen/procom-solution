@@ -1,52 +1,28 @@
 import { randomUUID } from 'crypto';
-import ExcelJS from 'exceljs';
 import { getDb } from './db.js';
+import { getSettings } from './settings.js';
 import { parseRandToCents, clampInt } from './util.js';
 import { storeProductImage, copyUpload } from './images.js';
 import { saveProduct, repriceProducts } from './catalog.js';
+import { parseFeedFile, guessMapping, normHeader, FIELDS } from './feed-parsers.js';
+import { startImageDownloads } from './remote-images.js';
 
-// Supplier pricelist import (SMD format, Sept 2026):
-//   each brand is a sheet; header row has
-//   Picture | Product Code | Name | Brand | Category | Cost Excl VAT | Index | Top
-//   and product photos are embedded images anchored in the Picture column.
-// Column positions are located by header text, not fixed indexes, so a
-// supplier reordering columns next month doesn't silently import garbage.
+// Supplier feed import: any supported file (XLSX, CSV, JSON, XML, PDF) is
+// parsed into tables (feed-parsers.js), previewed with an editable column
+// mapping, then imported into feed_items. Listing a feed item copies it into
+// the storefront catalogue.
 
-const HEADER_ALIASES = {
-  code: ['product code', 'code', 'sku', 'item code', 'stock code'],
-  name: ['name', 'description', 'product name', 'product description'],
-  brand: ['brand', 'manufacturer'],
-  category: ['category', 'group'],
-  cost: ['cost excl vat', 'cost', 'price excl vat', 'cost ex vat', 'dealer price', 'price'],
-  picture: ['picture', 'pictures', 'image', 'photo'],
-};
+// ------------------------------------------------------------ preview cache
 
-function cellText(cell) {
-  const v = cell?.value;
-  if (v == null) return '';
-  if (typeof v === 'object') {
-    if (v.richText) return v.richText.map((t) => t.text).join('');
-    if (v.result != null) return String(v.result);
-    if (v.text != null) return String(v.text);
-    return '';
-  }
-  return String(v);
-}
+// Parsed uploads are kept briefly so "Preview" and "Import" don't each need
+// the file uploaded (and parsed) again. Single-process server, so a Map is fine.
+const previews = new Map();
+const PREVIEW_TTL_MS = 30 * 60 * 1000;
 
-function findHeader(ws) {
-  const limit = Math.min(ws.rowCount, 10);
-  for (let r = 1; r <= limit; r++) {
-    const row = ws.getRow(r);
-    const map = {};
-    row.eachCell({ includeEmpty: false }, (cell, col) => {
-      const t = cellText(cell).trim().toLowerCase();
-      for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
-        if (map[key] == null && aliases.includes(t)) map[key] = col;
-      }
-    });
-    if (map.code && map.name && map.cost) return { row: r, cols: map };
-  }
-  return null;
+function prunePreviews() {
+  const now = Date.now();
+  for (const [k, v] of previews) if (now - v.createdAt > PREVIEW_TTL_MS) previews.delete(k);
+  while (previews.size > 5) previews.delete(previews.keys().next().value);
 }
 
 // "... (To Be Ordered in Qty of 36)" -> 36
@@ -55,63 +31,105 @@ export function parseMinOrderQty(name) {
   return m ? clampInt(m[1], 1, 10_000, 1) : 1;
 }
 
-export async function parseWorkbook(buffer, { withImages = true } = {}) {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
+function columnIndex(headers, header) {
+  if (!header) return -1;
+  const n = normHeader(header);
+  return headers.findIndex((h) => normHeader(h) === n);
+}
+
+// Turns parsed tables into feed items using the admin's column mapping.
+// A field set to '' in the mapping is deliberately ignored; a field missing
+// from the mapping falls back to per-table auto-detection (sheets vary).
+export function itemsFromTables(parsed, mapping = {}, { pricesIncludeVat = false, vatRatePct = 15 } = {}) {
   const items = [];
-  const skipped = [];
-  for (const ws of wb.worksheets) {
-    const header = findHeader(ws);
-    if (!header) {
-      skipped.push(ws.name);
-      continue;
-    }
-    // row number (1-based) -> image buffer, for images anchored in/next to the picture column.
-    const imagesByRow = new Map();
-    if (withImages) {
-      const pictureCol0 = (header.cols.picture || 1) - 1;
-      for (const img of ws.getImages()) {
-        const tl = img.range?.tl;
-        if (!tl) continue;
-        const col = Math.floor(tl.nativeCol ?? tl.col ?? 0);
-        if (Math.abs(col - pictureCol0) > 1) continue;
-        const row = Math.floor(tl.nativeRow ?? tl.row ?? 0) + 1;
-        const media = wb.getImage(Number(img.imageId));
-        if (media?.buffer && !imagesByRow.has(row)) imagesByRow.set(row, media.buffer);
-      }
-    }
-    for (let r = header.row + 1; r <= ws.rowCount; r++) {
-      const row = ws.getRow(r);
-      const code = cellText(row.getCell(header.cols.code)).trim();
-      const name = cellText(row.getCell(header.cols.name)).replace(/\s+/g, ' ').trim();
-      const costCell = row.getCell(header.cols.cost).value;
-      const costCents = parseRandToCents(typeof costCell === 'number' ? costCell : cellText(row.getCell(header.cols.cost)));
-      if (!code || !name || costCents == null || costCents <= 0) continue;
+  const problems = { noCode: 0, noName: 0, noCost: 0 };
+  for (const table of parsed.tables) {
+    const guess = guessMapping(table.headers);
+    const col = {};
+    for (const f of FIELDS) col[f] = columnIndex(table.headers, mapping[f] === undefined ? guess[f] : mapping[f]);
+    table.rows.forEach((row, i) => {
+      const get = (f) => (col[f] >= 0 ? String(row[col[f]] ?? '').trim() : '');
+      const code = get('code');
+      const name = get('name').replace(/\s+/g, ' ');
+      let costCents = parseRandToCents(get('cost'));
+      if (!code) return void problems.noCode++;
+      if (!name) return void problems.noName++;
+      if (costCents == null || costCents <= 0) return void problems.noCost++;
+      if (pricesIncludeVat) costCents = Math.round(costCents / (1 + vatRatePct / 100));
+      const imageUrl = /^https?:\/\//i.test(get('image')) ? get('image') : '';
       items.push({
         code,
         name,
-        brand: header.cols.brand ? cellText(row.getCell(header.cols.brand)).trim() : ws.name,
-        category: header.cols.category ? cellText(row.getCell(header.cols.category)).trim() : '',
+        // SMD workbooks: one sheet per brand, so the sheet name is a sensible fallback.
+        brand: get('brand') || (parsed.format === 'xlsx' ? table.name : ''),
+        category: get('category'),
         costCents,
-        minOrderQty: parseMinOrderQty(name),
-        sheet: ws.name,
-        imageBuffer: imagesByRow.get(r) || null,
+        minOrderQty: get('moq') ? clampInt(get('moq'), 1, 10_000, 1) : parseMinOrderQty(name),
+        sheet: table.name,
+        imageBuffer: table.images.get(i) || null,
+        imageUrl,
       });
-    }
+    });
   }
-  return { items, skippedSheets: skipped };
+  return { items, problems };
 }
 
-// Upserts feed rows, pushes new costs to listed products, reprices them.
-export async function importPricelist({ supplierId, fileName, buffer }, db = getDb()) {
-  if (!db.prepare('SELECT id FROM suppliers WHERE id = ?').get(supplierId)) throw new Error('Unknown supplier');
-  const { items, skippedSheets } = await parseWorkbook(buffer);
-  if (!items.length) throw new Error('No product rows found. Expected columns: Product Code, Name, Cost Excl VAT.');
+export async function previewFeedFile({ fileName, buffer }) {
+  const parsed = await parseFeedFile(fileName, buffer);
+  if (!parsed.tables.length) throw new Error('No rows found in this file');
+  prunePreviews();
+  const token = randomUUID();
+  previews.set(token, { fileName, parsed, createdAt: Date.now() });
+  // Headers across all tables, most common first (SMD: same headers on every sheet).
+  const headerCount = new Map();
+  for (const t of parsed.tables) for (const h of t.headers) headerCount.set(h, (headerCount.get(h) || 0) + 1);
+  const headers = [...headerCount.keys()].sort((a, b) => headerCount.get(b) - headerCount.get(a));
+  const mapping = guessMapping(parsed.tables[0].headers);
+  return {
+    token,
+    fileName,
+    format: parsed.format,
+    warnings: parsed.warnings,
+    tables: parsed.tables.map((t) => ({ name: t.name, rows: t.rows.length, images: t.images.size })),
+    totalRows: parsed.tables.reduce((s, t) => s + t.rows.length, 0),
+    headers,
+    mapping,
+    // Flyers are partial lists; everything else is assumed to be a full pricelist.
+    completeListDefault: !(parsed.format === 'pdf' && parsed.warnings.some((w) => /flyer/i.test(w))),
+    sample: parsed.tables[0].rows.slice(0, 5).map((r) => Object.fromEntries(parsed.tables[0].headers.map((h, i) => [h, r[i]]))),
+  };
+}
 
-  // Images are processed outside the DB transaction (sharp is async).
-  const existingImages = new Map(db.prepare('SELECT code, image FROM feed_items WHERE supplier_id = ?').all(supplierId).map((r) => [r.code, r.image]));
+// Mapped result for the preview screen (re-run whenever the admin changes a column).
+export function previewMapped({ token, mapping, pricesIncludeVat }) {
+  const p = previews.get(token);
+  if (!p) throw new Error('Preview expired — please choose the file again');
+  const { items, problems } = itemsFromTables(p.parsed, mapping, { pricesIncludeVat, vatRatePct: getSettings().vatRatePct });
+  return {
+    usable: items.length,
+    problems,
+    sample: items.slice(0, 8).map(({ imageBuffer, ...it }) => ({ ...it, hasPhoto: Boolean(imageBuffer || it.imageUrl) })),
+  };
+}
+
+// ------------------------------------------------------------------- import
+
+// Upserts feed rows, pushes new costs to listed products, reprices them.
+// completeList: the file is the supplier's full list, so listed products whose
+// code is missing from it are marked out of stock. Off for promo flyers.
+export async function importFeed({ supplierId, token, mapping, pricesIncludeVat = false, completeList = true }, db = getDb()) {
+  if (!db.prepare('SELECT id FROM suppliers WHERE id = ?').get(supplierId)) throw new Error('Choose a supplier');
+  const p = previews.get(token);
+  if (!p) throw new Error('Preview expired — please choose the file again');
+  const { items, problems } = itemsFromTables(p.parsed, mapping, { pricesIncludeVat, vatRatePct: getSettings(db).vatRatePct });
+  if (!items.length) throw new Error('No usable rows. Check the column mapping: Code, Name and Cost are required.');
+  const fileName = p.fileName;
+  const format = p.parsed.format;
+
+  // Embedded photos are processed outside the DB transaction (sharp is async).
+  const existing = new Map(db.prepare('SELECT code, image FROM feed_items WHERE supplier_id = ?').all(supplierId).map((r) => [r.code, r.image]));
   for (const item of items) {
-    item.image = existingImages.get(item.code) || '';
+    item.image = existing.get(item.code) || '';
     if (!item.image && item.imageBuffer) {
       try {
         item.image = await storeProductImage(item.imageBuffer, 'feed');
@@ -122,47 +140,78 @@ export async function importPricelist({ supplierId, fileName, buffer }, db = get
   }
 
   const ts = new Date().toISOString();
-  const stats = { rowsTotal: items.length, rowsNew: 0, rowsUpdated: 0, priceChanges: 0, productsRepriced: 0, skippedSheets };
+  const stats = { format, rowsTotal: items.length, rowsNew: 0, rowsUpdated: 0, priceChanges: 0, productsRepriced: 0, productsMarkedOut: 0, imagesQueued: 0, skipped: problems };
   const changedCosts = new Map();
   const getFeed = db.prepare('SELECT id, cost_cents FROM feed_items WHERE supplier_id = ? AND code = ?');
-  const insFeed = db.prepare(`INSERT INTO feed_items (id, supplier_id, code, name, brand, category, cost_cents, min_order_qty, image, source_file, source_sheet, in_latest_import, imported_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`);
-  const updFeed = db.prepare(`UPDATE feed_items SET name = ?, brand = ?, category = ?,
-    previous_cost_cents = CASE WHEN cost_cents != ? THEN cost_cents ELSE previous_cost_cents END,
-    cost_cents = ?, min_order_qty = ?, image = ?, source_file = ?, source_sheet = ?, in_latest_import = 1, imported_at = ? WHERE id = ?`);
+  const insFeed = db.prepare(`INSERT INTO feed_items (id, supplier_id, code, name, brand, category, cost_cents, min_order_qty, image, image_url, image_status, source_file, source_sheet, in_latest_import, imported_at)
+    VALUES (@id, @supplierId, @code, @name, @brand, @category, @cost, @moq, @image, @imageUrl, @imageStatus, @file, @sheet, 1, @ts)`);
+  const updFeed = db.prepare(`UPDATE feed_items SET name = @name, brand = @brand, category = @category,
+    previous_cost_cents = CASE WHEN cost_cents != @cost THEN cost_cents ELSE previous_cost_cents END,
+    cost_cents = @cost, min_order_qty = @moq, image = @image, image_url = @imageUrl,
+    image_status = CASE WHEN @image = '' AND @imageUrl != '' AND image_status != 'failed' THEN 'pending' ELSE image_status END,
+    source_file = @file, source_sheet = @sheet, in_latest_import = 1, imported_at = @ts WHERE id = @id`);
+  // Partial lists (promo flyers) carry weaker data -- guessed brands, no
+  // categories -- so for items we already know they only update the cost.
+  const updCostOnly = db.prepare(`UPDATE feed_items SET
+    previous_cost_cents = CASE WHEN cost_cents != @cost THEN cost_cents ELSE previous_cost_cents END,
+    cost_cents = @cost, imported_at = @ts WHERE id = @id`);
 
   const tx = db.transaction(() => {
-    // Only rows from the sheets (brands) in THIS upload get flagged as missing --
-    // SMD ships three separate lists, and file names change every month.
-    const sheets = [...new Set(items.map((i) => i.sheet))];
-    db.prepare(`UPDATE feed_items SET in_latest_import = 0 WHERE supplier_id = ? AND source_sheet IN (${sheets.map(() => '?').join(',')})`)
-      .run(supplierId, ...sheets);
+    if (completeList) {
+      // Only rows from the sheets in THIS upload get flagged as missing --
+      // SMD ships three separate lists, and file names change every month.
+      const sheets = [...new Set(items.map((i) => i.sheet))];
+      db.prepare(`UPDATE feed_items SET in_latest_import = 0 WHERE supplier_id = ? AND source_sheet IN (${sheets.map(() => '?').join(',')})`).run(supplierId, ...sheets);
+    }
     const seen = new Set();
     for (const it of items) {
       if (seen.has(it.code)) continue; // duplicate code across sheets: first wins
       seen.add(it.code);
+      const row = {
+        supplierId,
+        code: it.code,
+        name: it.name,
+        brand: it.brand,
+        category: it.category,
+        cost: it.costCents,
+        moq: it.minOrderQty,
+        image: it.image,
+        imageUrl: it.imageUrl,
+        imageStatus: !it.image && it.imageUrl ? 'pending' : '',
+        file: fileName,
+        sheet: it.sheet,
+        ts,
+      };
       const ex = getFeed.get(supplierId, it.code);
       if (ex) {
         if (ex.cost_cents !== it.costCents) {
           stats.priceChanges++;
           changedCosts.set(it.code, it.costCents);
         }
-        updFeed.run(it.name, it.brand, it.category, it.costCents, it.costCents, it.minOrderQty, it.image, fileName, it.sheet, ts, ex.id);
+        if (completeList) {
+          updFeed.run({ ...row, id: ex.id });
+          if (!it.image && it.imageUrl) stats.imagesQueued++;
+        } else {
+          updCostOnly.run({ cost: it.costCents, ts, id: ex.id });
+        }
         stats.rowsUpdated++;
       } else {
-        insFeed.run(randomUUID(), supplierId, it.code, it.name, it.brand, it.category, it.costCents, it.minOrderQty, it.image, fileName, it.sheet, ts);
+        if (!it.image && it.imageUrl) stats.imagesQueued++;
+        insFeed.run({ ...row, id: randomUUID() });
         stats.rowsNew++;
       }
     }
     const updProduct = db.prepare('UPDATE products SET cost_cents = ?, updated_at = ? WHERE supplier_id = ? AND supplier_code = ?');
     for (const [code, cost] of changedCosts) updProduct.run(cost, ts, supplierId, code);
 
-    // Listed items that vanished from the supplier's list can't be fulfilled --
-    // stop selling them. Never auto-flips back to in-stock: an admin's manual
-    // "out of stock" (e.g. supplier phoned) must survive the next import.
-    stats.productsMarkedOut = db.prepare(`UPDATE products SET supplier_in_stock = 0, updated_at = @ts
-      WHERE fulfilment = 'dropship' AND supplier_in_stock = 1 AND supplier_id = @s AND supplier_code IN
-      (SELECT code FROM feed_items WHERE supplier_id = @s AND in_latest_import = 0)`).run({ ts, s: supplierId }).changes;
+    if (completeList) {
+      // Listed items that vanished from the supplier's list can't be fulfilled --
+      // stop selling them. Never auto-flips back to in-stock: an admin's manual
+      // "out of stock" (e.g. supplier phoned) must survive the next import.
+      stats.productsMarkedOut = db.prepare(`UPDATE products SET supplier_in_stock = 0, updated_at = @ts
+        WHERE fulfilment = 'dropship' AND supplier_in_stock = 1 AND supplier_id = @s AND supplier_code IN
+        (SELECT code FROM feed_items WHERE supplier_id = @s AND in_latest_import = 0)`).run({ ts, s: supplierId }).changes;
+    }
   });
   tx();
 
@@ -175,10 +224,20 @@ export async function importPricelist({ supplierId, fileName, buffer }, db = get
     stats.productsRepriced = ids.length ? repriceProducts({ ids }, db) : 0;
   }
 
-  db.prepare(`INSERT INTO feed_imports (id, supplier_id, file_name, rows_total, rows_new, rows_updated, price_changes, products_repriced, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(randomUUID(), supplierId, fileName, stats.rowsTotal, stats.rowsNew, stats.rowsUpdated, stats.priceChanges, stats.productsRepriced, ts);
+  db.prepare(`INSERT INTO feed_imports (id, supplier_id, file_name, format, rows_total, rows_new, rows_updated, price_changes, products_repriced, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(randomUUID(), supplierId, fileName, format, stats.rowsTotal, stats.rowsNew, stats.rowsUpdated, stats.priceChanges, stats.productsRepriced, ts);
+  previews.delete(token);
+  if (stats.imagesQueued) startImageDownloads(db);
   return stats;
 }
+
+// Convenience for scripts/tests: parse + import in one go with auto-mapping.
+export async function importFile({ supplierId, fileName, buffer, ...opts }, db = getDb()) {
+  const pv = await previewFeedFile({ fileName, buffer });
+  return importFeed({ supplierId, token: pv.token, mapping: pv.mapping, completeList: pv.completeListDefault, ...opts }, db);
+}
+
+// ------------------------------------------------------------ browse/listing
 
 export function listFeed(opts = {}, db = getDb()) {
   const where = [];
@@ -227,6 +286,7 @@ export function listFeed(opts = {}, db = getDb()) {
       previousCostCents: r.previous_cost_cents,
       minOrderQty: r.min_order_qty,
       image: r.image,
+      imageStatus: r.image_status,
       sheet: r.source_sheet,
       inLatestImport: Boolean(r.in_latest_import),
       productId: r.product_id,
@@ -243,6 +303,7 @@ export function feedFacets(supplierId, db = getDb()) {
     categories: db.prepare(`SELECT category AS name, COUNT(*) n FROM feed_items ${cond} GROUP BY category ORDER BY category`).all(...args),
     brands: db.prepare(`SELECT brand AS name, COUNT(*) n FROM feed_items ${cond} GROUP BY brand ORDER BY brand COLLATE NOCASE`).all(...args),
     imports: db.prepare('SELECT * FROM feed_imports ORDER BY created_at DESC LIMIT 10').all(),
+    pendingImages: db.prepare("SELECT COUNT(*) n FROM feed_items WHERE image_status IN ('pending','downloading')").get().n,
   };
 }
 
