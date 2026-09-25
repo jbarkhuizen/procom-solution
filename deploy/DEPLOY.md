@@ -18,11 +18,11 @@ and nginx server blocks. Deploying or restarting one never touches the other.
 
 ## 1. Put the code on GitHub
 
-Create an empty **private** repo (suggested: `jbarkhuizen/procom-solutions`),
+Repo: `jbarkhuizen/procom-solution` (public -- no secrets are in git),
 then from this machine:
 
 ```bash
-git remote add origin https://github.com/jbarkhuizen/procom-solutions.git
+git remote add origin https://github.com/jbarkhuizen/procom-solution.git
 git push -u origin main
 ```
 
@@ -45,7 +45,7 @@ do step 3 soon after DNS changes, or before.
 ```bash
 ssh -i ~/.ssh/lapanza_vps_deploy deploy@<VPS_IP>
 sudo mkdir -p /opt/procom && sudo chown deploy:deploy /opt/procom
-git clone https://github.com/jbarkhuizen/procom-solutions.git /opt/procom/app
+git clone https://github.com/jbarkhuizen/procom-solution.git /opt/procom/app
 bash /opt/procom/app/deploy/deploy-app.sh
 ```
 

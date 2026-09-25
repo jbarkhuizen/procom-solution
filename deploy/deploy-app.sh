@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-REPO_URL="${PROCOM_REPO_URL:-https://github.com/jbarkhuizen/procom-solutions.git}"
+REPO_URL="${PROCOM_REPO_URL:-https://github.com/jbarkhuizen/procom-solution.git}"
 APP_DIR="/opt/procom/app"
 
 if [ ! -d "$APP_DIR/.git" ]; then
