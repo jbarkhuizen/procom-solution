@@ -217,6 +217,7 @@ routes.dashboard = async () => {
       <div class="panel">
         <div class="section-head"><h3>Needs attention</h3></div>
         <div class="meta-list">
+          <div><span>Paid orders needing a delivery quote</span><a href="#/orders/list/paid">${s.deliveryQuotesNeeded}</a></div>
           <div><span>Unread enquiries</span><a href="#/messages">${s.unreadMessages}</a></div>
           <div><span>Products without a category</span><a href="#/products/list/__none">${s.uncategorised}</a></div>
           <div><span>Live but out of stock</span><a href="#/products">${s.outOfStock}</a></div>
@@ -440,6 +441,14 @@ async function productEditor(id) {
           <label class="field"><span>Weight (g)</span><input name="weightG" type="number" min="0" value="${d.weightG ?? ''}"></label>
         </div>
         <label class="field"><span>Minimum order quantity</span><input name="minOrderQty" type="number" min="1" value="${d.minOrderQty || 1}"></label>
+        <label class="field"><span>Delivery at checkout</span><select name="quoteDelivery">${options(
+          [
+            { value: '', label: `Follow category${p ? (p.quoteDeliveryOverride == null ? (p.quoteDelivery ? ' (currently: quoted)' : ' (currently: normal)') : '') : ''}` },
+            { value: '1', label: 'Large item — delivery quoted after order' },
+            { value: '0', label: 'Normal shipping options' },
+          ],
+          d.quoteDeliveryOverride == null ? '' : String(d.quoteDeliveryOverride),
+        )}</select></label>
       </div>
 
       <div class="panel stack gap-2">
@@ -811,6 +820,7 @@ routes.categories = async () => {
         ${flat.map((c) => `<div class="cat-row" style="padding-left:${0.7 + c.depth * 1.5}rem">
           <span class="name">${c.depth ? '↳ ' : ''}${h(c.name)}</span>
           ${c.markupPct != null ? `<span class="badge info">${c.markupPct}% markup</span>` : ''}
+          ${c.quoteDelivery ? '<span class="badge warn">Delivery quoted</span>' : ''}
           ${c.active ? '' : '<span class="badge draft">Hidden</span>'}
           <span class="muted">${c.productCount} live</span>
           <a class="btn small" href="/shop.html?category=${h(c.slug)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">View</a>
@@ -835,13 +845,14 @@ routes.categories = async () => {
           <label class="field"><span>Sort order</span><input name="sortOrder" type="number" value="${c?.sortOrder ?? 0}"></label>
         </div>
         <label class="field checkbox"><input type="checkbox" name="active" ${!c || c.active ? 'checked' : ''}><span>Visible on the website</span></label>
+        <label class="field checkbox"><input type="checkbox" name="quoteDelivery" ${c?.quoteDelivery ? 'checked' : ''}><span>Large items: <strong>delivery quoted after order</strong> (no shipping price at checkout; applies to sub-categories too)</span></label>
         <div class="row-card-actions">${c ? '<button type="button" class="btn btn-danger" id="c-del">Delete</button>' : '<span></span>'}<button class="btn btn-primary">Save</button></div>
         ${c ? '<p class="mini-help">Deleting moves its products and sub-categories up to the parent.</p>' : ''}
       </form>`,
     );
     $('#cform', root).addEventListener('submit', async (e) => {
       e.preventDefault();
-      const body = { ...Object.fromEntries(new FormData(e.target)), active: e.target.active.checked };
+      const body = { ...Object.fromEntries(new FormData(e.target)), active: e.target.active.checked, quoteDelivery: e.target.quoteDelivery.checked };
       try {
         await api(c ? `/categories/${c.id}` : '/categories', { method: c ? 'PUT' : 'POST', body });
         toast('Category saved');
@@ -897,7 +908,7 @@ routes.orders = async (id, arg) => {
     <div class="panel table-wrap"><table class="catalog">
       <thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th class="num">Items</th><th class="num">Total</th><th>Status</th><th>Placed</th></tr></thead>
       <tbody>${
-        res.items.map((o) => `<tr data-go="#/orders/${h(o.id)}"><td><strong>${h(o.orderNumber)}</strong></td><td>${h(o.firstName)} ${h(o.lastName)}<br><span class="muted">${h(o.email)}</span></td><td>${h(o.shippingName)}</td><td class="num">${o.itemCount}</td><td class="num">${rand(o.totalCents)}</td><td>${statusBadge(o.status)}</td><td>${h(fmtDate(o.createdAt))}</td></tr>`).join('') ||
+        res.items.map((o) => `<tr data-go="#/orders/${h(o.id)}"><td><strong>${h(o.orderNumber)}</strong></td><td>${h(o.firstName)} ${h(o.lastName)}<br><span class="muted">${h(o.email)}</span></td><td>${o.deliveryQuote ? '<span class="badge warn">Delivery quote</span>' : h(o.shippingName)}</td><td class="num">${o.itemCount}</td><td class="num">${rand(o.totalCents)}</td><td>${statusBadge(o.status)}</td><td>${h(fmtDate(o.createdAt))}</td></tr>`).join('') ||
         '<tr><td colspan="7" class="empty">No orders yet.</td></tr>'
       }</tbody></table></div>
     ${pager(res.page, res.pages)}`);
@@ -921,6 +932,18 @@ async function orderDetail(id) {
     <div class="editor-layout">
       <div class="stack gap-4">
         <div class="panel">
+          ${o.deliveryQuote ? (() => {
+            const msg = `Hi ${o.firstName}, thank you for your Procom Solutions order ${o.orderNumber}. Because it includes large items, delivery is quoted separately. Delivery to ${[o.address.suburb, o.address.city].filter(Boolean).join(', ')} will cost R____ . Please reply to confirm and we'll send payment details. Thank you!`;
+            const phone = String(o.phone || '').replace(/\D/g, '').replace(/^0/, '27');
+            return `<div class="panel" style="border:2px solid var(--brand);margin-bottom:1rem">
+              <div class="section-head"><h3>Delivery quote needed</h3><span class="badge warn">Large items</span></div>
+              <p class="mini-help">The customer paid for the goods only (delivery R0 at checkout). Get a courier price to <strong>${h([o.address.line1, o.address.suburb, o.address.city, o.address.postalCode].filter(Boolean).join(', '))}</strong>, then send the quote. Collect payment by EFT or a Payfast payment request, note it below, and only then order from the supplier.</p>
+              <div class="toolbar" style="margin:0.5rem 0 0">
+                ${phone ? `<a class="btn small" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="https://api.whatsapp.com/send?phone=${h(phone)}&text=${encodeURIComponent(msg)}">WhatsApp quote to customer</a>` : ''}
+                <a class="btn small" style="text-decoration:none;color:inherit" href="mailto:${h(o.email)}?subject=${encodeURIComponent(`Delivery quote for order ${o.orderNumber}`)}&body=${encodeURIComponent(msg)}">Email quote to customer</a>
+              </div>
+            </div>`;
+          })() : ''}
           <div class="section-head"><h3>Items</h3>${statusBadge(o.status)}</div>
           <div class="table-wrap"><table class="catalog"><thead><tr><th>Product</th><th>Fulfilment</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Line</th><th class="num">Unit cost</th></tr></thead><tbody>
             ${o.items.map((i) => `<tr><td><strong>${h(i.name)}</strong><br><span class="muted">${h(i.sku)}${i.supplierCode ? ` · supplier code ${h(i.supplierCode)}` : ''}</span></td><td>${i.fulfilment === 'dropship' ? `<span class="badge info">Dropship${i.supplierName ? ` · ${h(i.supplierName)}` : ''}</span>` : '<span class="badge ok">Own stock</span>'}</td><td class="num">${i.quantity}</td><td class="num">${rand(i.unitPriceCents)}</td><td class="num">${rand(i.lineTotalCents)}</td><td class="num muted">${rand(i.unitCostCents)}</td></tr>`).join('')}

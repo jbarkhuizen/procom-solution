@@ -18,7 +18,34 @@ function rowToCategory(r) {
     markupPct: r.markup_pct,
     sortOrder: r.sort_order,
     active: Boolean(r.active),
+    quoteDelivery: Boolean(r.quote_delivery),
   };
+}
+
+// Category ids whose products get "delivery quoted after order" -- a flag on a
+// category applies to all its sub-categories too.
+export function quoteDeliveryCategoryIds(db = getDb()) {
+  const rows = db.prepare('SELECT id, parent_id, quote_delivery FROM categories').all();
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const out = new Set();
+  for (const r of rows) {
+    const seen = new Set();
+    for (let c = r; c && !seen.has(c.id); c = byId.get(c.parent_id)) {
+      seen.add(c.id);
+      if (c.quote_delivery) {
+        out.add(r.id);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+// Product override wins (1 always / 0 never); NULL inherits from its category.
+export function needsDeliveryQuote(productRow, quoteSet) {
+  if (productRow.quote_delivery === 1) return true;
+  if (productRow.quote_delivery === 0) return false;
+  return quoteSet.has(productRow.category_id);
 }
 
 export function listCategories({ activeOnly = false } = {}, db = getDb()) {
@@ -91,16 +118,17 @@ export function saveCategory(data, id = null, db = getDb()) {
     markup_pct: markup,
     sort_order: clampInt(data.sortOrder, -9999, 9999, 0),
     active: data.active === false || data.active === 0 ? 0 : 1,
+    quote_delivery: data.quoteDelivery === true || data.quoteDelivery === 1 || data.quoteDelivery === '1' || data.quoteDelivery === 'on' ? 1 : 0,
     updated_at: now(),
   };
   if (id) {
     const res = db.prepare(`UPDATE categories SET parent_id=@parent_id, name=@name, slug=@slug, description=@description,
-      markup_pct=@markup_pct, sort_order=@sort_order, active=@active, updated_at=@updated_at WHERE id=@id`).run({ ...fields, id });
+      markup_pct=@markup_pct, sort_order=@sort_order, active=@active, quote_delivery=@quote_delivery, updated_at=@updated_at WHERE id=@id`).run({ ...fields, id });
     if (!res.changes) return null;
   } else {
     id = randomUUID();
-    db.prepare(`INSERT INTO categories (id, parent_id, name, slug, description, markup_pct, sort_order, active, created_at, updated_at)
-      VALUES (@id, @parent_id, @name, @slug, @description, @markup_pct, @sort_order, @active, @updated_at, @updated_at)`).run({ ...fields, id });
+    db.prepare(`INSERT INTO categories (id, parent_id, name, slug, description, markup_pct, sort_order, active, quote_delivery, created_at, updated_at)
+      VALUES (@id, @parent_id, @name, @slug, @description, @markup_pct, @sort_order, @active, @quote_delivery, @updated_at, @updated_at)`).run({ ...fields, id });
   }
   // A markup change must flow through to every auto-priced product underneath.
   repriceProducts({}, db);
@@ -122,8 +150,9 @@ export function deleteCategory(id, db = getDb()) {
 
 // ------------------------------------------------------------------ products
 
-function rowToProduct(r, { admin = false, supplierLead = '' } = {}) {
+function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set() } = {}) {
   if (!r) return null;
+  const quoteDelivery = needsDeliveryQuote(r, quoteSet);
   const images = parseJsonArray(r.images);
   const inStock = r.fulfilment === 'stock' ? r.stock_qty > 0 : Boolean(r.supplier_in_stock);
   const base = {
@@ -149,6 +178,7 @@ function rowToProduct(r, { admin = false, supplierLead = '' } = {}) {
     stockQty: r.fulfilment === 'stock' ? r.stock_qty : null,
     availability: !inStock ? 'Out of stock' : r.fulfilment === 'stock' ? 'In stock — ships in 1-2 business days' : supplierLead || r.lead_time_text || 'Ships from our warehouse in 2-5 business days',
     featured: Boolean(r.featured),
+    quoteDelivery,
   };
   if (!admin) return base;
   return {
@@ -161,6 +191,7 @@ function rowToProduct(r, { admin = false, supplierLead = '' } = {}) {
     priceMode: r.price_mode,
     supplierInStock: Boolean(r.supplier_in_stock),
     stockQty: r.stock_qty,
+    quoteDeliveryOverride: r.quote_delivery, // null = inherit from category
     active: Boolean(r.active),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -180,19 +211,20 @@ function withMargin(p, settings) {
 export function getProduct(id, { admin = true } = {}, db = getDb()) {
   const row = db.prepare(`${PRODUCT_SELECT} WHERE p.id = ?`).get(id);
   if (!row) return null;
-  const p = rowToProduct(row, { admin });
+  const p = rowToProduct(row, { admin, quoteSet: quoteDeliveryCategoryIds(db) });
   return admin ? withMargin(p, getSettings(db)) : p;
 }
 
 export function getPublicProductBySlug(slug, db = getDb()) {
   const row = db.prepare(`${PRODUCT_SELECT} WHERE p.slug = ? AND p.active = 1`).get(slug);
   if (!row) return null;
-  const product = rowToProduct(row);
+  const quoteSet = quoteDeliveryCategoryIds(db);
+  const product = rowToProduct(row, { quoteSet });
   const breadcrumb = categoryChain(row.category_id, db).reverse().map((c) => ({ name: c.name, slug: c.slug }));
   const related = db
     .prepare(`${PRODUCT_SELECT} WHERE p.active = 1 AND p.category_id = ? AND p.id != ? ORDER BY p.featured DESC, RANDOM() LIMIT 5`)
     .all(row.category_id, row.id)
-    .map((r) => rowToProduct(r));
+    .map((r) => rowToProduct(r, { quoteSet }));
   return { product, breadcrumb, related };
 }
 
@@ -263,8 +295,9 @@ export function queryProducts(opts = {}, db = getDb()) {
     .prepare(`${PRODUCT_SELECT} ${whereSql} ORDER BY ${order}, p.name LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`)
     .all(params);
   const settings = admin ? getSettings(db) : null;
+  const quoteSet = quoteDeliveryCategoryIds(db);
   const items = rows.map((r) => {
-    const p = rowToProduct(r, { admin });
+    const p = rowToProduct(r, { admin, quoteSet });
     return admin ? withMargin(p, settings) : p;
   });
   return { items, total, page, pages, pageSize, brands };
@@ -338,6 +371,11 @@ export function saveProduct(data, id = null, db = getDb()) {
     min_order_qty: clampInt(data.minOrderQty ?? existing?.min_order_qty, 1, 10_000, 1),
     active: (data.active ?? (existing ? Boolean(existing.active) : true)) ? 1 : 0,
     featured: (data.featured ?? (existing ? Boolean(existing.featured) : false)) ? 1 : 0,
+    // '' / 'inherit' / null -> follow the category; '1' always quote; '0' never.
+    quote_delivery:
+      data.quoteDelivery === undefined
+        ? existing?.quote_delivery ?? null
+        : ['1', 1, true, 'always'].includes(data.quoteDelivery) ? 1 : ['0', 0, false, 'never'].includes(data.quoteDelivery) ? 0 : null,
     updated_at: now(),
   };
   if (fields.price_mode === 'auto') fields.price_cents = priceFor(fields, db);

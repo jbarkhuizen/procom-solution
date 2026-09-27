@@ -118,7 +118,7 @@ app.post('/api/cart/refresh', wrap((req) => {
   return ids
     .map((id) => catalog.getProduct(id, { admin: false }))
     .filter(Boolean)
-    .map((p) => ({ id: p.id, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, inStock: p.inStock, stockQty: p.stockQty, minOrderQty: p.minOrderQty, active: true }));
+    .map((p) => ({ id: p.id, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, inStock: p.inStock, stockQty: p.stockQty, minOrderQty: p.minOrderQty, quoteDelivery: p.quoteDelivery, active: true }));
 }));
 app.get('/api/shipping-options', wrap(() => shipping.listShippingOptions({ activeOnly: true })));
 

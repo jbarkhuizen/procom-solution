@@ -22,6 +22,7 @@ export const getCart = read;
 export const cartCount = () => read().reduce((s, i) => s + i.quantity, 0);
 export const cartSubtotal = () => read().reduce((s, i) => s + i.priceCents * i.quantity, 0);
 export const cartWeight = () => read().reduce((s, i) => s + (i.weightG || 0) * i.quantity, 0);
+export const cartNeedsDeliveryQuote = () => read().some((i) => i.quoteDelivery);
 
 export function addToCart(product, quantity = 1) {
   const items = read();
@@ -38,6 +39,7 @@ export function addToCart(product, quantity = 1) {
       weightG: product.weightG || 0,
       minOrderQty: min,
       maxQty: product.stockQty ?? null,
+      quoteDelivery: Boolean(product.quoteDelivery),
       quantity: Math.max(min, quantity),
     });
   const line = items.find((i) => i.productId === product.id);
@@ -78,7 +80,8 @@ export async function refreshCart() {
       continue;
     }
     if (p.priceCents !== i.priceCents) changed = true;
-    next.push({ ...i, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, minOrderQty: p.minOrderQty, maxQty: p.stockQty ?? null });
+    if (Boolean(p.quoteDelivery) !== Boolean(i.quoteDelivery)) changed = true;
+    next.push({ ...i, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, minOrderQty: p.minOrderQty, maxQty: p.stockQty ?? null, quoteDelivery: Boolean(p.quoteDelivery) });
   }
   if (changed) write(next);
   return { items: next, changed };

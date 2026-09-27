@@ -29,6 +29,10 @@ const COLUMN_MIGRATIONS = [
   ['feed_items', 'image_url', "TEXT NOT NULL DEFAULT ''"],   // remote photo from CSV/JSON/XML feeds
   ['feed_items', 'image_status', "TEXT NOT NULL DEFAULT ''"], // '' | pending | failed
   ['feed_imports', 'format', "TEXT NOT NULL DEFAULT 'xlsx'"],
+  // Heavy/bulky items: no checkout shipping price, delivery quoted after the order.
+  ['categories', 'quote_delivery', 'INTEGER NOT NULL DEFAULT 0'], // inherited by sub-categories
+  ['products', 'quote_delivery', 'INTEGER'],                      // NULL = inherit, 1 = always, 0 = never
+  ['orders', 'delivery_quote', 'INTEGER NOT NULL DEFAULT 0'],      // 1 = customer awaits a delivery quote
 ];
 
 export function migrate(conn) {

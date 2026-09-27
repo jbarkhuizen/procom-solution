@@ -1,6 +1,6 @@
 import './site.js';
 import { api, esc, formatRand } from './api.js';
-import { getCart, cartSubtotal, cartWeight, refreshCart } from './cart.js';
+import { getCart, cartSubtotal, cartWeight, refreshCart, cartNeedsDeliveryQuote } from './cart.js';
 import { setHtml } from './dom.js';
 
 const form = document.getElementById('checkout-form');
@@ -27,6 +27,22 @@ function selectedOption() {
 function renderShipping() {
   const weight = cartWeight();
   document.getElementById('weight').textContent = formatKg(weight);
+  if (cartNeedsDeliveryQuote()) {
+    // Large items: no courier choice here -- delivery is quoted after the order
+    // (the server enforces this too, whatever is submitted).
+    const big = getCart().filter((i) => i.quoteDelivery).map((i) => esc(i.name));
+    setHtml(
+      document.getElementById('ship-options'),
+      `<div class="rounded-sm border-2 border-terracotta bg-linen/60 p-4 text-sm leading-relaxed">
+        <p class="font-semibold mb-1">Delivery will be quoted after your order</p>
+        <p class="text-espresso/75">Your cart includes large items (${big.slice(0, 3).join(', ')}${big.length > 3 ? '…' : ''}), so the whole order ships together by courier. Pay for the products now; we'll send you the delivery cost to your address within 1 business day, before anything ships.</p>
+      </div>`,
+    );
+    document.getElementById('pudo-fields').classList.add('hidden');
+    document.getElementById('address-fields').classList.remove('hidden');
+    renderSummary();
+    return;
+  }
   const groups = new Map();
   for (const o of options) {
     if (o.optionType === 'auto_weight' && (weight < o.minWeight || (o.maxWeight != null && weight > o.maxWeight))) continue;
@@ -72,9 +88,10 @@ function renderSummary() {
       .join(''),
   );
   const sub = cartSubtotal();
-  const ship = selectedOption();
+  const quote = cartNeedsDeliveryQuote();
+  const ship = quote ? null : selectedOption();
   document.getElementById('sum-subtotal').textContent = formatRand(sub);
-  document.getElementById('sum-shipping').textContent = ship ? formatRand(ship.priceCents) : 'Choose an option';
+  document.getElementById('sum-shipping').textContent = quote ? 'Quoted after order' : ship ? formatRand(ship.priceCents) : 'Choose an option';
   document.getElementById('sum-total').textContent = formatRand(sub + (ship?.priceCents || 0));
 }
 
@@ -122,7 +139,7 @@ form.addEventListener('submit', async (e) => {
   document.getElementById('form-error').classList.add('hidden');
   const fd = new FormData(form);
   if (!fd.get('terms')) return showError('Please accept the Terms & Conditions to continue.');
-  if (!fd.get('shippingOptionId')) return showError('Please choose a delivery option.');
+  if (!cartNeedsDeliveryQuote() && !fd.get('shippingOptionId')) return showError('Please choose a delivery option.');
   const customer = Object.fromEntries(['firstName', 'lastName', 'email', 'phone', 'addressLine1', 'addressLine2', 'suburb', 'city', 'province', 'postalCode', 'pudoLocker'].map((k) => [k, String(fd.get(k) || '').trim()]));
   const btn = document.getElementById('pay-btn');
   btn.disabled = true;

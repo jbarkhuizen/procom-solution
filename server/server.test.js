@@ -153,6 +153,35 @@ test('supplier sheet lists supplier codes and ships to the customer', () => {
   assert.match(sheet.text, /1 Main Rd/);
 });
 
+test('delivery quote: category flag is inherited; product override wins', () => {
+  const parent = catalog.saveCategory({ name: '3D Printing' });
+  const child = catalog.saveCategory({ name: 'FDM', parentId: parent.id });
+  catalog.saveCategory({ name: '3D Printing', quoteDelivery: true }, parent.id);
+  const printer = product({ name: 'Printer', sku: 'PR1', categoryId: child.id });
+  const small = product({ name: 'Nozzle', sku: 'NZ1', categoryId: child.id, quoteDelivery: '0' });
+  const dryer = product({ name: 'Dryer', sku: 'DR1', quoteDelivery: '1' }); // keyboards-mice, not flagged
+  assert.equal(catalog.getProduct(printer.id).quoteDelivery, true);
+  assert.equal(catalog.getProduct(small.id).quoteDelivery, false);
+  assert.equal(catalog.getProduct(dryer.id).quoteDelivery, true);
+  assert.equal(catalog.getProduct(product({ name: 'Mouse', sku: 'MS1' }).id).quoteDelivery, false);
+});
+
+test('checkout with a large item: delivery R0, order flagged, client shipping choice ignored', () => {
+  const big = product({ name: 'K2 Printer', sku: 'K2', weightG: 1000, quoteDelivery: '1' });
+  const small = product({ name: 'Cable', sku: 'CB', weightG: 100 });
+  const o = orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: big.id, quantity: 1 }, { productId: small.id, quantity: 1 }] });
+  assert.equal(o.deliveryQuote, true);
+  assert.equal(o.shippingCents, 0);
+  assert.equal(o.shippingName, orders.DELIVERY_QUOTE_NAME);
+  assert.equal(o.totalCents, o.subtotalCents);
+  // No shipping option at all is fine; a street address is required.
+  assert.ok(orders.createOrder({ customer, items: [{ productId: big.id, quantity: 1 }] }));
+  const noAddr = { firstName: 'Ann', email: 'ann@example.com', phone: '0821234567', pudoLocker: 'Menlyn' };
+  assert.throws(() => orders.createOrder({ customer: noAddr, items: [{ productId: big.id, quantity: 1 }] }), /quote delivery/);
+  // Normal carts are unchanged.
+  assert.equal(orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: small.id, quantity: 1 }] }).deliveryQuote, false);
+});
+
 test('auto-weight shipping brackets may not overlap', () => {
   assert.throws(() => shipping.saveShippingOption({ name: 'Overlap', optionType: 'auto_weight', minWeight: 1000, maxWeight: 2000, price: 90 }), /overlaps/);
 });

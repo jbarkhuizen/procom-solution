@@ -1,7 +1,10 @@
 import { randomUUID } from 'crypto';
 import { getDb } from './db.js';
 import { resolveShippingForCheckout } from './shipping.js';
+import { quoteDeliveryCategoryIds, needsDeliveryQuote } from './catalog.js';
 import { clampInt } from './util.js';
+
+export const DELIVERY_QUOTE_NAME = 'Delivery quoted after order';
 
 export const ORDER_STATUSES = ['pending_payment', 'paid', 'ordered', 'shipped', 'delivered', 'cancelled'];
 export const STATUS_LABELS = {
@@ -46,6 +49,7 @@ function rowToOrder(r, items = [], events = []) {
     totalCents: r.total_cents,
     totalWeightG: r.total_weight_g,
     supplierRef: r.supplier_ref,
+    deliveryQuote: Boolean(r.delivery_quote),
     trackingNumber: r.tracking_number,
     adminNotes: r.admin_notes,
     paidAt: r.paid_at,
@@ -134,11 +138,23 @@ export function createOrder(input, db = getDb()) {
 
   const subtotal = items.reduce((s, i) => s + i.line, 0);
   const weight = items.reduce((s, i) => s + i.p.weight_g * i.quantity, 0);
-  const ship = resolveShippingForCheckout(input.shippingOptionId, weight, db);
-  const isPudo = /pudo/i.test(ship.category) && ship.optionType === 'fixed';
-  if (isPudo && !customer.pudoLocker) throw new Error('Please enter the PUDO locker you want your order delivered to');
-  const needsAddress = !isPudo || /door/i.test(ship.name); // Locker-to-Door needs both
-  if (needsAddress && (!customer.line1 || !customer.city || !customer.postalCode)) throw new Error('Please enter your delivery address (street, city and postal code)');
+
+  // Heavy/bulky items: the whole order ships together and delivery is quoted
+  // after the order -- decided here from the products, never from the client.
+  const quoteSet = quoteDeliveryCategoryIds(db);
+  const deliveryQuote = items.some((i) => needsDeliveryQuote(i.p, quoteSet));
+  let ship;
+  if (deliveryQuote) {
+    ship = { id: null, name: DELIVERY_QUOTE_NAME, priceCents: 0 };
+    customer.pudoLocker = '';
+    if (!customer.line1 || !customer.city || !customer.postalCode) throw new Error('Please enter your delivery address so we can quote delivery (street, city and postal code)');
+  } else {
+    ship = resolveShippingForCheckout(input.shippingOptionId, weight, db);
+    const isPudo = /pudo/i.test(ship.category) && ship.optionType === 'fixed';
+    if (isPudo && !customer.pudoLocker) throw new Error('Please enter the PUDO locker you want your order delivered to');
+    const needsAddress = !isPudo || /door/i.test(ship.name); // Locker-to-Door needs both
+    if (needsAddress && (!customer.line1 || !customer.city || !customer.postalCode)) throw new Error('Please enter your delivery address (street, city and postal code)');
+  }
 
   const paymentMethod = input.paymentMethod === 'payfast_eft' ? 'payfast_eft' : 'payfast_card';
   const id = randomUUID();
@@ -148,14 +164,15 @@ export function createOrder(input, db = getDb()) {
     const orderNumber = nextOrderNumber(db);
     db.prepare(`INSERT INTO orders (id, order_number, status, payment_status, payment_method, first_name, last_name, email, phone,
       address_line1, address_line2, suburb, city, province, postal_code, pudo_locker, customer_notes,
-      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, created_at, updated_at)
+      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, created_at, updated_at)
       VALUES (@id, @orderNumber, 'pending_payment', 'pending', @paymentMethod, @firstName, @lastName, @email, @phone,
       @line1, @line2, @suburb, @city, @province, @postalCode, @pudoLocker, @notes,
-      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @ts, @ts)`).run({
+      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @ts, @ts)`).run({
       id,
       orderNumber,
       paymentMethod,
       ...customer,
+      deliveryQuote: deliveryQuote ? 1 : 0,
       shipId: ship.id,
       shipName: ship.name,
       shipCents: ship.priceCents,
@@ -170,6 +187,7 @@ export function createOrder(input, db = getDb()) {
       ins.run(randomUUID(), id, p.id, p.sku, p.name, p.fulfilment, p.supplier_id, p.supplier_code, p.cost_cents, p.price_cents, quantity, line, p.weight_g);
     }
     logOrderEvent(id, `Order placed (${paymentMethod === 'payfast_eft' ? 'Instant EFT' : 'Card'})`, 'customer', db);
+    if (deliveryQuote) logOrderEvent(id, 'Contains large items — delivery must be quoted to the customer', 'system', db);
   });
   tx();
   return getOrder(id, db);
@@ -303,6 +321,7 @@ export function dashboardStats(db = getDb()) {
     uncategorised: db.prepare('SELECT COUNT(*) n FROM products WHERE category_id IS NULL').get().n,
     feedItems: db.prepare('SELECT COUNT(*) n FROM feed_items').get().n,
     unreadMessages: db.prepare('SELECT COUNT(*) n FROM contact_messages WHERE handled = 0').get().n,
+    deliveryQuotesNeeded: db.prepare("SELECT COUNT(*) n FROM orders WHERE delivery_quote = 1 AND status = 'paid'").get().n,
     recentOrders: listOrders({ pageSize: 8 }, db).items,
   };
 }

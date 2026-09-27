@@ -57,6 +57,7 @@ export function sendOrderConfirmation(order) {
     `<p>Hi ${escapeHtml(order.firstName)},</p>
      <p>Thank you — your payment was received and your order <strong>${escapeHtml(order.orderNumber)}</strong> is being processed.
      Most items ship directly from our warehouse; we'll email you the tracking number as soon as it's dispatched.</p>
+     ${order.deliveryQuote ? `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Delivery quote to follow:</strong> your order includes large items, so delivery wasn't charged at checkout. We'll contact you within 1 business day with the courier cost to your address, before anything ships.</p>` : ''}
      ${itemsTable(order)}`,
   );
   return sendMail({ to: order.email, subject: `Procom Solutions — order ${order.orderNumber} confirmed`, html });
@@ -68,10 +69,11 @@ export function sendOwnerNewOrder(order) {
   const html = layout(
     `New paid order ${order.orderNumber}`,
     `<p><strong>${escapeHtml(order.firstName)} ${escapeHtml(order.lastName)}</strong> · ${escapeHtml(order.email)} · ${escapeHtml(order.phone)}</p>
+     ${order.deliveryQuote ? `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>Delivery quote needed.</strong> This order contains large items — get a courier price to ${escapeHtml([order.address.suburb, order.address.city, order.address.postalCode].filter(Boolean).join(', '))} and send the customer the quote.</p>` : ''}
      ${itemsTable(order)}
      ${dropship.length ? `<p style="margin-top:16px"><strong>${dropship.length} line(s) to order from the warehouse.</strong> Open the order in admin for the supplier order sheet.</p>` : ''}`,
   );
-  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}`, html, replyTo: order.email });
+  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}`, html, replyTo: order.email });
 }
 
 export function sendShippedNotice(order) {

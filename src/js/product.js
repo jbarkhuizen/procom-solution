@@ -81,7 +81,7 @@ async function load() {
         ${p.brand ? `<p class="eyebrow mb-3">${esc(p.brand)}</p>` : ''}
         <h1 class="font-serif text-2xl md:text-[1.75rem] leading-tight tracking-tight mb-2">${esc(p.name)}</h1>
         <p class="mb-2"><span class="text-2xl font-semibold text-terracotta">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-espresso/45 ml-2">${formatRand(p.compareAtCents)}</s>` : ''}</p>
-        <div class="flex flex-wrap items-center gap-2 mb-3">${availabilityPill(p)}<span class="text-xs text-espresso/60">${esc(p.availability)}</span></div>
+        <div class="flex flex-wrap items-center gap-2 mb-3">${availabilityPill(p)}<span class="text-xs text-espresso/60">${esc(p.availability)}</span>${p.quoteDelivery ? '<span class="pill pill-warn">Delivery quoted</span>' : ''}</div>
         ${p.shortDescription ? `<p class="text-sm text-espresso/80 leading-relaxed mb-3">${esc(p.shortDescription)}</p>` : ''}
         ${p.inStock ? `<div class="flex flex-wrap items-center gap-3 mb-3">
           <div class="qty"><button type="button" data-step="-1" aria-label="Decrease">−</button><input id="qty" type="number" value="${min}" min="${min}" ${p.stockQty != null ? `max="${Number(p.stockQty)}"` : ''} aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase">+</button></div>
@@ -91,7 +91,9 @@ async function load() {
         <a href="${esc(whatsappLink(site, `Hi Procom, I have a question about ${p.name} (${p.sku}).`))}" target="_blank" rel="noopener noreferrer" class="inline-flex text-sm font-semibold border-2 border-charcoal rounded-full px-5 py-2.5 hover:bg-charcoal hover:text-cream transition-colors">Ask about this product</a>
         <div class="flex items-start gap-2 rounded-sm border border-charcoal/10 bg-linen/60 px-3 py-2.5 text-xs text-espresso/70 mt-4">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 mt-0.5"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-          <span>Delivered nationwide via PUDO locker or courier, or local delivery in Pretoria East. Delivery options and costs are shown at checkout.</span>
+          <span>${p.quoteDelivery
+            ? '<strong>Large item — delivery is quoted after your order.</strong> You pay for the product at checkout; we then send you the courier cost to your address within 1 business day, before anything ships.'
+            : 'Delivered nationwide via PUDO locker or courier, or local delivery in Pretoria East. Delivery options and costs are shown at checkout.'}</span>
         </div>
         ${p.description ? `<div class="rich-text text-sm text-espresso/80 leading-relaxed mt-5">${paragraphs(p.description)}</div>` : ''}
         ${specs}
