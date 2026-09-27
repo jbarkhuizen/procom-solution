@@ -25,6 +25,15 @@ function prunePreviews() {
   while (previews.size > 5) previews.delete(previews.keys().next().value);
 }
 
+// Supplier-facing quantity notes in product names, e.g. SMD's
+// "(To Be Ordered in Qty of 36)" and "( Order in Qty of 6)".
+const QTY_NOTE = /\s*\(\s*(?:to\s+be\s+)?order(?:ed)?\s+in\s+qty\s+of\s+\d+\s*\)\s*/i;
+
+// Customer-facing title without the supplier's quantity note.
+export function cleanProductName(name) {
+  return String(name || '').replace(QTY_NOTE, ' ').replace(/\s+/g, ' ').trim();
+}
+
 // "... (To Be Ordered in Qty of 36)" -> 36
 export function parseMinOrderQty(name) {
   const m = String(name || '').match(/qty\s*of\s*(\d+)/i);
@@ -387,7 +396,7 @@ export function listFeedItems({ feedIds, categoryId, markupPct, active = true, w
         {
           sku,
           // The MOQ note is supplier-facing; keep it off the customer-facing title.
-          name: f.name.replace(/\s*\((?:to be )?ordered in qty of \d+\)\s*/i, ' ').trim(),
+          name: cleanProductName(f.name),
           brand: f.brand,
           categoryId: categoryId || null,
           fulfilment: 'dropship',

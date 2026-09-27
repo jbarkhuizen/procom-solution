@@ -154,6 +154,14 @@ test('single-brand lists: camelCase headings, "Wholesale" cost, section rows, do
   assert.deepEqual(problems, { noCode: 0, noName: 0, noCost: 1 }); // "TBC" price; headings/notes aren't problems
 });
 
+test('supplier quantity notes are removed from shop titles (both SMD wordings)', () => {
+  assert.equal(feed.cleanProductName('Legend Supreme Chef 16cm Casserole ( Order in Qty of 2)'), 'Legend Supreme Chef 16cm Casserole');
+  assert.equal(feed.cleanProductName('BISSELL Wash & Protect Formula (Order in Qty of 6)'), 'BISSELL Wash & Protect Formula');
+  assert.equal(feed.cleanProductName('Avalanche Double Bubble - Maze (To Be Ordered in Qty of 36)'), 'Avalanche Double Bubble - Maze');
+  assert.equal(feed.cleanProductName('Legend cafetiere plunger (mesh) ( Order in Qty of 1)'), 'Legend cafetiere plunger (mesh)');
+  assert.equal(feed.parseMinOrderQty('Snappy Egg Container ( Order in Qty of 6)'), 6);
+});
+
 test('partial (flyer) imports update only the cost of known items', async () => {
   await feed.importFile({ supplierId, fileName: 'full.csv', buffer: buf('code,name,brand,category,price\nF1,Lotus Floating Shelf,Fenda,Furniture,200\n') });
   await feed.importFile({ supplierId, fileName: 'flyer.csv', buffer: buf('code,name,brand,price\nF1,Lotus Floating Shelf - Set,Lotus,150\nF9,New Promo Item,Lotus,50\n'), completeList: false });
