@@ -8,7 +8,9 @@
 // All given tests must pass. First match wins, so ORDER MATTERS: specific
 // rules sit above the catch-all for their SMD category. `skip` rules keep
 // rows out of the shop and say why in the preview. `quote` marks a new
-// category "delivery quoted after order" (only when the category is created).
+// category "delivery quoted after order" and `markup` gives it its own
+// markup % (both only when the category is created). A list's `heavy`
+// pattern marks individual newly listed products as delivery quoted.
 //
 // Parents are matched by name to the live category tree -- keep them
 // spelled exactly as in Admin -> Categories, or a duplicate gets created.
@@ -44,9 +46,9 @@ const CASH_RULES = [
   skip('Creality: listed from the Creality list', { sheet: /^Creality$/ }),
 
   // --- by product name, whatever SMD called it
-  r('Computers & Peripherals', 'Laptops & Tablets', { cat: /^Devices$/, name: /^(?!.*(stand|lock|cool|cover|pillow|writing tablet|charger)).*(laptop|macbook|ipad|\btablet\b|acer (e10|14")|primebook|expertbook|lenovo v15)/i }),
+  r('Computers & Peripherals', 'Laptops & Tablets', { cat: /^Devices$/, name: /^(?!.*(stand|lock|cool|cover|pillow|writing tablet|charger)).*(laptop|macbook|ipad|\btablet\b|acer (e10|14")|primebook|expertbook|lenovo v15)/i }, { markup: 10 }),
   r('Computers & Peripherals', 'Storage & Memory', { name: /sd card|flash drive/i }),
-  r('Mobile & Wearables', 'Phones', { name: /iphone 1\d|samsung (galaxy|s2\d|a0\d)/i }),
+  r('Mobile & Wearables', 'Phones', { name: /iphone 1\d|samsung (galaxy|s2\d|a0\d)/i }, { markup: 10 }),
   r('Computers & Peripherals', 'PC Components', { name: /computer case|cpu cooler|atx/i }),
   r('Computers & Peripherals', 'Monitors', { name: /^(?!.*(mount|arm|rate monitor|humidity)).*monitor\b/i }),
   r('Computers & Peripherals', 'Laptop & Monitor Stands', { name: /monitor.*mount|monitor mount|laptop stand|notebook stand|cooling (stand|pad)|notebook cooling/i }),
@@ -71,6 +73,7 @@ const CASH_RULES = [
 
   // --- by SMD category, specific first, then that category's catch-all
   r('Gaming', 'Gaming Chairs & Desks', { cat: /^Furniture$/ }, { quote: true }),
+  r('Gaming', 'Gaming Chairs & Desks', { cat: /^Gaming$/, name: /chair/i }, { quote: true }),
   r('Gaming', 'Gaming Headsets', { cat: /^Gaming$/, name: /headset|headphone|earbud|earphone/i }),
   r('Gaming', 'Gaming Mice & Keyboards', { cat: /^Gaming$/, name: /mouse|mice|keyboard|keypad|combo/i }),
   r('Gaming', 'Mouse Pads & Accessories', { cat: /^Gaming$/, name: /pad|mat|stand|holder|cable|bungee|light/i }),
@@ -131,10 +134,15 @@ const CASH_RULES = [
   r('Toys & Games', 'Toys & Games', { cat: /^(Toys and games|Kitchen and Home|Rideables)$/ }),
 ];
 
+// Too big for the default 1 kg courier bracket: soundbars and subwoofers,
+// large party speakers, 24"/27" monitors, 100" projector screens, heavy-duty
+// or 86"+ TV mounts, the racing cockpit and the electric scooter.
+const CASH_HEAVY = /^(?!.*(mini soundbar|tumble tower)).*(projector screen|electric scooter|racing simulator|cockpit|heavy duty.*(mount|bracket)|trolley tv bracket|double arm.*tv|(mount|bracket).*[-–]\s*(8[6-9]|9\d|1\d\d)\s*("|”|'')|dual (8|10|12)("|-inch| inch)|tower|srs-xv500|high power wireless party|soundbar|subwoofer|theatre (bar|system|quad)|hifi system|\b(24|27)-inch.*monitor)/i;
+
 // sourceFile is a SQL LIKE pattern on the imported file name: monthly names
 // differ ("SMD_Cash_wholesale_September_pricelist_2026_-1.xlsx"), and other
 // SMD lists carry the same brands.
 export const SMD_LISTS = {
   infant: { label: 'SMD Infant Essential', sourceFile: '%infant%', rules: INFANT_RULES },
-  cash: { label: 'SMD Cash Wholesale', sourceFile: '%cash%wholesale%', rules: CASH_RULES },
+  cash: { label: 'SMD Cash Wholesale', sourceFile: '%cash%wholesale%', rules: CASH_RULES, heavy: CASH_HEAVY },
 };

@@ -18,13 +18,14 @@ function getList(key) {
   return list;
 }
 
-// -> { parent, sub, quote } | { skip } | null (no rule matched)
+// -> { parent, sub, quote, markup? } | { skip } | null (no rule matched)
 export function classifyItem(listKey, { name = '', category = '', sheet = '' }) {
   const rule = getList(listKey).rules.find(
     (x) => (!x.cat || x.cat.test(category)) && (!x.sheet || x.sheet.test(sheet)) && (!x.name || x.name.test(name)),
   );
   if (!rule) return null;
-  return rule.skip ? { skip: rule.skip } : { parent: rule.parent, sub: rule.sub, quote: Boolean(rule.quote) };
+  if (rule.skip) return { skip: rule.skip };
+  return { parent: rule.parent, sub: rule.sub, quote: Boolean(rule.quote), ...(rule.markup != null && { markup: rule.markup }) };
 }
 
 const rand = (cents) => `R${(cents / 100).toFixed(2)}`;
@@ -35,14 +36,17 @@ function findCategory(db, name, parentId) {
     .get(...(parentId ? [name, parentId] : [name]));
 }
 
-// Existing categories are reused by name, so running this twice is harmless.
-function ensureCategory(db, name, parentId, quoteDelivery, created) {
+// Existing categories are reused by name (their settings untouched), so
+// running this twice is harmless.
+function ensureCategory(db, name, parentId, { quote = false, markup = null } = {}, created) {
   const found = findCategory(db, name, parentId);
   if (found) return found.id;
   const sortOrder = db.prepare(`SELECT COUNT(*) n FROM categories WHERE ${parentId ? 'parent_id = ?' : 'parent_id IS NULL'}`).get(...(parentId ? [parentId] : [])).n;
   created.push(name);
-  return saveCategory({ name, parentId, sortOrder, quoteDelivery }, null, db).id;
+  return saveCategory({ name, parentId, sortOrder, quoteDelivery: quote, markupPct: markup }, null, db).id;
 }
+
+const categoryNotes = (g) => [g.quote && 'delivery quoted', g.markup != null && `${g.markup}% markup`].filter(Boolean).join(', ');
 
 // Categories the run would create, as "Parent › Sub" (or "Parent" when the
 // parent itself is missing). Shown in the preview so a near-duplicate of an
@@ -52,7 +56,7 @@ function missingCategories(db, groups) {
   for (const g of groups) {
     const parent = findCategory(db, g.parent, null);
     if (!parent) out.add(g.parent);
-    if (!parent || !findCategory(db, g.sub, parent.id)) out.add(`${g.parent} › ${g.sub}${g.quote ? ' (delivery quoted)' : ''}`);
+    if (!parent || !findCategory(db, g.sub, parent.id)) out.add(`${g.parent} › ${g.sub}${categoryNotes(g) ? ` (${categoryNotes(g)})` : ''}`);
   }
   return [...out].sort();
 }
@@ -71,6 +75,7 @@ export function autoList({ list: listKey, supplierId, dryRun = false } = {}, db 
   const groups = new Map(); // "Parent › Sub" -> { parent, sub, quote, toList: [], toCategorise: [] }
   const unmatched = [];
   const skipped = new Map(); // reason -> [{ code, name }]
+  const heavy = []; // [{ code, name }] -> product marked "delivery quoted"
   let alreadyCategorised = 0;
   for (const r of rows) {
     if (r.product_id && r.category_id) {
@@ -92,6 +97,7 @@ export function autoList({ list: listKey, supplierId, dryRun = false } = {}, db 
     if (!groups.has(key)) groups.set(key, { ...c, toList: [], toCategorise: [] });
     const g = groups.get(key);
     r.product_id ? g.toCategorise.push(r.product_id) : g.toList.push(r.id);
+    if (list.heavy?.test(r.name)) heavy.push({ code: r.code, name: r.name });
   }
 
   const summary = [...groups.entries()]
@@ -104,20 +110,24 @@ export function autoList({ list: listKey, supplierId, dryRun = false } = {}, db 
     newCategories: missingCategories(db, groups.values()),
     skipped: [...skipped.entries()].map(([reason, items]) => ({ reason, items })).sort((a, b) => a.reason.localeCompare(b.reason)),
     unmatched,
+    heavy,
     alreadyCategorised,
     categoriesCreated: [],
     created: 0,
     categorised: 0,
+    quoted: 0,
     errors: [],
   };
   if (dryRun) return result;
 
   const run = db.transaction(() => {
     const setCat = db.prepare('UPDATE products SET category_id = ?, updated_at = ? WHERE id = ?');
+    // Only products without an admin-set delivery choice (NULL = inherit).
+    const setQuote = db.prepare('UPDATE products SET quote_delivery = 1, updated_at = ? WHERE supplier_id = ? AND supplier_code = ? AND quote_delivery IS NULL');
     const ts = new Date().toISOString();
     for (const g of groups.values()) {
-      const parentId = ensureCategory(db, g.parent, null, false, result.categoriesCreated);
-      const categoryId = ensureCategory(db, g.sub, parentId, g.quote, result.categoriesCreated);
+      const parentId = ensureCategory(db, g.parent, null, {}, result.categoriesCreated);
+      const categoryId = ensureCategory(db, g.sub, parentId, g, result.categoriesCreated);
       if (g.toList.length) {
         const r = listFeedItems({ feedIds: g.toList, categoryId, markupPct: null, active: true }, db);
         result.created += r.created;
@@ -125,6 +135,7 @@ export function autoList({ list: listKey, supplierId, dryRun = false } = {}, db 
       }
       for (const id of g.toCategorise) result.categorised += setCat.run(categoryId, ts, id).changes;
     }
+    for (const h of heavy) result.quoted += setQuote.run(ts, supplierId, h.code).changes;
   });
   run();
   return result;
