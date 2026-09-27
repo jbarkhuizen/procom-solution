@@ -22,7 +22,7 @@ _Last updated: 2026-09-27_
 | Luggage & Travel (Suitcases, Luggage Sets & Business Trolleys) | 103 | quoted |
 | Health & Beauty (Hair Care, Personal Care & Wellness) | 44 | normal |
 | Baby & Toddler (13 sub-categories) + Toys & Games, Health & Wellness | _pending: run the Infant Essential auto-list after deploy (286 items)_ | normal |
-| Cash Wholesale: Audio, Cameras & Photography, TV & Video, Office & School (new) + sub-categories under existing categories | _pending: run the Cash Wholesale auto-list after deploy (up to 2,791 items, minus those already listed)_ | Gaming Chairs & Desks quoted |
+| Cash Wholesale: Audio, Cameras & Photography, TV & Video, Office & School (new) + sub-categories under existing categories | _pending: run the Cash Wholesale auto-list after deploy (up to 2,791 items, minus those already listed)_ | Gaming Chairs & Desks quoted; 49 heavy items quoted per product |
 
 **Suppliers:** SMD (Warehouse), Esquire, IDS, Huge PC, Dicspeed. All imports so far are SMD's
 (Cash wholesale, Home and Beyond, Infant Essential, Creality list, two promo flyers).
@@ -45,6 +45,7 @@ _Last updated: 2026-09-27_
 | 2026-09-27 | Creality items: supplier = SMD (SMD distributes Creality) |
 | 2026-09-27 | Infant Essential: 13 Baby & Toddler sub-categories; Lifree and Loop & Co listed too; default markup; colour variants listed as separate products |
 | 2026-09-27 | Cash Wholesale: category structure approved (4 new top-level categories); items already listed by hand keep their category; Creality tab skipped (listed from the Creality list); SA Filament listed under 3D Printing › Filament; laptops and phones listed; Gaming Chairs & Desks listed with delivery quoted |
+| 2026-09-27 | Phones and Laptops & Tablets: markup pinned at 10% on the category (same as today's default, but stays 10% if the default changes). Heavy Cash Wholesale items (49: soundbars/subwoofers, big party speakers, 24"/27" monitors, projector screens, large TV mounts, racing cockpit, electric scooter) listed with delivery quoted |
 
 ## Open items / backlog
 
@@ -56,5 +57,6 @@ _Last updated: 2026-09-27_
 - **Legal pages** (Terms, Privacy, Returns) written for SA law — should get a quick legal review.
 - **Infant Essential**: after deploying, re-import the September file if needed, then Warehouse feed → Auto-list SMD Infant Essential. Check: Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price (ask SMD what differs); Totes Babe bags and the R3,900 Loop & Co display box use the default 1 kg weight.
 - **Cash wholesale** (September 2026: 3,315 rows, 34 brand tabs): after deploying, import the file and run Auto-list SMD Cash Wholesale. In the preview, check the "categories that will be created" list against the live tree (especially 3D Printing › Filament). 23 rows are always skipped: 7 display stands at R0.01, 2 Ellies TOSLINK cables priced ~R1.08m (ask SMD), 8 junk rows, 6 refurbished printers/consumables.
-- **Heavy items not quoted**: projector screens, large TV mounts and the Volkano electric scooter use the default 1 kg weight; set per-product "delivery quoted" if courier costs matter.
+- **Heavy items**: 49 Cash Wholesale items are marked delivery quoted automatically. Medium items (e.g. 20-30 m extension reels, single 8" party speakers, desk lamps) still ship at the default 1 kg; adjust per product if couriers charge more.
+- **Hand-listed products** keep their existing delivery setting; the auto-list doesn't mark them heavy.
 - Optional: register procompretoria.co.za and point it at the same site.

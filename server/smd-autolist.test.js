@@ -122,6 +122,8 @@ test('cash wholesale: product name beats SMD category, and rule order holds', ()
   assert.equal(where('Creality K1 Max 3D Printer 300x300x300', 'Devices', 'Creality'), 'skip: Creality: listed from the Creality list');
   assert.equal(where('Volkano On The Go PDQ Box', 'Display Unit', 'Volkano'), 'skip: Display stand, not for sale');
   assert.deepEqual(cash('Mercury VX Gaming Chair - Black', 'Furniture'), { parent: 'Gaming', sub: 'Gaming Chairs & Desks', quote: true });
+  assert.equal(where('VX Gaming Electra Series Rocking Gaming Chair with LED lights', 'Gaming'), 'Gaming › Gaming Chairs & Desks');
+  assert.deepEqual(cash('Samsung Galaxy S24 256gb DS Black', 'Devices'), { parent: 'Mobile & Wearables', sub: 'Phones', quote: false, markup: 10 });
   assert.equal(cash('Something', 'Brand New SMD Category'), null);
 });
 
@@ -132,6 +134,8 @@ test('cash wholesale: skips wrong prices, flags quoted delivery, previews new ca
     'CH-1,Mercury VX Gaming Chair - Black,Furniture,1299.99',
     'PDQ-1,Volkano On The Go PDQ Box,Display Unit,0.01',
     'TOS-1,TOSLINK Male to TOSLINK Male 3m,Televisions,1082026',
+    'SCR-1,Connex E-Luminate Pull-Down Projector Screen 100in - 16:9,Devices,599',
+    'MNT-1,Volkano Steel Series Tilt TV Wall Mount for 23" - 43" TVs,Televisions,104.34',
   ].join('\n');
   await feed.importFile({ supplierId, fileName: 'SMD_Cash_wholesale_September_pricelist_2026_-1.csv', buffer: Buffer.from(file) });
 
@@ -139,15 +143,29 @@ test('cash wholesale: skips wrong prices, flags quoted delivery, previews new ca
   assert.deepEqual(dry.summary.map((g) => [g.category, g.newListings]), [
     ['Computers & Peripherals › Laptops & Tablets', 1],
     ['Gaming › Gaming Chairs & Desks', 1],
+    ['TV & Video › Projectors & Screens', 1],
+    ['TV & Video › TV Wall Mounts & Stands', 1],
   ]);
-  assert.deepEqual(dry.newCategories, ['Computers & Peripherals › Laptops & Tablets', 'Gaming › Gaming Chairs & Desks (delivery quoted)']);
+  assert.deepEqual(dry.newCategories, [
+    'Computers & Peripherals › Laptops & Tablets (10% markup)',
+    'Gaming › Gaming Chairs & Desks (delivery quoted)',
+    'TV & Video',
+    'TV & Video › Projectors & Screens',
+    'TV & Video › TV Wall Mounts & Stands',
+  ]);
+  assert.deepEqual(dry.heavy.map((i) => i.code), ['SCR-1'], 'a 100" screen is heavy; a 43" mount is not');
   assert.deepEqual(dry.skipped.map((g) => [g.reason, g.items.map((i) => i.code)]), [
     ['Display stand, not for sale', ['PDQ-1']],
     ['Price looks wrong (R1082026.00)', ['TOS-1']],
   ]);
 
   const r = autoList({ list: 'cash', supplierId, dryRun: false });
-  assert.equal(r.created, 2);
+  assert.equal(r.created, 4);
+  assert.equal(r.quoted, 1);
+  const quote = (code) => db.prepare('SELECT quote_delivery FROM products WHERE supplier_code = ?').get(code).quote_delivery;
+  assert.equal(quote('SCR-1'), 1);
+  assert.equal(quote('MNT-1'), null, 'inherits from its category');
+  assert.equal(db.prepare("SELECT markup_pct FROM categories WHERE name = 'Laptops & Tablets'").get().markup_pct, 10);
   const chairs = db.prepare("SELECT quote_delivery FROM categories WHERE name = 'Gaming Chairs & Desks'").get();
   assert.equal(chairs.quote_delivery, 1);
   const laptops = db.prepare("SELECT quote_delivery FROM categories WHERE name = 'Laptops & Tablets'").get();

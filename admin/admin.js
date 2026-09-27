@@ -742,6 +742,7 @@ routes.feed = async () => {
         ${work.map((g) => `<tr style="cursor:default"><td>${h(g.category)}</td><td class="num">${g.newListings}</td><td class="num">${g.categorised || ''}</td></tr>`).join('')}
       </tbody></table></div>` : ''}
       ${work.length && pv.newCategories.length ? `<p><strong>Categories that will be created (${pv.newCategories.length})</strong> — check none of these duplicates one you already have under a different name:</p><p class="mini-help">${pv.newCategories.map(h).join('<br>')}</p>` : ''}
+      ${work.length && pv.heavy.length ? `<details><summary>${pv.heavy.length} heavy item(s) will be marked <strong>delivery quoted</strong></summary><p class="mini-help">${codes(pv.heavy)}</p></details>` : ''}
       ${pv.skipped.map((g) => `<details><summary>${g.items.length} skipped: ${h(g.reason)}</summary><p class="mini-help">${codes(g.items)}</p></details>`).join('')}
       ${pv.unmatched.length ? `<details open><summary><strong>${pv.unmatched.length} not recognised</strong> (not listed; list them by hand below)</summary><p class="mini-help">${codes(pv.unmatched)}</p></details>` : ''}
       <div class="row-card-actions"><button class="btn btn-ghost" id="al-cancel" style="color:inherit">Close</button>${work.length ? `<button class="btn btn-primary" id="al-go">List ${total} product(s)</button>` : ''}</div>
@@ -753,7 +754,7 @@ routes.feed = async () => {
       e.target.textContent = 'Listing…';
       try {
         const r = await api('/feed/smd-autolist', { method: 'POST', body: { list, supplierId: s.supplierId, dryRun: false } });
-        toast(`Listed ${r.created} product(s)${r.categorised ? ` · ${r.categorised} categorised` : ''}${r.categoriesCreated.length ? ` · ${r.categoriesCreated.length} categories created` : ''}${r.errors.length ? ` · ${r.errors.length} failed` : ''}`);
+        toast(`Listed ${r.created} product(s)${r.categorised ? ` · ${r.categorised} categorised` : ''}${r.quoted ? ` · ${r.quoted} delivery quoted` : ''}${r.categoriesCreated.length ? ` · ${r.categoriesCreated.length} categories created` : ''}${r.errors.length ? ` · ${r.errors.length} failed` : ''}`);
         if (r.errors.length) console.warn(r.errors);
         categoryCache = null;
         reload();
