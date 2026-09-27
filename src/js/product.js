@@ -1,6 +1,6 @@
 import { addWithFeedback } from './site.js';
 import { api, esc, formatRand, getSite, whatsappLink } from './api.js';
-import { productCard, availabilityPill, bindAddButtons } from './cards.js';
+import { productCard, availabilityPill, bindAddButtons, packLabel } from './cards.js';
 import { setHtml } from './dom.js';
 
 const root = document.getElementById('product-root');
@@ -80,14 +80,19 @@ async function load() {
       <div>
         ${p.brand ? `<p class="eyebrow mb-3">${esc(p.brand)}</p>` : ''}
         <h1 class="font-serif text-2xl md:text-[1.75rem] leading-tight tracking-tight mb-2">${esc(p.name)}</h1>
-        <p class="mb-2"><span class="text-2xl font-semibold text-terracotta">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-espresso/45 ml-2">${formatRand(p.compareAtCents)}</s>` : ''}</p>
+        ${(() => {
+          const pack = packLabel(p);
+          return pack
+            ? `<p class="mb-2"><span class="text-2xl font-semibold text-terracotta">${pack.total}</span> <span class="text-sm font-semibold text-espresso/75">${pack.per}</span> <span class="text-xs text-espresso/55 ml-1">(${pack.each})</span></p>`
+            : `<p class="mb-2"><span class="text-2xl font-semibold text-terracotta">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-espresso/45 ml-2">${formatRand(p.compareAtCents)}</s>` : ''}</p>`;
+        })()}
         <div class="flex flex-wrap items-center gap-2 mb-3">${availabilityPill(p)}<span class="text-xs text-espresso/60">${esc(p.availability)}</span>${p.quoteDelivery ? '<span class="pill pill-warn">Delivery quoted</span>' : ''}</div>
         ${p.shortDescription ? `<p class="text-sm text-espresso/80 leading-relaxed mb-3">${esc(p.shortDescription)}</p>` : ''}
         ${p.inStock ? `<div class="flex flex-wrap items-center gap-3 mb-3">
           <div class="qty"><button type="button" data-step="-1" aria-label="Decrease">−</button><input id="qty" type="number" value="${min}" min="${min}" ${p.stockQty != null ? `max="${Number(p.stockQty)}"` : ''} aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase">+</button></div>
           <button type="button" id="add-btn" class="magnetic-btn flex-1 sm:flex-none sm:w-60 bg-charcoal text-cream rounded-full px-6 py-2.5 text-sm font-semibold brutal hover:bg-terracotta">Add to cart</button>
         </div>
-        ${min > 1 ? `<p class="text-xs text-espresso/60 mb-3">Sold in quantities of ${min} or more.</p>` : ''}` : `<p class="text-sm text-espresso/70 mb-4">This item is currently unavailable. WhatsApp us and we'll let you know when it's back or suggest an alternative.</p>`}
+        ${min > 1 ? `<p class="text-xs text-espresso/60 mb-3">Sold in packs of ${min} — the quantity starts at ${min}.</p>` : ''}` : `<p class="text-sm text-espresso/70 mb-4">This item is currently unavailable. WhatsApp us and we'll let you know when it's back or suggest an alternative.</p>`}
         <a href="${esc(whatsappLink(site, `Hi Procom, I have a question about ${p.name} (${p.sku}).`))}" target="_blank" rel="noopener noreferrer" class="inline-flex text-sm font-semibold border-2 border-charcoal rounded-full px-5 py-2.5 hover:bg-charcoal hover:text-cream transition-colors">Ask about this product</a>
         <div class="flex items-start gap-2 rounded-sm border border-charcoal/10 bg-linen/60 px-3 py-2.5 text-xs text-espresso/70 mt-4">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 mt-0.5"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>

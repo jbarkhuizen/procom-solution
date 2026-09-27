@@ -4,6 +4,21 @@ export function productUrl(p) {
   return `/product.html?p=${encodeURIComponent(p.slug)}`;
 }
 
+// Items sold in a minimum quantity show the pack total ("R576.00 per 24") as
+// the headline price, so the first amount a customer sees is what they pay.
+export function packLabel(p) {
+  const min = p.minOrderQty || 1;
+  return min > 1 ? { total: formatRand(p.priceCents * min), per: `per ${min}`, each: `${formatRand(p.priceCents)} each` } : null;
+}
+
+function priceLine(p, sale) {
+  const pack = packLabel(p);
+  if (pack) {
+    return `<p class="leading-tight"><span class="text-terracotta font-semibold text-sm">${pack.total}</span> <span class="text-[0.68rem] font-semibold text-espresso/70">${pack.per}</span><br><span class="text-[0.62rem] text-espresso/50">${pack.each}</span></p>`;
+  }
+  return `<p class="leading-none"><span class="text-terracotta font-semibold text-sm">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-[0.65rem] text-espresso/45">${formatRand(p.compareAtCents)}</s>` : ''}</p>`;
+}
+
 export function availabilityPill(p) {
   if (!p.inStock) return '<span class="pill pill-warn">Out of stock</span>';
   return '<span class="pill pill-ok">In stock</span>';
@@ -26,7 +41,7 @@ export function productCard(p) {
       <h3 class="text-[0.8rem] font-medium leading-snug mb-1.5 line-clamp-2"><a href="${productUrl(p)}" class="hover:text-terracotta">${esc(p.name)}</a></h3>
       <div class="mt-auto">
         <div class="flex items-center justify-between gap-1.5 flex-wrap">
-          <p class="leading-none"><span class="text-terracotta font-semibold text-sm">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-[0.65rem] text-espresso/45">${formatRand(p.compareAtCents)}</s>` : ''}</p>
+          ${priceLine(p, sale)}
           ${availabilityPill(p)}
         </div>
         <button type="button" data-add="${esc(p.id)}" ${p.inStock ? '' : 'disabled'}
