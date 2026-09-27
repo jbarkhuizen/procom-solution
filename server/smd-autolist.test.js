@@ -8,7 +8,7 @@ process.env.DISABLE_BACKUPS = '1';
 
 const { useMemoryDb } = await import('./db.js');
 const feed = await import('./feed.js');
-const { classifyInfantItem, autoListInfantEssential } = await import('./smd-infant.js');
+const { classifyItem, autoList } = await import('./smd-autolist.js');
 
 let db;
 let supplierId;
@@ -17,7 +17,9 @@ beforeEach(() => {
   supplierId = db.prepare('SELECT id FROM suppliers').get().id;
 });
 
+const classifyInfantItem = (name) => classifyItem('infant', { name });
 const sub = (name) => classifyInfantItem(name)?.sub;
+const autoListInfantEssential = (opts) => autoList({ ...opts, list: 'infant' });
 
 test('classifies names whose keywords overlap', () => {
   assert.equal(sub('Pigeon - Baby Bottles & Accessories Cleanser 500ml'), 'Sterilising & Cleaning');
@@ -30,8 +32,8 @@ test('classifies names whose keywords overlap', () => {
   assert.equal(sub('Pigeon Baby Tooth & Gum Wipes - Natural (20 Pcs)'), 'Oral Care');
   assert.equal(sub('Totes Babe Wavy Series Stroller Caddy Grey'), 'Nappy & Changing Bags');
   assert.equal(sub('Echo Baby Silicone Stacking Rings - Ocean'), 'Baby Toys & Keepsakes');
-  assert.deepEqual(classifyInfantItem('Avalanche Double Bubble - Cyclone'), { parent: 'Toys & Games', sub: 'Outdoor & Bubble Toys' });
-  assert.deepEqual(classifyInfantItem('Lifree Powerful L - 10 Pc'), { parent: 'Health & Wellness', sub: 'Adult Incontinence' });
+  assert.deepEqual(classifyInfantItem('Avalanche Double Bubble - Cyclone'), { parent: 'Toys & Games', sub: 'Outdoor & Bubble Toys', quote: false });
+  assert.deepEqual(classifyInfantItem('Lifree Powerful L - 10 Pc'), { parent: 'Health & Wellness', sub: 'Adult Incontinence', quote: false });
   assert.equal(classifyInfantItem('Something unrelated'), null);
 });
 
@@ -92,4 +94,66 @@ test('a listed product without a category gets one; an admin-chosen category is 
   assert.equal(db.prepare("SELECT category_id FROM products WHERE supplier_code = 'SEL-8013'").get().category_id, gaming);
   const cat = db.prepare("SELECT c.name FROM products p JOIN categories c ON c.id = p.category_id WHERE p.supplier_code = 'EB-1000-BL'").get();
   assert.equal(cat.name, 'Feeding & Weaning');
+});
+
+// ---------------------------------------------------------------- cash wholesale
+
+const cash = (name, category = '', sheet = '') => classifyItem('cash', { name, category, sheet });
+const where = (...a) => {
+  const c = cash(...a);
+  return c?.skip ? `skip: ${c.skip}` : c && `${c.parent} › ${c.sub}`;
+};
+
+test('cash wholesale: product name beats SMD category, and rule order holds', () => {
+  assert.equal(where('Lenovo Laptop V15 AMD Ryzen3 8/256', 'Devices'), 'Computers & Peripherals › Laptops & Tablets');
+  assert.equal(where('Volkano Brio Plus Series USB-C 65w Laptop Charger', 'Devices'), 'Computers & Peripherals › Computer Accessories');
+  assert.equal(where('Supanova Azura Ladies 15.6" Laptop Tote Bag Black', 'Bags'), 'Bags & Laptop Cases › Laptop Bags & Backpacks');
+  assert.equal(where('IPHONE 16 128GB BLACK(Cellular Bundle)', 'Devices'), 'Mobile & Wearables › Phones');
+  assert.equal(where('Volkano Active Tech Serene Series Watch with Heart Rate Monitor - Silver', 'Wearables'), 'Mobile & Wearables › Smartwatches');
+  assert.equal(where('Volkano 24-inch Full HD IPS Monitor with HDMI/VGA, 100 Hz', 'Devices'), 'Computers & Peripherals › Monitors');
+  assert.equal(where('Volkano Steel Series Full Motion Single Monitor Desk Mount 17" - 32"', 'Computer Accessories'), 'Computers & Peripherals › Laptop & Monitor Stands');
+  assert.equal(where('Sony ULT Wear NC - Black', 'Audio'), 'Audio › Headphones');
+  assert.equal(where('Amplify Wingman Series 8" Party Speaker with Microphone - Black', 'Audio'), 'Audio › Speakers');
+  assert.equal(where('Disney Frozen Bluetooth Mini Karaoke Machine with Belt Hook', 'Audio'), 'Audio › Microphones & Karaoke');
+  assert.equal(where('Ellies Ultra Series - Alkaline Batteries AA 4 Pack - WT', 'Electrical'), 'Power & Electrical › Batteries');
+  assert.equal(where('Insta360 X5 Battery', 'Photography'), 'Cameras & Photography › Camera Accessories');
+  assert.equal(where('TP-Link Vigi C330I 3MP 6mm Outdoor Bullet Network Camera', 'Networking', 'VIGI'), 'Networking › Security Cameras');
+  assert.equal(where('SA Filament PLA Hyper Filament 1kg - Black', 'Devices', 'SA Filament'), '3D Printing › Filament');
+  assert.equal(where('Creality K1 Max 3D Printer 300x300x300', 'Devices', 'Creality'), 'skip: Creality: listed from the Creality list');
+  assert.equal(where('Volkano On The Go PDQ Box', 'Display Unit', 'Volkano'), 'skip: Display stand, not for sale');
+  assert.deepEqual(cash('Mercury VX Gaming Chair - Black', 'Furniture'), { parent: 'Gaming', sub: 'Gaming Chairs & Desks', quote: true });
+  assert.equal(cash('Something', 'Brand New SMD Category'), null);
+});
+
+test('cash wholesale: skips wrong prices, flags quoted delivery, previews new categories', async () => {
+  const file = [
+    'code,name,category,price',
+    'LAP-1,Lenovo Laptop V15 AMD Ryzen3 8/256,Devices,6999',
+    'CH-1,Mercury VX Gaming Chair - Black,Furniture,1299.99',
+    'PDQ-1,Volkano On The Go PDQ Box,Display Unit,0.01',
+    'TOS-1,TOSLINK Male to TOSLINK Male 3m,Televisions,1082026',
+  ].join('\n');
+  await feed.importFile({ supplierId, fileName: 'SMD_Cash_wholesale_September_pricelist_2026_-1.csv', buffer: Buffer.from(file) });
+
+  const dry = autoList({ list: 'cash', supplierId, dryRun: true });
+  assert.deepEqual(dry.summary.map((g) => [g.category, g.newListings]), [
+    ['Computers & Peripherals › Laptops & Tablets', 1],
+    ['Gaming › Gaming Chairs & Desks', 1],
+  ]);
+  assert.deepEqual(dry.newCategories, ['Computers & Peripherals › Laptops & Tablets', 'Gaming › Gaming Chairs & Desks (delivery quoted)']);
+  assert.deepEqual(dry.skipped.map((g) => [g.reason, g.items.map((i) => i.code)]), [
+    ['Display stand, not for sale', ['PDQ-1']],
+    ['Price looks wrong (R1082026.00)', ['TOS-1']],
+  ]);
+
+  const r = autoList({ list: 'cash', supplierId, dryRun: false });
+  assert.equal(r.created, 2);
+  const chairs = db.prepare("SELECT quote_delivery FROM categories WHERE name = 'Gaming Chairs & Desks'").get();
+  assert.equal(chairs.quote_delivery, 1);
+  const laptops = db.prepare("SELECT quote_delivery FROM categories WHERE name = 'Laptops & Tablets'").get();
+  assert.equal(laptops.quote_delivery, 0);
+});
+
+test('unknown pricelist is rejected', () => {
+  assert.throws(() => autoList({ list: 'nope', supplierId }), /Unknown pricelist/);
 });

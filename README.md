@@ -41,7 +41,7 @@ A fresh database shows a "create your admin account" screen on first visit to th
 - **Products**: cost excl VAT → VAT → purchase price → profit → selling price for every product; bulk actions (live/hide, feature, move category, set markup, supplier stock)
 - **Product editor**: live price breakdown, photos, specs, fulfilment (dropship / own stock), min qty, delivery-quote override
 - **Categories**: tree, markup per category (inherited), "delivery quoted" per category
-- **Warehouse feed**: import supplier files in **XLSX, CSV, JSON, XML or PDF** (PDF pricelist tables or promo flyers) with an editable column-mapping preview; embedded XLSX photos and photo URLs imported; list items into categories; monthly re-imports update costs and reprice listed products; delete an import; one-click auto-list of SMD's Infant Essential list into Baby & Toddler sub-categories
+- **Warehouse feed**: import supplier files in **XLSX, CSV, JSON, XML or PDF** (PDF pricelist tables or promo flyers) with an editable column-mapping preview; embedded XLSX photos and photo URLs imported; list items into categories; monthly re-imports update costs and reprice listed products; delete an import; one-click auto-list of SMD's Infant Essential and Cash Wholesale lists into store categories (rule-based, with preview)
 - **Orders**: status workflow, tracking, supplier order sheet (copy / email / WhatsApp), delivery-quote banner with pre-written message
 - Suppliers, shipping options, site settings, enquiries, admin users, backups
 
