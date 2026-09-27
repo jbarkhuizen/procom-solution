@@ -19,6 +19,7 @@ Express 5 + better-sqlite3 API · Vite + Tailwind v4 static storefront · vanill
 server/            API (index.js), schema+migrations (db.js), catalog, pricing, feed import
   feed-parsers.js  XLSX/CSV/JSON/XML/PDF -> tables of headers+rows (+ row photos)
   feed.js          preview cache, column mapping, import, list-from-feed, delete import
+  smd-infant.js    SMD Infant Essential keyword categoriser + one-click auto-list
   remote-images.js background photo-URL downloader (SSRF-guarded)
   *.test.js        node --test suites (npm test)
 admin/             admin SPA served at /admin (no build step); dom.js = only HTML sink
@@ -40,6 +41,7 @@ Commands: `npm run dev` (API :8788 watch + Vite :5174), `npm test`, `npm run bui
   - `completeList` = true: listed products missing from the file go out of stock (never auto back in stock). **Flyers/partial lists** (PDF flyer mode defaults off) only update the **cost** of known items.
   - Re-import updates costs and reprices auto-priced listed products.
   - `deleteImport` removes the history row + feed items whose latest data came from that file, **except** items listed in the shop or touched by a newer import.
+  - **SMD Infant Essential auto-list** (`server/smd-infant.js`, Warehouse feed → "Auto-list SMD Infant Essential…"): keyword rules on the item name put each row from a file named `*Infant*` into Baby & Toddler sub-categories (+ Toys & Games › Outdoor & Bubble Toys, Health & Wellness › Adult Incontinence, Home & Kitchen › Kitchen & Drinkware). Preview first; creates missing categories by name; lists at default markup; never overrides an admin-set category; unmatched names are reported, not listed. Rule order matters (first match wins) — add a test in `smd-infant.test.js` when changing it.
   - `cleanProductName()` strips SMD's "(To Be Ordered in Qty of N)" / "( Order in Qty of N)" from shop titles; `parseMinOrderQty()` reads it into `min_order_qty`.
 - **Minimum order qty**: cards/product page show the pack total ("R576.00 per 24", unit price under); cart and checkout enforce the minimum.
 - **Delivery quoted** (`quote_delivery`): category flag inherited by sub-categories; product override (NULL inherit / 1 always / 0 never). If any cart item needs a quote, the **server** ignores the submitted shipping option, charges R0 delivery, requires a street address and sets `orders.delivery_quote=1`; admin shows a banner with pre-written WhatsApp/email quote. On for: 3D Printers FDM/Resin, Laser Engravers, Furniture, Luggage & Travel.
