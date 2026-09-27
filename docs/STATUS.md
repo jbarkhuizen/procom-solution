@@ -21,6 +21,7 @@ _Last updated: 2026-09-27_
 | Furniture (Desks & Office Chairs, Tables, Shelving & Storage, Seating & Living) | 186 | quoted |
 | Luggage & Travel (Suitcases, Luggage Sets & Business Trolleys) | 103 | quoted |
 | Health & Beauty (Hair Care, Personal Care & Wellness) | 44 | normal |
+| Baby & Toddler (13 sub-categories) + Toys & Games, Health & Wellness | _pending: run the Infant Essential auto-list after deploy (286 items)_ | normal |
 
 **Suppliers:** SMD (Warehouse), Esquire, IDS, Huge PC, Dicspeed. All imports so far are SMD's
 (Cash wholesale, Home and Beyond, Infant Essential, Creality list, two promo flyers).
@@ -28,6 +29,7 @@ _Last updated: 2026-09-27_
 **Imported files (all rows imported):**
 - SMD Home and Beyond (609 rows, 11 brand tabs + Index): all 609 listed; 168 bulk items sold in their minimum quantity
 - Creality wholesale list (474 usable of 475; 1 priced "TBC"): all listed under 3D Printing
+- SMD Infant Essential September 2026 (286 rows, 6 brand tabs): auto-list button merged (PR #1); run it on live after deploy
 
 ## Decisions made
 
@@ -40,6 +42,7 @@ _Last updated: 2026-09-27_
 | 2026-09-27 | Large items: delivery quoted after order (printers, engravers, furniture, luggage) |
 | 2026-09-27 | Bulk-only SMD items listed with their minimum qty; pack totals shown |
 | 2026-09-27 | Creality items: supplier = SMD (SMD distributes Creality) |
+| 2026-09-27 | Infant Essential: 13 Baby & Toddler sub-categories; Lifree and Loop & Co listed too; default markup; colour variants listed as separate products |
 
 ## Open items / backlog
 
@@ -49,5 +52,6 @@ _Last updated: 2026-09-27_
 - **Weights**: supplier lists have none (default 1 kg). Heavy categories use delivery quotes; other large one-offs (e.g. filament maker, 10-roll filament dryer in 3D Upgrades) may need the per-product "delivery quoted" override.
 - **Filament overlap with lapanza3d.co.za** (same owner) — owner hasn't decided whether both sites should sell filament.
 - **Legal pages** (Terms, Privacy, Returns) written for SA law — should get a quick legal review.
-- **Remaining SMD lists**: Cash wholesale and Infant Essential are in the Warehouse feed but only partly listed (the owner listed a selection by hand); list more via Warehouse feed as needed.
+- **Infant Essential**: after deploying, re-import the September file if needed, then Warehouse feed → Auto-list SMD Infant Essential. Check: Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price (ask SMD what differs); Totes Babe bags and the R3,900 Loop & Co display box use the default 1 kg weight.
+- **Cash wholesale** (September 2026: 3,315 rows, 34 brand tabs): only partly listed by hand. Category mapping proposal in progress.
 - Optional: register procompretoria.co.za and point it at the same site.

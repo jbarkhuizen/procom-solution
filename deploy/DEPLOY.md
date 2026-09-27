@@ -81,6 +81,11 @@ Open https://www.procomsolutions.co.za/admin/. A fresh database shows
 1. **Admin → Warehouse feed** → upload each SMD `.xlsx` pricelist.
 2. Filter, tick items, choose a category, **List**. Price =
    `cost excl VAT × 1.15 × (1 + markup)`, rounded up to the next rand.
+   **SMD Infant Essential:** after importing it, click **Auto-list SMD
+   Infant Essential…** (under Recent imports). It previews how many items go
+   into each Baby & Toddler sub-category, then creates the categories and
+   lists everything at the default markup. Safe to click again each month;
+   it only lists new items.
 3. Monthly: upload the new lists. Costs update, auto-priced products
    reprice, and discontinued items go out of stock.
 
