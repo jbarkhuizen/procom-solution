@@ -32,7 +32,26 @@ ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147 "bash /opt/procomsolutions
 ```
 
 This pulls `main`, installs dependencies, builds, runs the tests and restarts
-the service. The database, photos and `.env` are never touched.
+the service. The database, photos and `.env` are never touched. New database
+columns are added automatically on restart (`COLUMN_MIGRATIONS` in `server/db.js`).
+
+**Log in as few times as possible.** The server runs fail2ban: many SSH logins
+within a few minutes bans your IP for about 30 minutes (websites keep working,
+only SSH is refused). Chain commands into one `ssh ... '...'` session.
+
+## Bulk data changes on the live site
+
+For one-off catalogue operations (listing a whole supplier file into
+categories, moving products between categories) the pattern used so far is:
+
+1. Write a small Node script that imports the app's own modules
+   (`saveCategory`, `listFeedItems`, `bulkUpdateProducts`) — not raw SQL —
+   prints a summary, and **aborts without changing anything** if an item
+   doesn't map.
+2. `scp` it to `/tmp`, copy it into `/opt/procomsolutions/app` (it needs
+   `node_modules`), run it, delete it — all in one SSH session.
+3. Verify via the public API, e.g.
+   `curl https://www.procomsolutions.co.za/api/categories`.
 
 ## Secrets (`.env` on the server): Johan does this
 

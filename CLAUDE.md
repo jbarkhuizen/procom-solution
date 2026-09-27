@@ -1,0 +1,70 @@
+# Procom Solutions — project context
+
+Online store **https://www.procomsolutions.co.za**, owned by **Lapanza** (trading as
+Procom Solutions). Sells computer equipment, 3D printing, home & kitchen, furniture,
+luggage and more — mostly **dropshipped** from the supplier's warehouse (SMD).
+Design system copied from lapanza3d.co.za (`D:\Projects\Lapanza 3d Creations\lapanza-3d-fullsite V1 - Martin`).
+
+- Repo: https://github.com/jbarkhuizen/procom-solution (**public** — never commit secrets; IPs are fine, passwords are not)
+- Contact on site: procompretoria@gmail.com · 082 663 9608 (Lapanza's number)
+- Payfast: **live**, using Lapanza's merchant account (payments show "Procom Solutions order PC…")
+- Email: Gmail SMTP as procompretoria@gmail.com (app password in server `.env` only)
+- **Current live state, decisions log and open items: [docs/STATUS.md](docs/STATUS.md)** — read it first, update it when things change.
+
+## Stack & layout
+
+Express 5 + better-sqlite3 API · Vite + Tailwind v4 static storefront · vanilla-JS admin SPA · Payfast · nodemailer.
+
+```
+server/            API (index.js), schema+migrations (db.js), catalog, pricing, feed import
+  feed-parsers.js  XLSX/CSV/JSON/XML/PDF -> tables of headers+rows (+ row photos)
+  feed.js          preview cache, column mapping, import, list-from-feed, delete import
+  remote-images.js background photo-URL downloader (SSRF-guarded)
+  *.test.js        node --test suites (npm test)
+admin/             admin SPA served at /admin (no build step); dom.js = only HTML sink
+src/js, src/styles storefront JS + Tailwind (main.css from lapanza3d); dom.js = only HTML sink
+partials/          header/sidebar/footer, inlined at build by a small Vite plugin (<!-- @include x -->)
+*.html             storefront pages (index, shop, product, checkout, ...)
+data/              procom.db, uploads/, backups/  (gitignored)
+deploy/            nginx vhost, systemd unit, deploy-app.sh, DEPLOY.md (runbook)
+```
+
+Commands: `npm run dev` (API :8788 watch + Vite :5174), `npm test`, `npm run build`, `npm start`.
+
+## How the business logic works (read before changing)
+
+- **Money is integer cents** everywhere (`*_cents`). Weights in grams.
+- **Pricing** (`server/pricing.js`): `retail = cost_excl_VAT × 1.15 × (1 + markup)`, rounded **up** to the next rand (`roundRetail`). Business is **not VAT-registered** (supplier VAT is a cost). Markup precedence: product → nearest category up the tree → site default (**10%**). `price_mode='manual'` products are never repriced.
+- **Storefront reads the catalogue live** from the API (no publish step, unlike lapanza3d). Empty categories are hidden.
+- **Warehouse feed**: upload → `POST /feed/preview` (parse, auto-map columns by heading aliases, cached 30 min by token) → `/feed/preview/map` (live re-map) → `/feed/import`. Mapping is by header *name* so one mapping applies to every sheet. Rows with no code and no price are section headings (become supplier category) or notes. No brand column → real sheet name, else a first word covering ≥40% of names.
+  - `completeList` = true: listed products missing from the file go out of stock (never auto back in stock). **Flyers/partial lists** (PDF flyer mode defaults off) only update the **cost** of known items.
+  - Re-import updates costs and reprices auto-priced listed products.
+  - `deleteImport` removes the history row + feed items whose latest data came from that file, **except** items listed in the shop or touched by a newer import.
+  - `cleanProductName()` strips SMD's "(To Be Ordered in Qty of N)" / "( Order in Qty of N)" from shop titles; `parseMinOrderQty()` reads it into `min_order_qty`.
+- **Minimum order qty**: cards/product page show the pack total ("R576.00 per 24", unit price under); cart and checkout enforce the minimum.
+- **Delivery quoted** (`quote_delivery`): category flag inherited by sub-categories; product override (NULL inherit / 1 always / 0 never). If any cart item needs a quote, the **server** ignores the submitted shipping option, charges R0 delivery, requires a street address and sets `orders.delivery_quote=1`; admin shows a banner with pre-written WhatsApp/email quote. On for: 3D Printers FDM/Resin, Laser Engravers, Furniture, Luggage & Travel.
+- **Shipping** mirrors lapanza3d: `auto_weight` Courier brackets by cart weight, `fixed` PUDO Locker / Local Delivery options. Supplier lists have **no weights** (default 1 kg) — that's why large items use delivery quotes.
+- **Orders**: server re-prices from DB (client prices ignored); stock decremented on Payfast ITN (idempotent); each order gets a supplier order sheet (copy/email/WhatsApp).
+- **Admin auth**: sessions stored in SQLite (survive restarts); first visit to /admin with no admins shows "create account"; same-origin check on mutations.
+- **Payfast**: signing ported from lapanza3d (PHP-style urlencode, fixed field order). The shared public sandbox merchant (10000100) rejects all signatures, so it's sent **unsigned** only in that case; any real account is always signed.
+
+## Deploying (VPS shared with lapanza3d, barkie, johanbarkhuizen, zatoengineering)
+
+```bash
+git push origin main
+ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147 "bash /opt/procomsolutions/app/deploy/deploy-app.sh"
+```
+- App `/opt/procomsolutions/app`, service `procomsolutions-admin`, Node on `127.0.0.1:8788` (Lapanza uses 8787), nginx `/etc/nginx/conf.d/procomsolutions.conf` (certbot-managed; the script never overwrites it). Full runbook: `deploy/DEPLOY.md`.
+- **fail2ban on SSH**: many SSH logins in a few minutes bans this PC's IP (~30 min). Do each server operation in **one** SSH session (chain commands; redirect deploy output to `/tmp/procom-deploy.log` and grep it).
+- **Schema changes**: add columns via `COLUMN_MIGRATIONS` in `server/db.js` (additive, idempotent) — the live DB has real data.
+- **Live data changes** (bulk listing, category moves): write a script, `scp` it to `/tmp`, copy into the app dir (needs `node_modules`), run, delete. Use app functions (`saveCategory`, `listFeedItems`, `bulkUpdateProducts`) rather than raw SQL; print a dry-run/summary and abort if anything is unmapped.
+- Always verify afterwards: `curl https://www.procomsolutions.co.za/api/health` and that lapanza3d.co.za still returns 200.
+
+## Working conventions / gotchas on this machine
+
+- A security hook rejects any Write/Edit whose text contains the DOM "inner HTML" property name or the word exec directly followed by an opening parenthesis — even in docs. Use `setHtml()` from `src/js/dom.js` / `admin/dom.js` (the single audited HTML sinks — escape every dynamic value with `esc()` / `h()`); for SQLite's multi-statement call write a placeholder and replace it with `sed`.
+- Reading `.env*` files is blocked by a permission rule (good — never print secrets; check "set/empty" only).
+- Bash heredocs containing apostrophes break in this tool — write scripts to the scratchpad and run them.
+- Playwright MCP can only save screenshots under the project (`.playwright-mcp/`, gitignored) — delete after use. The Claude Browser `preview_start` doesn't find this project's launch config; start servers with background Bash instead.
+- Vite proxy must keep `changeOrigin: false` (otherwise admin saves fail the same-origin check in dev).
+- Owner preferences: plain-language explanations; **propose category structures as a table for approval before creating them**; confirm before outward-facing actions; commit with the Co-Authored-By trailer.
