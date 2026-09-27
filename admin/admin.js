@@ -602,6 +602,7 @@ routes.feed = async () => {
           ${facets.imports.map((i) => `<tr style="cursor:default"><td>${h(i.file_name)} <span class="badge neutral">${h(i.format || 'xlsx')}</span><br><span class="muted">${h(fmtDate(i.created_at))}</span></td><td class="num">${i.rows_total}</td><td class="num">${i.rows_new}</td><td class="num">${i.price_changes}</td><td class="num">${i.products_repriced}</td><td class="num"><button class="btn small btn-danger" data-del-import="${h(i.id)}" data-file="${h(i.file_name)}">Delete</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">—</td></tr>'}
         </tbody></table></div>
         <button class="btn small" id="retry-photos" style="margin-top:0.6rem">Retry failed photo downloads</button>
+        <button class="btn small" id="smd-infant" style="margin-top:0.6rem" title="Sorts the SMD Infant Essential list into Baby &amp; Toddler sub-categories and lists every item">Auto-list SMD Infant Essential…</button>
       </div>
     </div>
     <div id="mapping-panel"></div>
@@ -720,6 +721,34 @@ routes.feed = async () => {
       const r = await api('/feed/images/retry', { method: 'POST' });
       toast(r.queued ? `Retrying ${r.queued} photo(s) in the background` : 'No failed photos to retry');
     } catch (err) { fail(err); }
+  });
+
+  $('#smd-infant', root).addEventListener('click', async (e) => {
+    const btn = e.target;
+    btn.disabled = true;
+    try {
+      const pv = await api('/feed/smd-infant', { method: 'POST', body: { supplierId: s.supplierId, dryRun: true } });
+      const work = pv.summary.filter((g) => g.newListings || g.categorised);
+      if (!work.length) {
+        toast(pv.itemsFound ? 'Nothing to do: every Infant Essential item is already listed with a category' : 'No Infant Essential items found for this supplier. Import the pricelist first.');
+        return;
+      }
+      const lines = work.map((g) => `${g.category}: ${g.newListings} new${g.categorised ? `, ${g.categorised} categorised` : ''}`);
+      const extra = [
+        pv.alreadyCategorised ? `${pv.alreadyCategorised} already listed with a category (left as is)` : '',
+        pv.unmatched.length ? `${pv.unmatched.length} not recognised (not listed): ${pv.unmatched.slice(0, 5).map((u) => u.code).join(', ')}${pv.unmatched.length > 5 ? '…' : ''}` : '',
+      ].filter(Boolean);
+      if (!confirm(`List SMD Infant Essential items at the default markup, live immediately?\n\n${lines.join('\n')}${extra.length ? `\n\n${extra.join('\n')}` : ''}\n\nMissing categories are created automatically.`)) return;
+      const r = await api('/feed/smd-infant', { method: 'POST', body: { supplierId: s.supplierId, dryRun: false } });
+      toast(`Listed ${r.created} product(s)${r.categorised ? ` · ${r.categorised} categorised` : ''}${r.categoriesCreated.length ? ` · ${r.categoriesCreated.length} categories created` : ''}${r.errors.length ? ` · ${r.errors.length} failed` : ''}`);
+      if (r.errors.length) console.warn(r.errors);
+      categoryCache = null;
+      reload();
+    } catch (err) {
+      fail(err);
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   // Step 1b: show detected columns; any change re-runs the mapped preview.
