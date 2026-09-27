@@ -13,6 +13,7 @@ const { uploadsDir } = await import('./paths.js');
 const auth = await import('./auth.js');
 const catalog = await import('./catalog.js');
 const feed = await import('./feed.js');
+const smdInfant = await import('./smd-infant.js');
 const shipping = await import('./shipping.js');
 const orders = await import('./orders.js');
 const settings = await import('./settings.js');
@@ -257,6 +258,8 @@ admin.post('/feed/images/retry', wrap(() => {
 admin.get('/feed', wrap((req) => feed.listFeed({ ...req.query, singleUnit: req.query.singleUnit === '1', withImage: req.query.withImage === '1', changed: req.query.changed === '1' })));
 admin.get('/feed/facets', wrap((req) => feed.feedFacets(req.query.supplierId)));
 admin.post('/feed/list', wrap((req) => feed.listFeedItems(req.body || {})));
+// SMD Infant Essential: sort into Baby & Toddler sub-categories and list. dryRun previews.
+admin.post('/feed/smd-infant', wrap((req) => smdInfant.autoListInfantEssential({ supplierId: req.body?.supplierId, dryRun: req.body?.dryRun !== false })));
 
 admin.get('/orders', wrap((req) => orders.listOrders({ ...req.query, includeUnpaid: req.query.includeUnpaid === '1' })));
 admin.get('/orders/:id', wrap((req) => {

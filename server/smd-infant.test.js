@@ -1,0 +1,95 @@
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import os from 'os';
+import path from 'path';
+
+process.env.UPLOADS_DIR = path.join(os.tmpdir(), 'procom-test-uploads');
+process.env.DISABLE_BACKUPS = '1';
+
+const { useMemoryDb } = await import('./db.js');
+const feed = await import('./feed.js');
+const { classifyInfantItem, autoListInfantEssential } = await import('./smd-infant.js');
+
+let db;
+let supplierId;
+beforeEach(() => {
+  db = useMemoryDb();
+  supplierId = db.prepare('SELECT id FROM suppliers').get().id;
+});
+
+const sub = (name) => classifyInfantItem(name)?.sub;
+
+test('classifies names whose keywords overlap', () => {
+  assert.equal(sub('Pigeon - Baby Bottles & Accessories Cleanser 500ml'), 'Sterilising & Cleaning');
+  assert.equal(sub('Pigeon - Sponge Bottle Brush'), 'Sterilising & Cleaning');
+  assert.equal(sub('Pigeon Startouch Straw Cup With Gravity Ball Bubblegum Pop 250ml'), 'Feeding & Weaning');
+  assert.equal(sub('Pigeon Breast Pads ComfyFeel 50 Pc Box'), 'Maternity & Breastfeeding');
+  assert.equal(sub('Pigeon Softouch Nipple Blister Pack 2 Pcs (M)'), 'Bottles & Teats');
+  assert.equal(sub('Pigeon - ANTI-MOSQUITO LOTION 50G'), 'Health & Safety');
+  assert.equal(sub('Pigeon - Anti-Mosquito Wipe 12P/PK'), 'Wipes');
+  assert.equal(sub('Pigeon Baby Tooth & Gum Wipes - Natural (20 Pcs)'), 'Oral Care');
+  assert.equal(sub('Totes Babe Wavy Series Stroller Caddy Grey'), 'Nappy & Changing Bags');
+  assert.equal(sub('Echo Baby Silicone Stacking Rings - Ocean'), 'Baby Toys & Keepsakes');
+  assert.deepEqual(classifyInfantItem('Avalanche Double Bubble - Cyclone'), { parent: 'Toys & Games', sub: 'Outdoor & Bubble Toys' });
+  assert.deepEqual(classifyInfantItem('Lifree Powerful L - 10 Pc'), { parent: 'Health & Wellness', sub: 'Adult Incontinence' });
+  assert.equal(classifyInfantItem('Something unrelated'), null);
+});
+
+const csv = [
+  'code,name,price',
+  'EB-1000-BL,Echo Baby Silicone Suction Plate - Powder Blue,129.99',
+  'EB-1000-IV,Echo Baby Silicone Suction Plate - Ivory,129.99',
+  'SEL-8013,Pigeon - Baby Bottles & Accessories Cleanser 500ml,75.80',
+  'LAC-PDQ-TQ,Loop & Co Bottle Buddies PDQ,3900',
+  'X-1,Mystery item,10',
+].join('\n');
+
+test('dry run changes nothing; real run creates categories and lists each colour separately', async () => {
+  await feed.importFile({ supplierId, fileName: 'SMD_Infant_Essential_Pricelist.csv', buffer: Buffer.from(csv) });
+  await feed.importFile({ supplierId, fileName: 'SMD_Cash_Wholesale.csv', buffer: Buffer.from('code,name,price\nOTHER,Echo Baby Bib,50\n'), completeList: false });
+  const cats = () => db.prepare('SELECT COUNT(*) n FROM categories').get().n;
+  const before = cats();
+
+  const dry = autoListInfantEssential({ supplierId, dryRun: true });
+  assert.equal(dry.itemsFound, 5, 'only rows from the Infant Essential file');
+  assert.deepEqual(dry.unmatched.map((u) => u.code), ['X-1']);
+  assert.equal(cats(), before);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM products').get().n, 0);
+
+  const r = autoListInfantEssential({ supplierId, dryRun: false });
+  assert.equal(r.created, 4);
+  assert.deepEqual(r.errors, []);
+  // Baby & Toddler and Home & Kitchen are seeded; only their sub-categories are new.
+  assert.deepEqual(r.categoriesCreated.sort(), ['Feeding & Weaning', 'Kitchen & Drinkware', 'Sterilising & Cleaning']);
+  const placed = db.prepare(`SELECT p.supplier_code code, c.name cat, parent.name parent, p.markup_pct FROM products p
+    JOIN categories c ON c.id = p.category_id JOIN categories parent ON parent.id = c.parent_id ORDER BY code`).all();
+  assert.deepEqual(placed.map((p) => [p.code, p.parent, p.cat]), [
+    ['EB-1000-BL', 'Baby & Toddler', 'Feeding & Weaning'],
+    ['EB-1000-IV', 'Baby & Toddler', 'Feeding & Weaning'],
+    ['LAC-PDQ-TQ', 'Home & Kitchen', 'Kitchen & Drinkware'],
+    ['SEL-8013', 'Baby & Toddler', 'Sterilising & Cleaning'],
+  ]);
+  assert.ok(placed.every((p) => p.markup_pct == null), 'default markup');
+
+  // Second run: nothing new, no duplicate categories.
+  const n = cats();
+  const again = autoListInfantEssential({ supplierId, dryRun: false });
+  assert.equal(again.created, 0);
+  assert.equal(again.alreadyCategorised, 4);
+  assert.equal(cats(), n);
+});
+
+test('a listed product without a category gets one; an admin-chosen category is kept', async () => {
+  await feed.importFile({ supplierId, fileName: 'SMD_Infant_Essential_Pricelist.csv', buffer: Buffer.from(csv) });
+  const fid = (code) => db.prepare('SELECT id FROM feed_items WHERE code = ?').get(code).id;
+  const gaming = db.prepare("SELECT id FROM categories WHERE slug = 'gaming'").get().id;
+  feed.listFeedItems({ feedIds: [fid('EB-1000-BL')] });
+  feed.listFeedItems({ feedIds: [fid('SEL-8013')], categoryId: gaming });
+
+  const r = autoListInfantEssential({ supplierId, dryRun: false });
+  assert.equal(r.categorised, 1);
+  assert.equal(r.alreadyCategorised, 1);
+  assert.equal(db.prepare("SELECT category_id FROM products WHERE supplier_code = 'SEL-8013'").get().category_id, gaming);
+  const cat = db.prepare("SELECT c.name FROM products p JOIN categories c ON c.id = p.category_id WHERE p.supplier_code = 'EB-1000-BL'").get();
+  assert.equal(cat.name, 'Feeding & Weaning');
+});
