@@ -602,7 +602,10 @@ routes.feed = async () => {
           ${facets.imports.map((i) => `<tr style="cursor:default"><td>${h(i.file_name)} <span class="badge neutral">${h(i.format || 'xlsx')}</span><br><span class="muted">${h(fmtDate(i.created_at))}</span></td><td class="num">${i.rows_total}</td><td class="num">${i.rows_new}</td><td class="num">${i.price_changes}</td><td class="num">${i.products_repriced}</td><td class="num"><button class="btn small btn-danger" data-del-import="${h(i.id)}" data-file="${h(i.file_name)}">Delete</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">—</td></tr>'}
         </tbody></table></div>
         <button class="btn small" id="retry-photos" style="margin-top:0.6rem">Retry failed photo downloads</button>
-        <button class="btn small" id="smd-infant" style="margin-top:0.6rem" title="Sorts the SMD Infant Essential list into Baby &amp; Toddler sub-categories and lists every item">Auto-list SMD Infant Essential…</button>
+        <div class="toolbar" style="margin:0.6rem 0 0">
+          <button class="btn small" data-autolist="infant" title="Sorts the Infant Essential list into Baby &amp; Toddler sub-categories and lists it">Auto-list SMD Infant Essential…</button>
+          <button class="btn small" data-autolist="cash" title="Sorts the Cash Wholesale list into store categories and lists it">Auto-list SMD Cash Wholesale…</button>
+        </div>
       </div>
     </div>
     <div id="mapping-panel"></div>
@@ -723,33 +726,56 @@ routes.feed = async () => {
     } catch (err) { fail(err); }
   });
 
-  $('#smd-infant', root).addEventListener('click', async (e) => {
-    const btn = e.target;
-    btn.disabled = true;
-    try {
-      const pv = await api('/feed/smd-infant', { method: 'POST', body: { supplierId: s.supplierId, dryRun: true } });
-      const work = pv.summary.filter((g) => g.newListings || g.categorised);
-      if (!work.length) {
-        toast(pv.itemsFound ? 'Nothing to do: every Infant Essential item is already listed with a category' : 'No Infant Essential items found for this supplier. Import the pricelist first.');
-        return;
+  // SMD auto-list: preview panel first; nothing is written until "List".
+  const showAutolist = async (list) => {
+    const panel = $('#mapping-panel', root);
+    const pv = await api('/feed/smd-autolist', { method: 'POST', body: { list, supplierId: s.supplierId, dryRun: true } });
+    const work = pv.summary.filter((g) => g.newListings || g.categorised);
+    const total = work.reduce((n, g) => n + g.newListings, 0);
+    const codes = (items) => items.map((i) => `${h(i.code)} <span class="muted">${h(i.name)}</span>`).join('<br>');
+    setHtml(panel, `<div class="panel stack gap-3" style="margin-bottom:1rem">
+      <div class="section-head"><h3>Auto-list ${h(pv.list)}</h3><span class="muted">${pv.itemsFound} rows in the latest import</span></div>
+      ${!pv.itemsFound ? '<p class="empty">No rows from this pricelist for the selected supplier. Import the file first.</p>' : ''}
+      ${pv.itemsFound && !work.length ? '<p>Nothing to do: every item is already listed with a category.</p>' : ''}
+      ${work.length ? `<p><strong>${total}</strong> new product(s) will be listed live at the default markup${pv.alreadyCategorised ? ` · ${pv.alreadyCategorised} already listed with a category are left as they are` : ''}.</p>
+      <div class="table-wrap"><table class="catalog"><thead><tr><th>Store category</th><th class="num">New</th><th class="num">Categorised</th></tr></thead><tbody>
+        ${work.map((g) => `<tr style="cursor:default"><td>${h(g.category)}</td><td class="num">${g.newListings}</td><td class="num">${g.categorised || ''}</td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+      ${work.length && pv.newCategories.length ? `<p><strong>Categories that will be created (${pv.newCategories.length})</strong> — check none of these duplicates one you already have under a different name:</p><p class="mini-help">${pv.newCategories.map(h).join('<br>')}</p>` : ''}
+      ${pv.skipped.map((g) => `<details><summary>${g.items.length} skipped: ${h(g.reason)}</summary><p class="mini-help">${codes(g.items)}</p></details>`).join('')}
+      ${pv.unmatched.length ? `<details open><summary><strong>${pv.unmatched.length} not recognised</strong> (not listed; list them by hand below)</summary><p class="mini-help">${codes(pv.unmatched)}</p></details>` : ''}
+      <div class="row-card-actions"><button class="btn btn-ghost" id="al-cancel" style="color:inherit">Close</button>${work.length ? `<button class="btn btn-primary" id="al-go">List ${total} product(s)</button>` : ''}</div>
+    </div>`);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#al-cancel', panel).addEventListener('click', () => setHtml(panel, ''));
+    $('#al-go', panel)?.addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      e.target.textContent = 'Listing…';
+      try {
+        const r = await api('/feed/smd-autolist', { method: 'POST', body: { list, supplierId: s.supplierId, dryRun: false } });
+        toast(`Listed ${r.created} product(s)${r.categorised ? ` · ${r.categorised} categorised` : ''}${r.categoriesCreated.length ? ` · ${r.categoriesCreated.length} categories created` : ''}${r.errors.length ? ` · ${r.errors.length} failed` : ''}`);
+        if (r.errors.length) console.warn(r.errors);
+        categoryCache = null;
+        reload();
+      } catch (err) {
+        fail(err);
+        e.target.disabled = false;
+        e.target.textContent = 'List';
       }
-      const lines = work.map((g) => `${g.category}: ${g.newListings} new${g.categorised ? `, ${g.categorised} categorised` : ''}`);
-      const extra = [
-        pv.alreadyCategorised ? `${pv.alreadyCategorised} already listed with a category (left as is)` : '',
-        pv.unmatched.length ? `${pv.unmatched.length} not recognised (not listed): ${pv.unmatched.slice(0, 5).map((u) => u.code).join(', ')}${pv.unmatched.length > 5 ? '…' : ''}` : '',
-      ].filter(Boolean);
-      if (!confirm(`List SMD Infant Essential items at the default markup, live immediately?\n\n${lines.join('\n')}${extra.length ? `\n\n${extra.join('\n')}` : ''}\n\nMissing categories are created automatically.`)) return;
-      const r = await api('/feed/smd-infant', { method: 'POST', body: { supplierId: s.supplierId, dryRun: false } });
-      toast(`Listed ${r.created} product(s)${r.categorised ? ` · ${r.categorised} categorised` : ''}${r.categoriesCreated.length ? ` · ${r.categoriesCreated.length} categories created` : ''}${r.errors.length ? ` · ${r.errors.length} failed` : ''}`);
-      if (r.errors.length) console.warn(r.errors);
-      categoryCache = null;
-      reload();
-    } catch (err) {
-      fail(err);
-    } finally {
-      btn.disabled = false;
-    }
-  });
+    });
+  };
+  $$('[data-autolist]', root).forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await showAutolist(btn.dataset.autolist);
+      } catch (err) {
+        fail(err);
+      } finally {
+        btn.disabled = false;
+      }
+    }),
+  );
 
   // Step 1b: show detected columns; any change re-runs the mapped preview.
   function showMapping(pv, supplierId, supplierList) {

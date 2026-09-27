@@ -22,6 +22,7 @@ _Last updated: 2026-09-27_
 | Luggage & Travel (Suitcases, Luggage Sets & Business Trolleys) | 103 | quoted |
 | Health & Beauty (Hair Care, Personal Care & Wellness) | 44 | normal |
 | Baby & Toddler (13 sub-categories) + Toys & Games, Health & Wellness | _pending: run the Infant Essential auto-list after deploy (286 items)_ | normal |
+| Cash Wholesale: Audio, Cameras & Photography, TV & Video, Office & School (new) + sub-categories under existing categories | _pending: run the Cash Wholesale auto-list after deploy (up to 2,791 items, minus those already listed)_ | Gaming Chairs & Desks quoted |
 
 **Suppliers:** SMD (Warehouse), Esquire, IDS, Huge PC, Dicspeed. All imports so far are SMD's
 (Cash wholesale, Home and Beyond, Infant Essential, Creality list, two promo flyers).
@@ -43,6 +44,7 @@ _Last updated: 2026-09-27_
 | 2026-09-27 | Bulk-only SMD items listed with their minimum qty; pack totals shown |
 | 2026-09-27 | Creality items: supplier = SMD (SMD distributes Creality) |
 | 2026-09-27 | Infant Essential: 13 Baby & Toddler sub-categories; Lifree and Loop & Co listed too; default markup; colour variants listed as separate products |
+| 2026-09-27 | Cash Wholesale: category structure approved (4 new top-level categories); items already listed by hand keep their category; Creality tab skipped (listed from the Creality list); SA Filament listed under 3D Printing › Filament; laptops and phones listed; Gaming Chairs & Desks listed with delivery quoted |
 
 ## Open items / backlog
 
@@ -50,8 +52,9 @@ _Last updated: 2026-09-27_
 - **First real test order** (cheap item + refund) to prove ITN → Paid → emails end to end in live mode — not yet confirmed.
 - **Photos**: SMD's embedded photos are ~113px; better photos should be uploaded for key products.
 - **Weights**: supplier lists have none (default 1 kg). Heavy categories use delivery quotes; other large one-offs (e.g. filament maker, 10-roll filament dryer in 3D Upgrades) may need the per-product "delivery quoted" override.
-- **Filament overlap with lapanza3d.co.za** (same owner) — owner hasn't decided whether both sites should sell filament.
+- **Filament overlap with lapanza3d.co.za** — decided 2026-09-27: Procom lists SA Filament too.
 - **Legal pages** (Terms, Privacy, Returns) written for SA law — should get a quick legal review.
 - **Infant Essential**: after deploying, re-import the September file if needed, then Warehouse feed → Auto-list SMD Infant Essential. Check: Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price (ask SMD what differs); Totes Babe bags and the R3,900 Loop & Co display box use the default 1 kg weight.
-- **Cash wholesale** (September 2026: 3,315 rows, 34 brand tabs): only partly listed by hand. Category mapping proposal in progress.
+- **Cash wholesale** (September 2026: 3,315 rows, 34 brand tabs): after deploying, import the file and run Auto-list SMD Cash Wholesale. In the preview, check the "categories that will be created" list against the live tree (especially 3D Printing › Filament). 23 rows are always skipped: 7 display stands at R0.01, 2 Ellies TOSLINK cables priced ~R1.08m (ask SMD), 8 junk rows, 6 refurbished printers/consumables.
+- **Heavy items not quoted**: projector screens, large TV mounts and the Volkano electric scooter use the default 1 kg weight; set per-product "delivery quoted" if courier costs matter.
 - Optional: register procompretoria.co.za and point it at the same site.
