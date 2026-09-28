@@ -453,6 +453,8 @@ table.todo-table tr.desc-expanded .todo-desc-text { -webkit-line-clamp: unset; d
   gap: 1rem;
   align-items: start;
 }
+/* Keeps the category editor beside the row being edited on long trees. */
+.sticky-panel { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
 .stack { display: flex; flex-direction: column; }
 .gap-2 { gap: 0.5rem; }
 .gap-3 { gap: 0.75rem; }
@@ -631,6 +633,7 @@ table.todo-table tr.desc-expanded .todo-desc-text { -webkit-line-clamp: unset; d
   }
   .sidebar-nav { flex-direction: row; flex-wrap: wrap; }
   .stats, .editor-layout, .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+  .sticky-panel { position: static; max-height: none; }
 }
 
 /* #139: rich-text editor (product descriptions / details / colour notes) */
