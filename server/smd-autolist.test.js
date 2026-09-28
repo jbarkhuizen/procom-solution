@@ -104,6 +104,11 @@ const where = (...a) => {
   return c?.skip ? `skip: ${c.skip}` : c && `${c.parent} › ${c.sub}`;
 };
 
+test('cash wholesale: Everfurn Theo dining table boxes are never re-listed', () => {
+  assert.equal(where('Everfurn Theo Dining Table (White) - Box 1 of 2', 'Furniture'), 'skip: Everfurn Theo dining table: removed by owner');
+  assert.equal(where('Everfurn Theo Dining Table (White) - Box 2 of 2', 'Furniture'), 'skip: Everfurn Theo dining table: removed by owner');
+});
+
 test('cash wholesale: product name beats SMD category, and rule order holds', () => {
   assert.equal(where('Lenovo Laptop V15 AMD Ryzen3 8/256', 'Devices'), 'Computers & Peripherals › Laptops & Tablets');
   assert.equal(where('Volkano Brio Plus Series USB-C 65w Laptop Charger', 'Devices'), 'Computers & Peripherals › Computer Accessories');
