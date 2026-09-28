@@ -15,7 +15,8 @@ function getTransport() {
 }
 
 // Never throws -- a mail outage must not fail a payment webhook or checkout.
-export async function sendMail({ to, subject, html, replyTo }) {
+// `headers`: optional extra headers (e.g. List-Unsubscribe for newsletters).
+export async function sendMail({ to, subject, html, replyTo, headers }) {
   const t = getTransport();
   if (!t) {
     console.log(`[mail disabled] would send "${subject}" to ${to}`);
@@ -23,7 +24,7 @@ export async function sendMail({ to, subject, html, replyTo }) {
   }
   try {
     const s = getSettings();
-    await t.sendMail({ from: `"${s.siteName}" <${process.env.GMAIL_USER}>`, to, subject, html, replyTo });
+    await t.sendMail({ from: `"${s.siteName}" <${process.env.GMAIL_USER}>`, to, subject, html, replyTo, ...(headers ? { headers } : {}) });
     return true;
   } catch (err) {
     console.error('Mail send failed:', err.message);

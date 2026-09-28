@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Newsletter — Procom Solutions</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="Specials and new products from Procom Solutions by email — subscribe, confirm or unsubscribe.">
+<!-- @include head -->
+<script type="module" src="/src/js/site.js"></script>
+<script type="module" src="/src/js/newsletter.js"></script>
+</head>
+<body class="font-sans antialiased" data-page="newsletter">
+<!-- @include shell-top -->
+<main id="main" class="flex-1 px-6 sm:px-10 lg:px-14 py-12 md:py-20">
+  <div class="mx-auto max-w-2xl">
+    <p class="eyebrow mb-4">Newsletter</p>
+    <h1 class="font-serif text-4xl md:text-5xl leading-[1.05] mb-6 tracking-[-0.02em]" data-nl-title>Specials and new products, by email.</h1>
+    <div data-nl-status class="hidden border-2 border-charcoal rounded-sm p-6 md:p-7 bg-linen/40 brutal mb-10" role="status" aria-live="polite"></div>
+
+    <section data-nl-signup>
+      <p class="text-espresso/75 text-lg leading-relaxed mb-8">Be first to hear about specials, price drops and new stock. A few emails a month at most — every one has a one-click unsubscribe link.</p>
+      <form data-newsletter-form data-source="newsletter-page" class="border-2 border-charcoal rounded-sm p-7 md:p-9 bg-linen/40 brutal-lg space-y-4" novalidate>
+        <div><label class="form-label" for="nl-page-email">Email address</label><input class="form-input" id="nl-page-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com"></div>
+        <div class="hidden" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <button type="submit" class="w-full bg-charcoal text-cream rounded-full px-6 py-3.5 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Subscribe</button>
+        <p class="text-sm text-espresso/65" data-newsletter-result role="status">We'll email you a link to confirm. Nothing is sent until you click it.</p>
+      </form>
+      <p class="text-sm text-espresso/60 mt-8 leading-relaxed">Have a customer account? You can also switch emails on or off under <a href="/account.html" class="underline hover:text-terracotta">My account</a>. How we handle your details: <a href="/privacy.html" class="underline hover:text-terracotta">Privacy Policy</a>.</p>
+    </section>
+  </div>
+</main>
+<!-- @include shell-bottom -->
+</body>
+</html>
