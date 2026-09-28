@@ -78,6 +78,24 @@ export function categoryChain(categoryId, db = getDb()) {
   return chain;
 }
 
+// Pages for /sitemap.xml (Google): static pages, every category the shop
+// shows (it hides empty ones) and every live product, with last-changed dates.
+export function sitemapEntries(db = getDb()) {
+  const day = (iso) => (iso ? String(iso).slice(0, 10) : undefined);
+  const cats = [];
+  const walk = (nodes) => nodes.forEach((c) => { if (c.productCount > 0) cats.push(c); walk(c.children); });
+  walk(categoryTree({ activeOnly: true }, db));
+  const catUpdated = new Map(db.prepare('SELECT id, updated_at FROM categories').all().map((r) => [r.id, r.updated_at]));
+  return [
+    ...['/', '/shop.html', '/contact.html', '/terms.html', '/privacy.html', '/returns.html'].map((path) => ({ path })),
+    ...cats.map((c) => ({ path: `/shop.html?category=${encodeURIComponent(c.slug)}`, lastmod: day(catUpdated.get(c.id)) })),
+    ...db
+      .prepare('SELECT slug, updated_at FROM products WHERE active = 1 ORDER BY updated_at DESC')
+      .all()
+      .map((p) => ({ path: `/product.html?p=${encodeURIComponent(p.slug)}`, lastmod: day(p.updated_at) })),
+  ];
+}
+
 // Tree with active-product counts (including descendants) for the storefront nav.
 export function categoryTree({ activeOnly = true } = {}, db = getDb()) {
   const cats = listCategories({ activeOnly }, db);

@@ -182,6 +182,19 @@ test('checkout with a large item: delivery R0, order flagged, client shipping ch
   assert.equal(orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: small.id, quantity: 1 }] }).deliveryQuote, false);
 });
 
+test('sitemap lists live products and non-empty categories only', () => {
+  const live = product({ name: 'Live Mouse' });
+  product({ name: 'Hidden Mouse', active: false });
+  const paths = catalog.sitemapEntries().map((e) => e.path);
+  assert.ok(paths.includes('/terms.html') && paths.includes('/returns.html'));
+  assert.ok(paths.includes(`/product.html?p=${live.slug}`));
+  assert.ok(!paths.some((p) => p.includes('hidden-mouse')));
+  assert.ok(paths.includes('/shop.html?category=keyboards-mice'));
+  assert.ok(paths.includes('/shop.html?category=computers-peripherals')); // parent of a non-empty sub-category
+  assert.ok(!paths.includes('/shop.html?category=networking')); // no live products
+  assert.match(catalog.sitemapEntries().find((e) => e.path.includes(live.slug)).lastmod, /^\d{4}-\d{2}-\d{2}$/);
+});
+
 test('auto-weight shipping brackets may not overlap', () => {
   assert.throws(() => shipping.saveShippingOption({ name: 'Overlap', optionType: 'auto_weight', minWeight: 1000, maxWeight: 2000, price: 90 }), /overlaps/);
   // Seeded brackets: 0-1500 and 1501-5000. Sharing the boundary gram says where to start instead.

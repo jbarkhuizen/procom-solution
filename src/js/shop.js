@@ -46,6 +46,10 @@ async function renderHeader(s) {
   const title = found ? found.cat.name : s.q ? `Search: “${s.q}”` : 'All products';
   document.getElementById('shop-title').textContent = title;
   document.title = `${title} — Procom Solutions`;
+  // shop.html ships a canonical of /shop.html; left alone it tells Google every
+  // category page is a copy of the shop, so it would drop them from search.
+  const canonical = document.querySelector('link[rel="canonical"]');
+  if (canonical && found) canonical.href = `${location.origin}/shop.html?category=${encodeURIComponent(found.cat.slug)}`;
   const desc = document.getElementById('shop-desc');
   desc.textContent = found?.cat.description || '';
   desc.classList.toggle('hidden', !found?.cat.description);
