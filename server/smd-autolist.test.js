@@ -8,7 +8,7 @@ process.env.DISABLE_BACKUPS = '1';
 
 const { useMemoryDb } = await import('./db.js');
 const feed = await import('./feed.js');
-const { classifyItem, autoList } = await import('./smd-autolist.js');
+const { classifyItem, autoList, tidyParentLevel } = await import('./smd-autolist.js');
 
 let db;
 let supplierId;
@@ -117,6 +117,10 @@ test('cash wholesale: product name beats SMD category, and rule order holds', ()
   assert.equal(where('Disney Frozen Bluetooth Mini Karaoke Machine with Belt Hook', 'Audio'), 'Audio › Microphones & Karaoke');
   assert.equal(where('Ellies Ultra Series - Alkaline Batteries AA 4 Pack - WT', 'Electrical'), 'Power & Electrical › Batteries');
   assert.equal(where('Insta360 X5 Battery', 'Photography'), 'Cameras & Photography › Camera Accessories');
+  assert.equal(where('TP-Link Tapo T100 Smart 868mhz Motion Sensor - CR2032 Battery', 'Smart Home', 'Tapo'), 'Smart Home & Lighting › Smart Home');
+  assert.equal(where('Ellies Secure Series - Wireless Doorbell - Battery operated Receiver and Transmitter', 'Electrical'), 'Power & Electrical › Switches, Sockets & Wiring');
+  assert.equal(where('Volkano Galactic Mini Moon LED Mood Light – Battery Operated', 'Lighting'), 'Smart Home & Lighting › Lamps & Indoor Lighting');
+  assert.equal(where('Volkano Extra Series CR2016 Pack of 2 Batteries', 'Electrical'), 'Power & Electrical › Batteries');
   assert.equal(where('TP-Link Vigi C330I 3MP 6mm Outdoor Bullet Network Camera', 'Networking', 'VIGI'), 'Networking › Security Cameras');
   assert.equal(where('SA Filament PLA Hyper Filament 1kg - Black', 'Devices', 'SA Filament'), '3D Printing › Filament – PLA');
   assert.equal(where('SA Filament Silk PLA Plus Filament 1kg - Brown', 'Devices', 'SA Filament'), '3D Printing › Filament – PLA');
@@ -178,4 +182,45 @@ test('cash wholesale: skips wrong prices, flags quoted delivery, previews new ca
 
 test('unknown pricelist is rejected', () => {
   assert.throws(() => autoList({ list: 'nope', supplierId }), /Unknown pricelist/);
+});
+
+test('tidy: parent-level products move into the matching sub-category, never across parents', async () => {
+  const file = [
+    'code,name,category,price',
+    'G-1,VX Gaming Phoenix Series Wireless Gaming Mouse,Gaming,299',
+    'G-2,Sony INZONE H9 Wireless Noise Cancelling Gaming Headset,Gaming,2999',
+    'A-1,Sony XB100 Portable Bluetooth Speak - Black,Audio,899',
+    'N-1,TP-Link TL-SG108 8-Port Gigabit Desktop Switch,Networking,300',
+    'LAP-1,Lenovo Laptop V15 AMD Ryzen3 8/256,Devices,6999',
+  ].join('\n');
+  await feed.importFile({ supplierId, fileName: 'SMD Cash wholesale September pricelist 2026 -1.csv', buffer: Buffer.from(file) });
+  const fid = (code) => db.prepare('SELECT id FROM feed_items WHERE code = ?').get(code).id;
+  const cat = (slug) => db.prepare('SELECT id FROM categories WHERE slug = ?').get(slug).id;
+  // Hand-listed straight onto parents, as on the live site.
+  feed.listFeedItems({ feedIds: ['G-1', 'G-2', 'A-1'].map(fid), categoryId: cat('gaming') });
+  feed.listFeedItems({ feedIds: [fid('N-1')], categoryId: cat('networking') });
+  // Give Gaming its sub-categories; Networking's "Switches" is seeded.
+  autoList({ list: 'cash', supplierId, dryRun: false }); // lists LAP-1, creates nothing under Gaming yet
+  const gaming = cat('gaming');
+  const catalog = await import('./catalog.js');
+  catalog.saveCategory({ name: 'Gaming Mice & Keyboards', parentId: gaming }, null, db);
+
+  const dry = tidyParentLevel({ supplierId });
+  assert.equal(dry.found, 4);
+  assert.deepEqual(dry.moves, [
+    { category: 'Gaming › Gaming Mice & Keyboards', count: 1 },
+    { category: 'Networking › Switches', count: 1 },
+  ]);
+  assert.deepEqual(dry.missingSub.map((i) => i.code), ['G-2'], 'Gaming Headsets does not exist yet');
+  assert.deepEqual(dry.otherParent.map((i) => [i.code, i.suggested]), [['A-1', 'Audio › Speakers']]);
+  const where = (code) => db.prepare('SELECT c.name FROM products p JOIN categories c ON c.id = p.category_id WHERE p.supplier_code = ?').get(code).name;
+  assert.equal(where('G-1'), 'Gaming', 'dry run moves nothing');
+
+  const r = tidyParentLevel({ supplierId, dryRun: false });
+  assert.equal(r.moved, 2);
+  assert.equal(where('G-1'), 'Gaming Mice & Keyboards');
+  assert.equal(where('N-1'), 'Switches');
+  assert.equal(where('G-2'), 'Gaming');
+  assert.equal(where('A-1'), 'Gaming', 'never moved across parents');
+  assert.equal(tidyParentLevel({ supplierId }).moves.length, 0, 'second run has nothing to move');
 });

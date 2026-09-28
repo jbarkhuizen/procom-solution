@@ -1,5 +1,5 @@
 import { getDb } from './db.js';
-import { saveCategory } from './catalog.js';
+import { saveCategory, bulkUpdateProducts } from './catalog.js';
 import { listFeedItems } from './feed.js';
 import { SMD_LISTS } from './smd-rules.js';
 
@@ -136,6 +136,65 @@ export function autoList({ list: listKey, supplierId, dryRun = false } = {}, db 
       for (const id of g.toCategorise) result.categorised += setCat.run(categoryId, ts, id).changes;
     }
     for (const h of heavy) result.quoted += setQuote.run(ts, supplierId, h.code).changes;
+  });
+  run();
+  return result;
+}
+
+// Products listed by hand straight onto a top-level category that now has
+// sub-categories (e.g. "Gaming") are invisible from those sub-category
+// pages. This moves each one into the sub-category the rules pick -- but only
+// when the rule's parent is the product's current parent: an admin's choice
+// of parent is kept, and nothing moves across the tree. Sub-categories are
+// never created here; a missing one is reported.
+export function tidyParentLevel({ supplierId, dryRun = true } = {}, db = getDb()) {
+  if (!supplierId) throw new Error('Choose the SMD supplier first');
+  const parents = db
+    .prepare('SELECT c.id, c.name FROM categories c WHERE c.parent_id IS NULL AND EXISTS (SELECT 1 FROM categories s WHERE s.parent_id = c.id)')
+    .all();
+  const result = { found: 0, moves: [], otherParent: [], noRule: [], missingSub: [], moved: 0 };
+  if (!parents.length) return result;
+  const byParent = new Map(parents.map((p) => [p.id, p.name]));
+  const seen = new Set();
+  const targets = new Map(); // sub id -> { category, ids: [] }
+
+  for (const [listKey, list] of Object.entries(SMD_LISTS)) {
+    const rows = db
+      .prepare(`SELECT p.id, p.name, p.category_id, f.code, f.name AS feed_name, f.category, f.source_sheet
+        FROM products p JOIN feed_items f ON f.supplier_id = p.supplier_id AND f.code = p.supplier_code
+        WHERE p.supplier_id = ? AND f.source_file LIKE ? AND p.category_id IN (${parents.map(() => '?').join(',')})
+        ORDER BY p.name`)
+      .all(supplierId, list.sourceFile, ...parents.map((p) => p.id));
+    for (const r of rows) {
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      result.found++;
+      const current = byParent.get(r.category_id);
+      const item = { code: r.code, name: r.name, current };
+      const c = classifyItem(listKey, { name: r.feed_name, category: r.category, sheet: r.source_sheet });
+      if (!c || c.skip) {
+        result.noRule.push(item);
+        continue;
+      }
+      if (c.parent.toLowerCase() !== current.toLowerCase()) {
+        result.otherParent.push({ ...item, suggested: `${c.parent} › ${c.sub}` });
+        continue;
+      }
+      const sub = findCategory(db, c.sub, r.category_id);
+      if (!sub) {
+        result.missingSub.push({ ...item, suggested: `${c.parent} › ${c.sub}` });
+        continue;
+      }
+      const key = `${current} › ${c.sub}`;
+      if (!targets.has(sub.id)) targets.set(sub.id, { category: key, ids: [] });
+      targets.get(sub.id).ids.push(r.id);
+    }
+  }
+  result.moves = [...targets.values()].map((t) => ({ category: t.category, count: t.ids.length })).sort((a, b) => a.category.localeCompare(b.category));
+  if (dryRun) return result;
+  // set-category also reprices, in case the sub-category carries its own markup.
+  const run = db.transaction(() => {
+    for (const [subId, t] of targets) result.moved += bulkUpdateProducts({ ids: t.ids, action: 'set-category', value: subId }, db).changes;
   });
   run();
   return result;
