@@ -2,6 +2,10 @@ import { randomUUID } from 'crypto';
 import { getDb } from './db.js';
 import { planDelivery, publicPlan, resolveDelivery, QUOTE_NAME } from './delivery.js';
 import { clampInt } from './util.js';
+import { specialPriceCents } from './features/specials.js';
+import { priceAdjustments } from './features/promos.js';
+import { onOrderCreated } from './features/accounts.js';
+import { onOrderPaid } from './features/invoices.js';
 
 export const DELIVERY_QUOTE_NAME = QUOTE_NAME;
 
@@ -62,6 +66,11 @@ function rowToOrder(r, items = [], events = []) {
     collection: Boolean(r.collection),
     collectionReadyAt: r.collection_ready_at || '',
     shipments: parseShipments(r),
+    discountCents: r.discount_cents || 0,
+    promoCode: r.promo_code || '',
+    clientId: r.client_id || null,
+    invoiceNumber: r.invoice_number || '',
+    invoicedAt: r.invoiced_at || '',
     trackingNumber: r.tracking_number,
     adminNotes: r.admin_notes,
     paidAt: r.paid_at,
@@ -102,6 +111,13 @@ function nextOrderNumber(db) {
   const last = db.prepare("SELECT order_number FROM orders ORDER BY created_at DESC, order_number DESC LIMIT 1").get();
   const n = last ? Number(String(last.order_number).replace(/\D/g, '')) + 1 : 10001;
   return `PC${n}`;
+}
+
+// A logged-in customer's order belongs to their account even if they typed a
+// different email at checkout (accounts.onOrderCreated only matches by email).
+export function linkOrderToClient(orderId, clientId, db = getDb()) {
+  if (!clientId) return;
+  db.prepare('UPDATE orders SET client_id = ? WHERE id = ? AND client_id IS NULL').run(clientId, orderId);
 }
 
 // Checkout preview: the same plan createOrder will price, for the cart's
@@ -154,11 +170,15 @@ export function createOrder(input, db = getDb()) {
     if (!available) throw new Error(`"${p.name}" is out of stock. Please remove it from your cart.`);
     if (p.fulfilment === 'stock' && quantity > p.stock_qty) throw new Error(`Only ${p.stock_qty} of "${p.name}" in stock.`);
     if (quantity < p.min_order_qty) throw new Error(`"${p.name}" has a minimum order quantity of ${p.min_order_qty}.`);
-    items.push({ p, quantity, line: p.price_cents * quantity });
+    const unitCents = specialPriceCents(p, db) ?? p.price_cents; // a running special wins
+    items.push({ p, quantity, unitCents, line: unitCents * quantity });
   }
   if (!items.length) throw new Error('Your cart is empty');
 
   const subtotal = items.reduce((s, i) => s + i.line, 0);
+  // Promo code: validated and capped (never below cost incl VAT) by the promos feature.
+  const promo = priceAdjustments({ items, subtotalCents: subtotal, promoCode: str(input.promoCode, 40), email: customer.email }, db) || {};
+  const discount = Math.max(0, Math.min(subtotal, Math.round(promo.discountCents || 0)));
   const weight = items.reduce((s, i) => s + i.p.weight_g * i.quantity, 0);
 
   // One shipment per supplier, each with the customer's choice (courier,
@@ -188,10 +208,10 @@ export function createOrder(input, db = getDb()) {
     const orderNumber = nextOrderNumber(db);
     db.prepare(`INSERT INTO orders (id, order_number, status, payment_status, payment_method, first_name, last_name, email, phone,
       address_line1, address_line2, suburb, city, province, postal_code, pudo_locker, customer_notes,
-      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, collection, fulfilment_json, created_at, updated_at)
+      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, collection, fulfilment_json, discount_cents, promo_code, created_at, updated_at)
       VALUES (@id, @orderNumber, 'pending_payment', 'pending', @paymentMethod, @firstName, @lastName, @email, @phone,
       @line1, @line2, @suburb, @city, @province, @postalCode, @pudoLocker, @notes,
-      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @collection, @shipments, @ts, @ts)`).run({
+      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @collection, @shipments, @discount, @promoCode, @ts, @ts)`).run({
       id,
       orderNumber,
       paymentMethod,
@@ -203,20 +223,24 @@ export function createOrder(input, db = getDb()) {
       shipName: ship.name,
       shipCents: ship.priceCents,
       subtotal,
-      total: subtotal + ship.priceCents,
+      discount,
+      promoCode: discount ? String(promo.promoCode || '') : '',
+      total: subtotal - discount + ship.priceCents,
       weight,
       ts,
     });
     const ins = db.prepare(`INSERT INTO order_items (id, order_id, product_id, sku, name, fulfilment, supplier_id, supplier_code, unit_cost_cents, unit_price_cents, quantity, line_total_cents, weight_g)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    for (const { p, quantity, line } of items) {
-      ins.run(randomUUID(), id, p.id, p.sku, p.name, p.fulfilment, p.supplier_id, p.supplier_code, p.cost_cents, p.price_cents, quantity, line, p.weight_g);
+    for (const { p, quantity, unitCents, line } of items) {
+      ins.run(randomUUID(), id, p.id, p.sku, p.name, p.fulfilment, p.supplier_id, p.supplier_code, p.cost_cents, unitCents, quantity, line, p.weight_g);
     }
     logOrderEvent(id, `Order placed (${paymentMethod === 'payfast_eft' ? 'Instant EFT' : 'Card'})`, 'customer', db);
     if (deliveryQuote) logOrderEvent(id, 'Contains large items — delivery must be quoted to the customer', 'system', db);
     for (const sh of shipments) if (sh.method === 'collect') logOrderEvent(id, `Customer will collect from the ${sh.label}`, 'system', db);
   });
   tx();
+  const order = getOrder(id, db);
+  onOrderCreated(order, db);
   return getOrder(id, db);
 }
 
@@ -237,6 +261,7 @@ export function markOrderPaid(id, { pfPaymentId = '' } = {}, db = getDb()) {
     logOrderEvent(id, `Payment received via Payfast${pfPaymentId ? ` (pf ${pfPaymentId})` : ''}`, 'payfast', db);
   });
   tx();
+  onOrderPaid(getOrder(id, db), db);
   return { changed: true, order: getOrder(id, db) };
 }
 

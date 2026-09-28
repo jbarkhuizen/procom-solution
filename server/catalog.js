@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { specialPriceCents } from './features/specials.js';
 import { getDb } from './db.js';
 import { getSettings } from './settings.js';
 import { effectiveMarkupPct, computeRetailCents, marginCents } from './pricing.js';
@@ -87,7 +88,7 @@ export function sitemapEntries(db = getDb()) {
   walk(categoryTree({ activeOnly: true }, db));
   const catUpdated = new Map(db.prepare('SELECT id, updated_at FROM categories').all().map((r) => [r.id, r.updated_at]));
   return [
-    ...['/', '/shop.html', '/contact.html', '/terms.html', '/privacy.html', '/returns.html'].map((path) => ({ path })),
+    ...['/', '/shop.html', '/specials.html', '/contact.html', '/terms.html', '/privacy.html', '/returns.html'].map((path) => ({ path })),
     ...cats.map((c) => ({ path: `/shop.html?category=${encodeURIComponent(c.slug)}`, lastmod: day(catUpdated.get(c.id)) })),
     ...db
       .prepare('SELECT slug, updated_at FROM products WHERE active = 1 ORDER BY updated_at DESC')
@@ -189,8 +190,13 @@ function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set(
     images,
     image: images[0] || '',
     fulfilment: r.fulfilment,
-    priceCents: r.price_cents,
-    compareAtCents: r.compare_at_cents,
+    // A running special shows as the price, with the normal price struck through.
+    ...(() => {
+      const special = admin ? null : specialPriceCents(r);
+      return special != null && special < r.price_cents
+        ? { priceCents: special, compareAtCents: Math.max(r.price_cents, r.compare_at_cents || 0), onSpecial: true }
+        : { priceCents: r.price_cents, compareAtCents: r.compare_at_cents, onSpecial: false };
+    })(),
     weightG: r.weight_g,
     minOrderQty: r.min_order_qty,
     inStock,

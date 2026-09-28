@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Invoice — Procom Solutions</title>
+<meta name="robots" content="noindex">
+<!-- @include head -->
+<script type="module" src="/src/js/invoice.js"></script>
+<style>
+  .inv-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .inv-table th { text-align: left; font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; padding: 0.5rem 0.5rem 0.5rem 0; border-bottom: 2px solid currentColor; }
+  .inv-table td { padding: 0.6rem 0.5rem 0.6rem 0; border-bottom: 1px solid rgb(0 0 0 / 0.1); vertical-align: top; }
+  [data-theme="dark"] .inv-table td { border-bottom-color: rgb(255 255 255 / 0.12); }
+  .inv-table .num { text-align: right; white-space: nowrap; padding-right: 0; }
+  .inv-totals td { padding: 0.35rem 0; }
+  .inv-totals .grand td { border-top: 2px solid currentColor; font-weight: 700; font-size: 1.05rem; padding-top: 0.6rem; }
+  .inv-label { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; opacity: 0.65; margin-bottom: 0.3rem; }
+
+  @page { size: A4; margin: 14mm; }
+  @media print {
+    .skip-link, .site-grain, .announce-bar, #sidebar-drawer, #catalogue-sidebar, #site-header, footer,
+    .cart-drawer, .cart-scrim, .toast-site, [data-no-print] { display: none !important; }
+    html, body, #main { background: #fff !important; color: #000 !important; }
+    #main { padding: 0 !important; }
+    #inv-card { border: 0 !important; box-shadow: none !important; padding: 0 !important; max-width: none !important; background: #fff !important; }
+    .inv-table td { border-bottom-color: #ccc !important; }
+    a { color: inherit !important; text-decoration: none !important; }
+    .inv-table tr, .inv-avoid-break { break-inside: avoid; }
+  }
+</style>
+</head>
+<body class="font-sans antialiased" data-page="invoice">
+<!-- @include shell-top -->
+
+<main id="main" class="flex-1 px-4 sm:px-10 py-10 md:py-14">
+  <div class="mx-auto max-w-3xl">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-6" data-no-print>
+      <a href="/" class="text-sm text-espresso/70 hover:text-terracotta">&larr; Back to the shop</a>
+      <span id="inv-actions" class="hidden"><button type="button" id="inv-print" class="inline-flex bg-charcoal text-cream rounded-full px-6 py-3 text-sm font-semibold hover:bg-terracotta">Print / Save as PDF</button></span>
+    </div>
+
+    <p id="inv-message" class="text-center text-espresso/75 py-16">Loading your invoice…</p>
+
+    <article id="inv-card" class="hidden border-2 border-charcoal rounded-sm p-6 sm:p-10 bg-linen/30" aria-label="Invoice"></article>
+  </div>
+</main>
+
+<!-- @include shell-bottom -->
+</body>
+</html>

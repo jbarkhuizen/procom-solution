@@ -126,8 +126,10 @@ app.get('/api/shipping-options', wrap(() => shipping.listShippingOptions({ activ
 app.post('/api/checkout/delivery', wrap((req) => orders.deliveryPlanForCart(req.body?.items)));
 
 const checkoutLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
+const accounts = await import('./features/accounts.js');
 app.post('/api/checkout', checkoutLimiter, wrap((req) => {
   const order = orders.createOrder(req.body || {});
+  orders.linkOrderToClient(order.id, accounts.getClientFromRequest(req)?.id);
   const payfast = buildPayfastRedirect({ order, siteUrl: SITE_URL, apiUrl: API_URL, paymentMethod: order.paymentMethod });
   return { orderId: order.id, orderNumber: order.orderNumber, totalCents: order.totalCents, payfast };
 }));
@@ -302,6 +304,11 @@ admin.put('/admins/:id/password', wrap((req) => ({ ok: orNotFound(auth.resetAdmi
 
 admin.get('/backups', wrap(() => listBackups()));
 admin.post('/backups', wrap(async () => createBackup('manual')));
+
+// Feature modules (server/features/README.md) add their own routes.
+for (const name of ['accounts', 'invoices', 'promos', 'specials']) {
+  (await import(`./features/${name}.js`)).register({ app, admin, wrap, rateLimit, express, siteUrl: SITE_URL });
+}
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 

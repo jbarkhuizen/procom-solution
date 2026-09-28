@@ -3,6 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { dataDir } from './paths.js';
+import * as accountsSchema from './features/accounts.schema.js';
+import * as invoicesSchema from './features/invoices.schema.js';
+import * as promosSchema from './features/promos.schema.js';
+import * as specialsSchema from './features/specials.schema.js';
+
+// Feature modules' tables (server/features/README.md). Run after migrate(),
+// so their indexes may use columns the migrations add.
+const FEATURE_SCHEMAS = [accountsSchema, invoicesSchema, promosSchema, specialsSchema];
 
 let db = null;
 
@@ -19,6 +27,7 @@ export function openDb(file) {
   conn.pragma('foreign_keys = ON');
   ensureSchema(conn);
   migrate(conn);
+  for (const f of FEATURE_SCHEMAS) if (f.SQL) conn.exec(f.SQL);
   seedDefaults(conn);
   return conn;
 }
@@ -50,6 +59,13 @@ const COLUMN_MIGRATIONS = [
   ['suppliers', 'collection_lead_text', "TEXT NOT NULL DEFAULT ''"],
   // One entry per supplier shipment: [{supplierId, label, method, name, feeCents, readyAt}]
   ['orders', 'fulfilment_json', "TEXT NOT NULL DEFAULT ''"],
+  // Phase 1 upgrade: discounts, customer accounts, invoices.
+  ['orders', 'discount_cents', 'INTEGER NOT NULL DEFAULT 0'],
+  ['orders', 'promo_code', "TEXT NOT NULL DEFAULT ''"],
+  ['orders', 'client_id', 'TEXT'],
+  ['orders', 'invoice_number', "TEXT NOT NULL DEFAULT ''"],
+  ['orders', 'invoiced_at', "TEXT NOT NULL DEFAULT ''"],
+  ...FEATURE_SCHEMAS.flatMap((f) => f.COLUMNS || []),
 ];
 
 export function migrate(conn) {
