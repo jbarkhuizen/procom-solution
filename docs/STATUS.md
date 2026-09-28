@@ -64,9 +64,10 @@ _Last updated: 2026-09-28_
 - **Filament overlap with lapanza3d.co.za** — decided 2026-09-27: Procom lists SA Filament too.
 - **Legal pages** (Terms, Privacy, Returns) written for SA law — should get a quick legal review.
 - **SMD auto-lists done 2026-09-28** (Infant Essential 286, Cash Wholesale 2,481). Next month: import the new files, then run `node server/smd-autolist-cli.js` on the server (dry run) and `--apply` (see DEPLOY.md) -- the browser button can time out on the Cash list.
-- **148 hand-listed products sit on parent categories** (Gaming 50, Networking 50, Smart Home & Lighting 48) next to the new sub-categories; shoppers who open a sub-category won't see them. Owner chose to leave them; they can be moved with Products → bulk "set category" if wanted.
+- **148 hand-listed products sit on parent categories** (Gaming 50, Networking 50, Smart Home & Lighting 48). Owner asked (2026-09-28) to move them into sub-categories: deploy, then `node server/smd-autolist-cli.js --tidy` (dry run) and `--tidy --apply`. Products the rules place under a different parent are reported and stay put.
+- **3 products misfiled in Power & Electrical › Batteries** by the first Cash run (battery rule fixed since): ELL-6000-WT and ELL-6001-WT (Ellies wireless doorbells → Switches, Sockets & Wiring) and VK-50022-MMN (Volkano Mini Moon mood light → Smart Home & Lighting › Lamps & Indoor Lighting). Move by hand in Products.
 - **Sub-category named like its parent**: Toys & Games › Toys & Games (10 items, slug `toys-games-2`) -- consider renaming (e.g. "Games & Novelties") in Admin → Categories.
-- **Ask SMD**: Ellies TOSLINK cables (BPFO3 and the 1.2 m one) priced ~R1.08m (skipped); Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price.
+- **Ask SMD**: Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price. (The two Ellies TOSLINK cables priced ~R1.08m stay skipped -- owner: ignore.)
 - **Heavy items**: 44 Cash Wholesale products marked delivery quoted (5 more heavy ones were already hand-listed and keep their setting). Medium items (20-30 m extension reels, single 8" party speakers, metal desk lamps), Totes Babe bags and the R3,900 Loop & Co display box still ship at the default 1 kg.
 - **Server housekeeping**: `.env.bak-20260925*` files sit in the app directory; now gitignored (next deploy) but better moved out or deleted.
 - Optional: register procompretoria.co.za and point it at the same site.

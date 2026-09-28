@@ -4,15 +4,18 @@
 //   node server/smd-autolist-cli.js                 # preview infant + cash
 //   node server/smd-autolist-cli.js --apply         # back up, then list both
 //   node server/smd-autolist-cli.js --list cash     # just one list
+//   node server/smd-autolist-cli.js --tidy          # preview moving products off
+//                                                   # parent categories (--apply to move)
 //
 // Run from the app directory (it uses data/procom.db there).
 import { getDb } from './db.js';
 import { backupsDir } from './paths.js';
-import { autoList } from './smd-autolist.js';
+import { autoList, tidyParentLevel } from './smd-autolist.js';
 import { SMD_LISTS } from './smd-rules.js';
 
 const args = process.argv.slice(2);
 const apply = args.includes('--apply');
+const tidy = args.includes('--tidy');
 const only = args.includes('--list') ? args[args.indexOf('--list') + 1] : null;
 const lists = only ? [only] : Object.keys(SMD_LISTS);
 
@@ -26,6 +29,22 @@ if (apply) {
   console.log(`Backup saved: ${file}`);
 } else {
   console.log('DRY RUN -- nothing is changed. Add --apply to list.');
+}
+
+if (tidy) {
+  const r = tidyParentLevel({ supplierId: supplier.id, dryRun: !apply });
+  console.log(`\n== Products on a parent category that has sub-categories: ${r.found}`);
+  for (const m of r.moves) console.log(`   ${apply ? 'moved' : 'move'} ${m.count} -> ${m.category}`);
+  if (apply) console.log(`   Moved ${r.moved}`);
+  const show = (label, items) => {
+    if (!items.length) return;
+    console.log(`   ${label} (${items.length}, left where they are):`);
+    for (const i of items) console.log(`     ${i.code}  ${i.name}  [${i.current}]${i.suggested ? `  rules say: ${i.suggested}` : ''}`);
+  };
+  show('Rules pick a different parent', r.otherParent);
+  show('Sub-category missing', r.missingSub);
+  show('No rule / skipped by rules', r.noRule);
+  process.exit(0);
 }
 
 for (const list of lists) {

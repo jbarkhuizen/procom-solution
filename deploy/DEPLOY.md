@@ -100,6 +100,11 @@ Open https://www.procomsolutions.co.za/admin/. A fresh database shows
 
    The first is a dry run (nothing changes); `--apply` saves a database
    backup to `data/backups/pre-autolist-*.db`, then lists.
+
+   `--tidy` (with or without `--apply`) moves products that sit directly on
+   a parent category (e.g. listed by hand onto "Gaming") into the
+   sub-category the rules pick -- only within the same parent; anything
+   else is listed and left alone.
 3. Monthly: upload the new lists. Costs update, auto-priced products
    reprice, and discontinued items go out of stock.
 

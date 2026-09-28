@@ -54,7 +54,8 @@ const CASH_RULES = [
   r('Computers & Peripherals', 'Monitors', { name: /^(?!.*(mount|arm|rate monitor|humidity)).*monitor\b/i }),
   r('Computers & Peripherals', 'Laptop & Monitor Stands', { name: /monitor.*mount|monitor mount|laptop stand|notebook stand|cooling (stand|pad)|notebook cooling/i }),
   r('TV & Video', 'Projectors & Screens', { name: /projector/i }),
-  r('Power & Electrical', 'Batteries', { name: /^(?!.*(insta360|power ?bank)).*batter(y|ies)|battery recharger/i }),
+  // Battery packs only -- not devices that merely run on one (Tapo sensors, doorbells, mood lights).
+  r('Power & Electrical', 'Batteries', { name: /^(?!.*(insta360|power ?bank|tapo|camera|doorbell|sensor|button|dimmer|smart|operated)).*batter(y|ies)|battery recharger/i }),
   r('Office & School', 'Label Printers', { name: /labelpro|label printer/i }),
   r('Smart Home & Lighting', 'Smart Home', { name: /photo frame|smart calendar/i }),
   r('Mobile & Wearables', 'Trackers & Tags', { name: /tagtrace/i }),
