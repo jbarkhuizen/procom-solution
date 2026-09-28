@@ -350,13 +350,23 @@ function centsInput(value, fallback) {
   return parseRandToCents(value);
 }
 
+// Time-based code for products saved without a SKU; a suffix keeps two saved
+// in the same millisecond apart.
+function generatedSku(db) {
+  const base = `PC-${Date.now().toString(36).toUpperCase()}`;
+  const taken = db.prepare('SELECT 1 FROM products WHERE sku = ?');
+  let sku = base;
+  for (let n = 2; taken.get(sku); n++) sku = `${base}-${n}`;
+  return sku;
+}
+
 export function saveProduct(data, id = null, db = getDb()) {
   const existing = id ? db.prepare('SELECT * FROM products WHERE id = ?').get(id) : null;
   if (id && !existing) return null;
   const settings = getSettings(db);
   const name = String(data.name ?? existing?.name ?? '').trim();
   if (!name) throw new Error('Product name is required');
-  const sku = String(data.sku ?? existing?.sku ?? '').trim() || `PC-${Date.now().toString(36).toUpperCase()}`;
+  const sku = String(data.sku ?? existing?.sku ?? '').trim() || generatedSku(db);
   const skuClash = db.prepare('SELECT id FROM products WHERE sku = ? AND id != ?').get(sku, id || '');
   if (skuClash) throw new Error(`SKU "${sku}" is already used by another product`);
 
