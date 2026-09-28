@@ -229,6 +229,22 @@ test('one-click unsubscribe: every email carries it, it stops future and queued 
   assert.equal((await call('POST', '/api/newsletter/unsubscribe', { token: 'a'.repeat(64) })).status, 400);
 });
 
+test('RFC 8058: each newsletter carries List-Unsubscribe headers and the one-click POST works', async () => {
+  addConfirmed('ann@example.com');
+  const c = await approvedCampaign();
+  nl.queueCampaign(c.id, { db });
+  mails = [];
+  await nl.runSendBatch({ db, mail: fakeMail, siteUrl: SITE });
+  const h = mails[0].headers;
+  assert.equal(h['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
+  const url = h['List-Unsubscribe'].match(/^<(.+)>$/)[1];
+  assert.match(url, /^https:\/\/shop\.test\/api\/newsletter\/one-click\?token=[a-f0-9]{64}$/);
+  // What Gmail/Yahoo send: a form POST with no Origin header.
+  const res = await fetch(base + url.replace('https://shop.test', ''), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'List-Unsubscribe=One-Click' });
+  assert.equal(res.status, 200);
+  assert.equal(nl.isEligible('ann@example.com', db), false);
+});
+
 test('suppression list: blocks sends and the signup form; ticking the box again after an unsubscribe re-opts in', async () => {
   addConfirmed('ann@example.com');
   nl.addSuppression({ email: 'ANN@example.com', note: 'asked by phone' }, db);

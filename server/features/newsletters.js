@@ -14,7 +14,8 @@
 //    State lives in SQLite, so a restart simply carries on; the cap resets at
 //    SAST midnight and the queue continues the next day.
 //  - Every email has a one-click unsubscribe link (newsletter.html?unsubscribe=<token>).
-//    sendMail() doesn't take extra headers, so there is no List-Unsubscribe header yet.
+//    Each newsletter carries List-Unsubscribe + List-Unsubscribe-Post (RFC 8058) so Gmail/Yahoo show
+//    their own one-click Unsubscribe button; it POSTs to /api/newsletter/one-click.
 //  - Content: a block editor (heading, text, image, button, product cards
 //    with the live price incl. specials, divider) or plain text. Everything
 //    is escaped server-side; only http(s) URLs are allowed.
@@ -592,11 +593,16 @@ export async function runSendBatch({ db = getDb(), mail = sendMail, siteUrl = ''
       if (db.prepare('SELECT status FROM newsletter_campaigns WHERE id = ?').get(r.campaign_id)?.status !== 'sending') continue;
       db.prepare("UPDATE newsletter_recipients SET status = 'sending', attempts = attempts + 1, attempted_at = ? WHERE id = ?").run(nowIso(ts), r.id);
       countAttempt(db, ts);
-      const url = escapeHtml(unsubUrlFor(siteUrl, unsubToken(r.email, db)));
+      const token = unsubToken(r.email, db);
+      const url = escapeHtml(unsubUrlFor(siteUrl, token));
+      const headers = {
+        'List-Unsubscribe': `<${siteUrl}/api/newsletter/one-click?token=${encodeURIComponent(token)}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      };
       let ok = false;
       let error = '';
       try {
-        ok = (await mail({ to: r.email, subject: email.subject, html: email.html.split(UNSUB_PLACEHOLDER).join(url) })) !== false;
+        ok = (await mail({ to: r.email, subject: email.subject, html: email.html.split(UNSUB_PLACEHOLDER).join(url), headers })) !== false;
         if (!ok) error = 'Not sent (mail failed or email not set up)';
       } catch (err) {
         error = str(err?.message || 'Send failed', 300);
@@ -701,7 +707,7 @@ export function confirmationEmail(token, siteUrl) {
 let timer = null;
 let startTimer = null;
 
-export function register({ app, admin, wrap, rateLimit, siteUrl = '', mail = sendMail, intervalMs = 60_000, autoStart = true }) {
+export function register({ app, admin, wrap, rateLimit, express, siteUrl = '', mail = sendMail, intervalMs = 60_000, autoStart = true }) {
   const base = String(siteUrl || '').replace(/\/$/, '');
   const db = () => getDb();
 
@@ -742,6 +748,13 @@ export function register({ app, admin, wrap, rateLimit, siteUrl = '', mail = sen
     const r = unsubscribeByToken(req.body?.token);
     if (!r) throw httpError(400, 'This unsubscribe link is invalid. Please contact us and we’ll remove you by hand.');
     return { ok: true, email: maskEmail(r.email) };
+  }));
+  // RFC 8058 one-click: the mail provider POSTs "List-Unsubscribe=One-Click"
+  // (form-encoded, no Origin) to the URL in the List-Unsubscribe header.
+  app.post('/api/newsletter/one-click', tokenLimiter, express.urlencoded({ extended: false, limit: '1kb' }), wrap((req) => {
+    const r = unsubscribeByToken(String(req.query?.token || ''));
+    if (!r) throw httpError(400, 'Invalid unsubscribe link');
+    return { ok: true };
   }));
   app.post('/api/newsletter/resubscribe', tokenLimiter, wrap((req) => {
     const r = resubscribeByToken(req.body?.token);
