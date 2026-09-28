@@ -8,20 +8,20 @@ _Last updated: 2026-09-28_
 - **Email:** working (Gmail SMTP as procompretoria@gmail.com); test email confirmed 2026-09-25
 - **Admin account:** created by the owner
 - **Live products:** 4,164 (2026-09-28, after the SMD auto-lists; was 1,397)
-- **Deployed:** main @ `007c1fe` (2026-09-28). Later merges (.gitignore for `.env` backups, `server/smd-autolist-cli.js`) go live on the next deploy.
+- **Deployed:** main @ `85de4de` (2026-09-28): includes `server/smd-autolist-cli.js` (auto-list + `--tidy`) and the `.env*` gitignore.
 
 | Category | Live | Delivery |
 |---|---|---|
 | Computers & Peripherals (Keyboards & Mice 149, Headsets & Audio 119, Computer Accessories 82, Cables & Adaptors 23, Laptop & Monitor Stands 14, Webcams & Streaming 12, Laptops & Tablets 9 — 10% markup, PC Components 7, Storage & Memory 6, Monitors 3) | 424 | normal |
-| Networking (Routers & Mesh 102, Wi-Fi Extenders & Adapters 57, Switches 54, Security Cameras 50, Business Switches & Access Points 24, Networking Accessories 15; 50 hand-listed on the parent) | 352 | normal |
-| Gaming (Gaming Mice & Keyboards 57, Gaming Headsets 19, Controllers & Racing 16, Gaming Chairs & Desks 11, Handheld & Retro Consoles 8, Gaming Accessories 3, Mouse Pads & Accessories 2; 50 hand-listed on the parent) | 166 | Gaming Chairs & Desks quoted |
+| Networking (Routers & Mesh 122, Wi-Fi Extenders & Adapters 68, Switches 62, Security Cameras 50, Business Switches & Access Points 35, Networking Accessories 15) | 352 | normal |
+| Gaming (Gaming Mice & Keyboards 90, Gaming Headsets 26, Controllers & Racing 24, Gaming Chairs & Desks 11, Handheld & Retro Consoles 8, Mouse Pads & Accessories 4, Gaming Accessories 3) | 166 | Gaming Chairs & Desks quoted |
 | Mobile & Wearables (Chargers & Cables 158, Smartwatches 84, Power Banks 35, Car Accessories 30, Smart Rings & Glasses 19, Phone Accessories 16, Trackers & Tags 10, Phones 3 — 10% markup) | 355 | normal |
 | Audio (Earphones & Earbuds 155, Headphones 112, Speakers 76, Microphones & Karaoke 35, Soundbars & Hi-Fi 21, Audio Accessories 3) — new | 402 | heavy items quoted per product |
 | Power & Electrical (Multiplugs & Surge Protection 110, Adaptors & Extension Leads 86, Switches, Sockets & Wiring 68, Batteries 19, Electrical Accessories 5) | 288 | normal |
 | Home & Kitchen (Utensils & Gadgets 82, Food Storage & Drinkware 56, Cookware & Pans 37, Kitchen Appliances 35, Irons & Floor Care 27, Heating & Cooling 23, Home & Living 14) | 274 | normal |
 | Baby & Toddler (Bottles & Teats 64, Feeding & Weaning 50, Dummies & Teethers 27, Maternity & Breastfeeding 26, Blankets & Swaddles 15, Wipes 15, Bath & Skin Care 14, Oral Care 13, Nappy & Changing Bags 12, Sterilising & Cleaning 12, Health & Safety 11, Baby Toys & Keepsakes 6, Hair Accessories 6) | 271 | normal |
 | Bags & Laptop Cases (Laptop Bags & Backpacks 102, School & Everyday Backpacks 79, Lunch Bags & Bottles 33, Handbags, Purses & Wallets 20, Cable Organisers & Pouches 6) | 240 | normal |
-| Smart Home & Lighting (Light Bulbs 92, Outdoor & Flood Lights 42, Lamps & Indoor Lighting 41, Smart Home 3; 48 hand-listed on the parent) | 226 | normal |
+| Smart Home & Lighting (Light Bulbs 92, Smart Home 51, Outdoor & Flood Lights 42, Lamps & Indoor Lighting 41) | 226 | normal |
 | 3D Printing (13 sub-categories; Filament – PLA 189, – PETG 45, – ABS & ASA 27, – TPU & Specialist 21 incl. SA Filament) | 576 | quoted for FDM/Resin printers + Laser Engravers |
 | Furniture (Desks & Office Chairs, Tables, Shelving & Storage, Seating & Living) | 186 | quoted |
 | Luggage & Travel (Suitcases 88, Luggage Sets & Business Trolleys 16) | 104 | quoted |
@@ -54,6 +54,7 @@ _Last updated: 2026-09-28_
 | 2026-09-27 | Infant Essential: 13 Baby & Toddler sub-categories; Lifree and Loop & Co listed too; default markup; colour variants listed as separate products |
 | 2026-09-27 | Cash Wholesale: category structure approved (4 new top-level categories); items already listed by hand keep their category; Creality tab skipped (listed from the Creality list); SA Filament listed under 3D Printing › Filament; laptops and phones listed; Gaming Chairs & Desks listed with delivery quoted |
 | 2026-09-27 | Phones and Laptops & Tablets: markup pinned at 10% on the category (same as today's default, but stays 10% if the default changes). Heavy Cash Wholesale items (49: soundbars/subwoofers, big party speakers, 24"/27" monitors, projector screens, large TV mounts, racing cockpit, electric scooter) listed with delivery quoted |
+| 2026-09-28 | Hand-listed products on Gaming, Networking and Smart Home & Lighting (148) moved into the matching sub-categories with `smd-autolist-cli.js --tidy --apply` (backup `pre-autolist-2026-09-28T07-22-28-578Z.db`). The two mispriced TOSLINK cables stay skipped. |
 
 ## Open items / backlog
 
@@ -64,7 +65,6 @@ _Last updated: 2026-09-28_
 - **Filament overlap with lapanza3d.co.za** — decided 2026-09-27: Procom lists SA Filament too.
 - **Legal pages** (Terms, Privacy, Returns) written for SA law — should get a quick legal review.
 - **SMD auto-lists done 2026-09-28** (Infant Essential 286, Cash Wholesale 2,481). Next month: import the new files, then run `node server/smd-autolist-cli.js` on the server (dry run) and `--apply` (see DEPLOY.md) -- the browser button can time out on the Cash list.
-- **148 hand-listed products sit on parent categories** (Gaming 50, Networking 50, Smart Home & Lighting 48). Owner asked (2026-09-28) to move them into sub-categories: deploy, then `node server/smd-autolist-cli.js --tidy` (dry run) and `--tidy --apply`. Products the rules place under a different parent are reported and stay put.
 - **3 products misfiled in Power & Electrical › Batteries** by the first Cash run (battery rule fixed since): ELL-6000-WT and ELL-6001-WT (Ellies wireless doorbells → Switches, Sockets & Wiring) and VK-50022-MMN (Volkano Mini Moon mood light → Smart Home & Lighting › Lamps & Indoor Lighting). Move by hand in Products.
 - **Sub-category named like its parent**: Toys & Games › Toys & Games (10 items, slug `toys-games-2`) -- consider renaming (e.g. "Games & Novelties") in Admin → Categories.
 - **Ask SMD**: Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price. (The two Ellies TOSLINK cables priced ~R1.08m stay skipped -- owner: ignore.)
