@@ -184,6 +184,9 @@ test('checkout with a large item: delivery R0, order flagged, client shipping ch
 
 test('auto-weight shipping brackets may not overlap', () => {
   assert.throws(() => shipping.saveShippingOption({ name: 'Overlap', optionType: 'auto_weight', minWeight: 1000, maxWeight: 2000, price: 90 }), /overlaps/);
+  // Seeded brackets: 0-1500 and 1501-5000. Sharing the boundary gram says where to start instead.
+  assert.throws(() => shipping.saveShippingOption({ name: 'Touch', optionType: 'auto_weight', minWeight: 5000, maxWeight: 9000, price: 90 }), /Start this one at 5001 g/);
+  assert.equal(shipping.saveShippingOption({ name: 'Next', optionType: 'auto_weight', minWeight: 5001, maxWeight: 9000, price: 90 }).minWeight, 5001);
 });
 
 // ------------------------------------------------------------------ security

@@ -1144,7 +1144,7 @@ routes.shipping = async () => {
     <td style="white-space:nowrap"><button class="btn small btn-primary" data-save>Save</button> ${o ? '<button class="btn small btn-danger" data-del>×</button>' : ''}</td>
   </tr>`;
   const root = view(`<div class="panel table-wrap">
-    <p class="mini-help">Same model as lapanza3d: “Auto by weight” options (Courier) are picked automatically from the cart weight — their ranges must not overlap. “Customer picks” options are listed under their category at checkout. Weights in grams. PUDO options ask the customer for their locker.</p>
+    <p class="mini-help">Same model as lapanza3d: “Auto by weight” options (Courier) are picked automatically from the cart weight — their ranges must not overlap, and both ends count, so the next range starts one gram later (e.g. 0–3000, 3001–10000, 10001–25000). Save each row on its own. “Customer picks” options are listed under their category at checkout. Weights in grams. PUDO options ask the customer for their locker.</p>
     <datalist id="ship-cats"><option>Courier</option><option>PUDO Locker</option><option>Local Delivery</option></datalist>
     <table class="catalog"><thead><tr><th>Name</th><th>Group</th><th>Type</th><th>Min g</th><th>Max g</th><th>Price R</th><th>On</th><th></th></tr></thead>
     <tbody id="ship-rows">${list.map(row).join('')}</tbody></table></div>`);
@@ -1160,7 +1160,13 @@ routes.shipping = async () => {
     if (e.target.closest('[data-save]')) {
       const get = (n) => tr.querySelector(`[name="${n}"]`);
       const body = { name: get('name').value, category: get('category').value, optionType: get('optionType').value, minWeight: get('minWeight').value, maxWeight: get('maxWeight').value, price: get('price').value, active: get('active').checked };
-      try { await api(id ? `/shipping/${id}` : '/shipping', { method: id ? 'PUT' : 'POST', body }); toast('Saved'); routes.shipping(); } catch (err) { fail(err); }
+      try {
+        // Update just this row so unsaved edits in other rows are kept.
+        const saved = await api(id ? `/shipping/${id}` : '/shipping', { method: id ? 'PUT' : 'POST', body });
+        tr.insertAdjacentHTML('afterend', row(saved));
+        tr.remove();
+        toast('Saved');
+      } catch (err) { fail(err); }
     }
   });
 };

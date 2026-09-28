@@ -55,7 +55,13 @@ export function saveShippingOption(data, id = null, db = getDb()) {
   };
   if (f.max_weight != null && f.max_weight < f.min_weight) throw new Error('Max weight must be at least min weight');
   const clash = overlapping(db, f, id);
-  if (clash) throw new Error(`Weight range overlaps active option "${clash.name}"`);
+  if (clash) {
+    // Ranges include both ends, so neighbours can't share a gram (3001-10000 then 10001-25000).
+    const hint = clash.max_weight != null && f.min_weight <= clash.max_weight && f.min_weight >= clash.min_weight
+      ? ` Start this one at ${clash.max_weight + 1} g.`
+      : clash.min_weight > 0 ? ` End this one at ${clash.min_weight - 1} g.` : '';
+    throw new Error(`Weight range overlaps "${clash.name}" (${clash.min_weight}–${clash.max_weight ?? '∞'} g).${hint}`);
+  }
   if (existing) {
     db.prepare(`UPDATE shipping_options SET name=@name, option_type=@option_type, category=@category, min_weight=@min_weight, max_weight=@max_weight,
       price_cents=@price_cents, active=@active, sort_order=@sort_order, updated_at=@updated_at WHERE id=@id`).run({ ...f, id });
