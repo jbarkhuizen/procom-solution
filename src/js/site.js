@@ -2,6 +2,7 @@ import '../styles/main.css';
 import { esc, formatRand, getSite, getCategories, whatsappLink } from './api.js';
 import { getCart, cartCount, cartSubtotal, setQuantity, removeFromCart, addToCart } from './cart.js';
 import { setHtml } from './dom.js';
+import './analytics-beacon.js';
 
 const THEME_KEY = 'procom-theme';
 

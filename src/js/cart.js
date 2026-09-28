@@ -1,3 +1,4 @@
+import { track } from './analytics-beacon.js';
 // Browser-side cart. Holds display snapshots only -- the server re-reads every
 // price and stock level at checkout, so a tampered cart can't change what's charged.
 const KEY = 'procom-cart';
@@ -25,6 +26,7 @@ export const cartWeight = () => read().reduce((s, i) => s + (i.weightG || 0) * i
 export const cartNeedsDeliveryQuote = () => read().some((i) => i.quoteDelivery);
 
 export function addToCart(product, quantity = 1) {
+  track('add_to_cart', { productId: product.id, quantity });
   const items = read();
   const min = product.minOrderQty || 1;
   const existing = items.find((i) => i.productId === product.id);

@@ -15,3 +15,10 @@ Hooks called by the core (keep the signatures):
 - `promos.js` `priceAdjustments({ items, subtotalCents, promoCode, email }, db)` -> `{ discountCents, promoCode }`. `items` = `[{ p, quantity, unitCents }]`. Throw an Error with a customer-friendly message for an invalid code.
 - `accounts.js` `onOrderCreated(order, db)` -- e.g. link the order to a registered client.
 - `invoices.js` `onOrderPaid(order, db)` -- called once, after the Payfast payment is confirmed.
+
+## Phase 2 hooks
+
+- `src/js/analytics-beacon.js` `track(event, data)` -- called by the core storefront: `add_to_cart` (cart.js), `checkout_start` (checkout.js). site.js imports the module on every page, so it can also send page views itself.
+- Paid orders, revenue, cost and discounts come from the `orders` / `order_items` tables (read them; don't add hooks to orders.js).
+- Admin pages may override an existing core route (e.g. `routes['dashboard']`): page modules load after admin.js defines its routes.
+- Customer newsletter opt-in lives on `clients.newsletter_opt_in` (accounts feature).

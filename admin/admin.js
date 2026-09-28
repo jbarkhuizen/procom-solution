@@ -1326,7 +1326,7 @@ routes.backups = async () => {
 // (server/features/README.md). A page that fails to load never blocks the rest.
 const kit = { $, $$, h, rand, toRands, fmtDate, api, toast, fail, view, setTop, options, pager, statusBadge, setHtml, siteSettings, categories, flattenTree };
 await Promise.all(
-  ['clients', 'registered-users', 'invoice-history', 'promos', 'specials'].map((name) =>
+  ['clients', 'registered-users', 'invoice-history', 'promos', 'specials', 'dashboard', 'analytics', 'financial-overview', 'expenses', 'newsletters', 'potential-market', 'adverts', 'platform-rules', 'ad-calendar'].map((name) =>
     import(`./pages/${name}.js`).then((m) => m.default(routes, kit)).catch((err) => console.error(`Admin page ${name} failed to load`, err)),
   ),
 );

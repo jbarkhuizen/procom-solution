@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const pages = ['index', 'shop', 'product', 'checkout', 'checkout-complete', 'contact', 'terms', 'privacy', 'returns', '404', 'account', 'invoice', 'specials'];
+const pages = ['index', 'shop', 'product', 'checkout', 'checkout-complete', 'contact', 'terms', 'privacy', 'returns', '404', 'account', 'invoice', 'specials', 'newsletter'];
 
 // Expands <!-- @include name --> with partials/name.html so the header,
 // sidebar and footer live in one place but pages remain static HTML (no

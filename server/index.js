@@ -306,7 +306,7 @@ admin.get('/backups', wrap(() => listBackups()));
 admin.post('/backups', wrap(async () => createBackup('manual')));
 
 // Feature modules (server/features/README.md) add their own routes.
-for (const name of ['accounts', 'invoices', 'promos', 'specials']) {
+for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing']) {
   (await import(`./features/${name}.js`)).register({ app, admin, wrap, rateLimit, express, siteUrl: SITE_URL });
 }
 

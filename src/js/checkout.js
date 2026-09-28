@@ -4,6 +4,7 @@ import { getCart, cartSubtotal, cartWeight, refreshCart } from './cart.js';
 import { setHtml } from './dom.js';
 import { initPromo, promoPayload, promoDiscountCents } from './checkout-promo.js';
 import { initAccountCheckout } from './checkout-account.js';
+import { track } from './analytics-beacon.js';
 
 const form = document.getElementById('checkout-form');
 const PREFS_KEY = 'procom-checkout-details';
@@ -215,6 +216,7 @@ async function init() {
     return;
   }
   restoreDetails();
+  track('checkout_start', { items: getCart().length });
   await initAccountCheckout(form).catch(() => {});
   initPromo({ onChange: renderSummary });
   await loadPlan();
