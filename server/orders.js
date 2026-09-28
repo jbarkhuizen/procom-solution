@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getDb } from './db.js';
-import { resolveShippingForCheckout } from './shipping.js';
+import { getShippingOption, isCollectionOption, resolveShippingForCheckout } from './shipping.js';
 import { quoteDeliveryCategoryIds, needsDeliveryQuote } from './catalog.js';
 import { clampInt } from './util.js';
 
@@ -50,6 +50,8 @@ function rowToOrder(r, items = [], events = []) {
     totalWeightG: r.total_weight_g,
     supplierRef: r.supplier_ref,
     deliveryQuote: Boolean(r.delivery_quote),
+    collection: Boolean(r.collection),
+    collectionReadyAt: r.collection_ready_at || '',
     trackingNumber: r.tracking_number,
     adminNotes: r.admin_notes,
     paidAt: r.paid_at,
@@ -142,9 +144,16 @@ export function createOrder(input, db = getDb()) {
   // Heavy/bulky items: the whole order ships together and delivery is quoted
   // after the order -- decided here from the products, never from the client.
   const quoteSet = quoteDeliveryCategoryIds(db);
-  const deliveryQuote = items.some((i) => needsDeliveryQuote(i.p, quoteSet));
+  const hasLargeItems = items.some((i) => needsDeliveryQuote(i.p, quoteSet));
+  // Collecting from the warehouse needs no address or quote, large items included.
+  const chosen = input.shippingOptionId ? getShippingOption(input.shippingOptionId, db) : null;
+  const collection = Boolean(chosen?.active && isCollectionOption(chosen));
+  const deliveryQuote = hasLargeItems && !collection;
   let ship;
-  if (deliveryQuote) {
+  if (collection) {
+    ship = chosen;
+    customer.pudoLocker = '';
+  } else if (deliveryQuote) {
     ship = { id: null, name: DELIVERY_QUOTE_NAME, priceCents: 0 };
     customer.pudoLocker = '';
     if (!customer.line1 || !customer.city || !customer.postalCode) throw new Error('Please enter your delivery address so we can quote delivery (street, city and postal code)');
@@ -164,15 +173,16 @@ export function createOrder(input, db = getDb()) {
     const orderNumber = nextOrderNumber(db);
     db.prepare(`INSERT INTO orders (id, order_number, status, payment_status, payment_method, first_name, last_name, email, phone,
       address_line1, address_line2, suburb, city, province, postal_code, pudo_locker, customer_notes,
-      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, created_at, updated_at)
+      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, collection, created_at, updated_at)
       VALUES (@id, @orderNumber, 'pending_payment', 'pending', @paymentMethod, @firstName, @lastName, @email, @phone,
       @line1, @line2, @suburb, @city, @province, @postalCode, @pudoLocker, @notes,
-      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @ts, @ts)`).run({
+      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @collection, @ts, @ts)`).run({
       id,
       orderNumber,
       paymentMethod,
       ...customer,
       deliveryQuote: deliveryQuote ? 1 : 0,
+      collection: collection ? 1 : 0,
       shipId: ship.id,
       shipName: ship.name,
       shipCents: ship.priceCents,
@@ -188,6 +198,7 @@ export function createOrder(input, db = getDb()) {
     }
     logOrderEvent(id, `Order placed (${paymentMethod === 'payfast_eft' ? 'Instant EFT' : 'Card'})`, 'customer', db);
     if (deliveryQuote) logOrderEvent(id, 'Contains large items — delivery must be quoted to the customer', 'system', db);
+    if (collection) logOrderEvent(id, 'Customer will collect from the warehouse', 'system', db);
   });
   tx();
   return getOrder(id, db);
@@ -273,6 +284,19 @@ export function updateOrder(id, patch, actor = 'admin', db = getDb()) {
   return { order: getOrder(id, db), statusChangedTo: set.status || null };
 }
 
+// The admin confirms the warehouse has the order packed; the caller emails
+// the customer. Can be repeated (e.g. to resend the email).
+export function markCollectionReady(id, actor = 'admin', db = getDb()) {
+  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  if (!o) return null;
+  if (!o.collection) throw new Error('This order is not for collection');
+  if (o.payment_status !== 'paid') throw new Error('This order has not been paid yet');
+  const ts = new Date().toISOString();
+  db.prepare('UPDATE orders SET collection_ready_at = ?, updated_at = ? WHERE id = ?').run(ts, ts, id);
+  logOrderEvent(id, 'Ready for collection — customer emailed', actor, db);
+  return getOrder(id, db);
+}
+
 // Text block the owner pastes into an email/WhatsApp to the warehouse:
 // what to pick, and where to deliver it (dropship = straight to customer).
 export function supplierOrderSheet(order) {
@@ -293,10 +317,9 @@ export function supplierOrderSheet(order) {
       '',
       ...items.map((i) => `${i.quantity} x ${i.supplierCode || i.sku} — ${i.name}`),
       '',
-      'Please deliver directly to:',
-      `${order.firstName} ${order.lastName} · ${order.phone}`,
-      deliver,
-      `Delivery method: ${order.shippingName}`,
+      ...(order.collection
+        ? ['CUSTOMER WILL COLLECT from your office — please pack and hold under this reference:', `${order.firstName} ${order.lastName} · ${order.phone}`, 'Please let us know when it is ready for collection.']
+        : ['Please deliver directly to:', `${order.firstName} ${order.lastName} · ${order.phone}`, deliver, `Delivery method: ${order.shippingName}`]),
     ].join('\n'),
   }));
 }

@@ -976,7 +976,7 @@ routes.orders = async (id, arg) => {
     <div class="panel table-wrap"><table class="catalog">
       <thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th class="num">Items</th><th class="num">Total</th><th>Status</th><th>Placed</th></tr></thead>
       <tbody>${
-        res.items.map((o) => `<tr data-go="#/orders/${h(o.id)}"><td><strong>${h(o.orderNumber)}</strong></td><td>${h(o.firstName)} ${h(o.lastName)}<br><span class="muted">${h(o.email)}</span></td><td>${o.deliveryQuote ? '<span class="badge warn">Delivery quote</span>' : h(o.shippingName)}</td><td class="num">${o.itemCount}</td><td class="num">${rand(o.totalCents)}</td><td>${statusBadge(o.status)}</td><td>${h(fmtDate(o.createdAt))}</td></tr>`).join('') ||
+        res.items.map((o) => `<tr data-go="#/orders/${h(o.id)}"><td><strong>${h(o.orderNumber)}</strong></td><td>${h(o.firstName)} ${h(o.lastName)}<br><span class="muted">${h(o.email)}</span></td><td>${o.deliveryQuote ? '<span class="badge warn">Delivery quote</span>' : o.collection ? `<span class="badge info">Collection${o.collectionReadyAt ? ' · ready' : ''}</span>` : h(o.shippingName)}</td><td class="num">${o.itemCount}</td><td class="num">${rand(o.totalCents)}</td><td>${statusBadge(o.status)}</td><td>${h(fmtDate(o.createdAt))}</td></tr>`).join('') ||
         '<tr><td colspan="7" class="empty">No orders yet.</td></tr>'
       }</tbody></table></div>
     ${pager(res.page, res.pages)}`);
@@ -1012,6 +1012,13 @@ async function orderDetail(id) {
               </div>
             </div>`;
           })() : ''}
+          ${o.collection ? `<div class="panel" style="border:2px solid var(--brand);margin-bottom:1rem">
+              <div class="section-head"><h3>Customer collects from the warehouse</h3>${o.collectionReadyAt ? `<span class="badge ok">Ready email sent ${h(fmtDate(o.collectionReadyAt))}</span>` : '<span class="badge warn">Not ready yet</span>'}</div>
+              <p class="mini-help">Send the supplier order below (it asks them to pack and hold it). When they confirm it's ready, click the button: the customer gets the collection address, hours, map link and what to bring. Set the status to Delivered once collected.</p>
+              <div class="toolbar" style="margin:0.5rem 0 0">
+                ${o.paymentStatus === 'paid' ? `<button class="btn small btn-primary" data-collect-ready>${o.collectionReadyAt ? 'Resend “ready for collection” email' : 'Ready for collection — email customer'}</button>` : '<span class="mini-help">Available once the order is paid.</span>'}
+              </div>
+            </div>` : ''}
           <div class="section-head"><h3>Items</h3>${statusBadge(o.status)}</div>
           <div class="table-wrap"><table class="catalog"><thead><tr><th>Product</th><th>Fulfilment</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Line</th><th class="num">Unit cost</th></tr></thead><tbody>
             ${o.items.map((i) => `<tr><td><strong>${h(i.name)}</strong><br><span class="muted">${h(i.sku)}${i.supplierCode ? ` · supplier code ${h(i.supplierCode)}` : ''}</span></td><td>${i.fulfilment === 'dropship' ? `<span class="badge info">Dropship${i.supplierName ? ` · ${h(i.supplierName)}` : ''}</span>` : '<span class="badge ok">Own stock</span>'}</td><td class="num">${i.quantity}</td><td class="num">${rand(i.unitPriceCents)}</td><td class="num">${rand(i.lineTotalCents)}</td><td class="num muted">${rand(i.unitCostCents)}</td></tr>`).join('')}
@@ -1059,7 +1066,7 @@ async function orderDetail(id) {
           <label class="field"><span>Status</span><select name="status">${options(Object.entries(STATUS).map(([value, [label]]) => ({ value, label })), o.status)}</select></label>
           <label class="field"><span>Supplier order reference</span><input name="supplierRef" value="${h(o.supplierRef)}"></label>
           <label class="field"><span>Tracking number</span><input name="trackingNumber" value="${h(o.trackingNumber)}"></label>
-          <label class="field checkbox"><input type="checkbox" name="notifyCustomer" checked><span>Email customer when marked Shipped</span></label>
+          ${o.collection ? '' : '<label class="field checkbox"><input type="checkbox" name="notifyCustomer" checked><span>Email customer when marked Shipped</span></label>'}
           <label class="field"><span>Internal notes</span><textarea name="adminNotes" rows="3">${h(o.adminNotes)}</textarea></label>
           <button class="btn btn-primary">Save</button>
         </form>
@@ -1067,6 +1074,17 @@ async function orderDetail(id) {
     </div>`);
 
   root.addEventListener('click', async (e) => {
+    const ready = e.target.closest('[data-collect-ready]');
+    if (ready) {
+      if (!confirm(`Email ${o.email} that order ${o.orderNumber} is ready for collection?`)) return;
+      ready.disabled = true;
+      try {
+        await api(`/orders/${o.id}/collection-ready`, { method: 'POST' });
+        toast('Customer emailed — ready for collection');
+        orderDetail(o.id);
+      } catch (err) { ready.disabled = false; fail(err); }
+      return;
+    }
     const c = e.target.closest('[data-copy]');
     if (!c) return;
     try {
@@ -1078,7 +1096,7 @@ async function orderDetail(id) {
     e.preventDefault();
     const f = e.target;
     try {
-      await api(`/orders/${o.id}`, { method: 'PUT', body: { status: f.status.value, supplierRef: f.supplierRef.value, trackingNumber: f.trackingNumber.value, adminNotes: f.adminNotes.value, notifyCustomer: f.notifyCustomer.checked } });
+      await api(`/orders/${o.id}`, { method: 'PUT', body: { status: f.status.value, supplierRef: f.supplierRef.value, trackingNumber: f.trackingNumber.value, adminNotes: f.adminNotes.value, notifyCustomer: Boolean(f.notifyCustomer?.checked) } });
       toast('Order updated');
       orderDetail(o.id);
     } catch (err) { fail(err); }
@@ -1218,6 +1236,13 @@ routes.settings = async () => {
       ${f('contactPhone', 'Public phone')}
       ${f('whatsappNumber', 'WhatsApp number (international, e.g. 27826639608)')}
       ${f('ownerNotifyEmail', 'Send new-order & enquiry notifications to', 'email')}
+    </div>
+    <div class="panel stack gap-3">
+      <div class="section-head"><h3>Warehouse collection</h3></div>
+      ${f('collectionAddress', 'Collection address (checkout map & emails only)')}
+      ${f('collectionHours', 'Collection hours')}
+      ${f('collectionLeadText', 'When it is usually ready (after “ready for collection —”)')}
+      <p class="mini-help">Shown only when a customer chooses “Collect” at checkout and in their order emails. Switch collection on/off under Shipping options (the “Collection” row).</p>
     </div>
     <div class="panel stack gap-3">
       <div class="section-head"><h3>Pricing</h3></div>

@@ -42,6 +42,14 @@ function layout(title, body) {
   </div></body></html>`;
 }
 
+// Where to collect, for order emails. Kept out of public pages on purpose.
+export function collectionBlock(s = getSettings()) {
+  const map = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.collectionAddress)}`;
+  return `<p style="margin:0 0 6px"><strong>Collection address:</strong><br>${escapeHtml(s.collectionAddress)}</p>
+     <p style="margin:0 0 6px"><strong>Hours:</strong> ${escapeHtml(s.collectionHours)}</p>
+     <p style="margin:0"><a href="${escapeHtml(map)}" style="color:#c24b28">Open in Google Maps</a></p>`;
+}
+
 function itemsTable(order) {
   const rows = order.items
     .map((i) => `<tr><td style="padding:6px 0">${escapeHtml(i.name)} × ${i.quantity}</td><td style="padding:6px 0;text-align:right">${formatRand(i.lineTotalCents)}</td></tr>`)
@@ -56,7 +64,8 @@ export function sendOrderConfirmation(order) {
     `Order ${order.orderNumber} confirmed`,
     `<p>Hi ${escapeHtml(order.firstName)},</p>
      <p>Thank you — your payment was received and your order <strong>${escapeHtml(order.orderNumber)}</strong> is being processed.
-     Most items ship directly from our warehouse; we'll email you the tracking number as soon as it's dispatched.</p>
+     ${order.collection ? 'You chose to collect your order from our warehouse.' : "Most items ship directly from our warehouse; we'll email you the tracking number as soon as it's dispatched."}</p>
+     ${order.collection ? `<div style="background:#efe7d8;padding:12px;border-radius:4px;margin-bottom:12px"><p style="margin:0 0 8px"><strong>Please wait for our “ready for collection” email before you go</strong> — ${escapeHtml(getSettings().collectionLeadText)}.</p>${collectionBlock()}</div>` : ''}
      ${order.deliveryQuote ? `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Delivery quote to follow:</strong> your order includes large items, so delivery wasn't charged at checkout. We'll contact you within 1 business day with the courier cost to your address, before anything ships.</p>` : ''}
      ${itemsTable(order)}`,
   );
@@ -69,11 +78,12 @@ export function sendOwnerNewOrder(order) {
   const html = layout(
     `New paid order ${order.orderNumber}`,
     `<p><strong>${escapeHtml(order.firstName)} ${escapeHtml(order.lastName)}</strong> · ${escapeHtml(order.email)} · ${escapeHtml(order.phone)}</p>
+     ${order.collection ? `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Customer will collect from the warehouse.</strong> Ask the warehouse to pack and hold it under ${escapeHtml(order.orderNumber)}, then click “Ready for collection” on the order in admin to email the customer.</p>` : ''}
      ${order.deliveryQuote ? `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>Delivery quote needed.</strong> This order contains large items — get a courier price to ${escapeHtml([order.address.suburb, order.address.city, order.address.postalCode].filter(Boolean).join(', '))} and send the customer the quote.</p>` : ''}
      ${itemsTable(order)}
      ${dropship.length ? `<p style="margin-top:16px"><strong>${dropship.length} line(s) to order from the warehouse.</strong> Open the order in admin for the supplier order sheet.</p>` : ''}`,
   );
-  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}`, html, replyTo: order.email });
+  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}${order.collection ? ' — COLLECTION' : ''}`, html, replyTo: order.email });
 }
 
 export function sendShippedNotice(order) {
@@ -85,6 +95,18 @@ export function sendShippedNotice(order) {
      ${itemsTable(order)}`,
   );
   return sendMail({ to: order.email, subject: `Procom Solutions — order ${order.orderNumber} shipped`, html });
+}
+
+export function sendCollectionReady(order) {
+  const html = layout(
+    `Order ${order.orderNumber} is ready for collection`,
+    `<p>Hi ${escapeHtml(order.firstName)},</p>
+     <p>Good news — your order <strong>${escapeHtml(order.orderNumber)}</strong> is packed and ready for you to collect.</p>
+     <div style="background:#efe7d8;padding:12px;border-radius:4px;margin-bottom:12px">${collectionBlock()}</div>
+     <p>Please bring your <strong>order number (${escapeHtml(order.orderNumber)})</strong> and <strong>ID</strong>. If someone else is collecting for you, reply to this email with their name first.</p>
+     ${itemsTable(order)}`,
+  );
+  return sendMail({ to: order.email, subject: `Procom Solutions — order ${order.orderNumber} ready for collection`, html });
 }
 
 export function sendContactNotice({ name, email, phone, message }) {

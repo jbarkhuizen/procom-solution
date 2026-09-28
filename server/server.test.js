@@ -182,6 +182,28 @@ test('checkout with a large item: delivery R0, order flagged, client shipping ch
   assert.equal(orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: small.id, quantity: 1 }] }).deliveryQuote, false);
 });
 
+test('warehouse collection: free, no address, beats the delivery quote, ready only once paid', () => {
+  const collect = db.prepare("SELECT id FROM shipping_options WHERE category = 'Collection'").get().id;
+  const big = product({ name: 'K2 Printer', sku: 'K2', weightG: 1000, quoteDelivery: '1' });
+  const small = product({ name: 'Cable', sku: 'CB', weightG: 100 });
+  const noAddr = { firstName: 'Ann', lastName: 'Lee', email: 'ann@example.com', phone: '0821234567' };
+  const o = orders.createOrder({ customer: noAddr, shippingOptionId: collect, items: [{ productId: big.id, quantity: 1 }, { productId: small.id, quantity: 1 }] });
+  assert.equal(o.collection, true);
+  assert.equal(o.deliveryQuote, false);
+  assert.equal(o.shippingCents, 0);
+  assert.match(orders.supplierOrderSheet(o)[0].text, /COLLECT/);
+  assert.doesNotMatch(orders.supplierOrderSheet(o)[0].text, /deliver directly/);
+  assert.throws(() => orders.markCollectionReady(o.id), /not been paid/);
+  orders.markOrderPaid(o.id);
+  assert.ok(orders.markCollectionReady(o.id).collectionReadyAt);
+  // Courier orders can't be marked ready for collection; a switched-off collection option isn't honoured.
+  const courier = orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: small.id, quantity: 1 }] });
+  assert.equal(courier.collection, false);
+  assert.throws(() => orders.markCollectionReady(courier.id), /not for collection/);
+  db.prepare('UPDATE shipping_options SET active = 0 WHERE id = ?').run(collect);
+  assert.throws(() => orders.createOrder({ customer: noAddr, shippingOptionId: collect, items: [{ productId: small.id, quantity: 1 }] }));
+});
+
 test('products saved without a SKU in the same instant get distinct codes', () => {
   const skus = Array.from({ length: 5 }, (_, i) => product({ name: `Quick ${i}` }).sku);
   assert.equal(new Set(skus).size, 5);

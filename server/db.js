@@ -33,6 +33,9 @@ const COLUMN_MIGRATIONS = [
   ['categories', 'quote_delivery', 'INTEGER NOT NULL DEFAULT 0'], // inherited by sub-categories
   ['products', 'quote_delivery', 'INTEGER'],                      // NULL = inherit, 1 = always, 0 = never
   ['orders', 'delivery_quote', 'INTEGER NOT NULL DEFAULT 0'],      // 1 = customer awaits a delivery quote
+  // Customer collects from the warehouse; ready email sent when the admin says so.
+  ['orders', 'collection', 'INTEGER NOT NULL DEFAULT 0'],
+  ['orders', 'collection_ready_at', "TEXT NOT NULL DEFAULT ''"],
 ];
 
 export function migrate(conn) {
@@ -251,6 +254,11 @@ export const DEFAULT_SETTINGS = {
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
   legalEntity: 'Lapanza (trading as Procom Solutions)',
+  // Warehouse collection point: shown only at checkout (when "Collect" is
+  // chosen) and in order emails -- deliberately not on public pages.
+  collectionAddress: '2 Lascelles Road, Meadowbrook, Edenvale, Johannesburg',
+  collectionHours: 'Weekdays during business hours',
+  collectionLeadText: 'typically 2–3 business days after payment',
 };
 
 // Mirrors lapanza3d.co.za's live shipping table (2026-09-25), minus the
@@ -309,6 +317,13 @@ function seedDefaults(conn) {
     const ins = conn.prepare(`INSERT INTO shipping_options (id, name, option_type, category, min_weight, max_weight, price_cents, active, sort_order, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`);
     DEFAULT_SHIPPING.forEach(([name, type, cat, min, max, rand], i) => ins.run(randomUUID(), name, type, cat, min, max, rand * 100, i, now, now));
+  }
+
+  // Free warehouse collection. Added once: an admin who doesn't want it
+  // switches it off (inactive rows still count, so it isn't re-created).
+  if (!conn.prepare("SELECT 1 FROM shipping_options WHERE category = 'Collection'").get()) {
+    conn.prepare(`INSERT INTO shipping_options (id, name, option_type, category, min_weight, max_weight, price_cents, active, sort_order, created_at, updated_at)
+      VALUES (?, 'Collect from our Edenvale warehouse (free)', 'fixed', 'Collection', 0, NULL, 0, 1, 0, ?, ?)`).run(randomUUID(), now, now);
   }
 
   if (conn.prepare('SELECT COUNT(*) n FROM categories').get().n === 0) {
