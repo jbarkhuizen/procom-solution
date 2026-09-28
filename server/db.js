@@ -243,7 +243,7 @@ export const DEFAULT_SETTINGS = {
   contactPhone: '082 663 9608',
   whatsappNumber: '27826639608',
   hours: 'Mon–Fri 08:00–17:00 · Sat 09:00–13:00',
-  announcement: 'Nationwide delivery via PUDO & courier · Secure Payfast checkout',
+  announcement: 'Nationwide courier delivery · Secure Payfast checkout',
   vatRegistered: false,
   vatNumber: '',
   vatRatePct: 15,
