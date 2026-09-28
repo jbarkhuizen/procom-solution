@@ -61,6 +61,9 @@ _Last updated: 2026-09-28_
 
 ## Open items / backlog
 
+- **Shipping options set up wrong (seen live 2026-09-28)** — the 3 active courier options (Small 0-3kg R150, Medium 3-10kg R220, "PUDO Small (10-25kg)" R300) are type **"Customer picks"** with no weight range, so checkout lists all three and a customer can pick R150 for any cart. Fix in Admin → Shipping options: type **Auto by weight**, ranges 0–3000 g / 3001–10000 g / 10001–25000 g, rename the third to "Courier Large (10-25kg)". Carts over 25 kg then get "WhatsApp us" at checkout.
+- **Toys category rename still wrong (seen live 2026-09-28)** — top level is "Games & Novelties" (slug toys-games) with a sub "Toys & Games" (toys-games-2). Should be top level **Toys & Games** › sub **Games & Novelties** (what smd-rules.js expects); otherwise the next Cash auto-list creates duplicates.
+- **SMD courier charges unknown** (2026-09-28) — owner to find out how SMD bills delivery to customers (flat, by weight/size, per parcel, free over a value, remote-area surcharge) and whether it's billed per order or monthly. Until then checkout courier prices are the Lapanza3d defaults and may not cover SMD's cost. All stock is SMD dropship — no local stock.
 - **Everfurn Theo Dining Table (White)** — Box 1 of 2 and Box 2 of 2 (hidden, R65,219.99 each from SMD): owner decided 2026-09-28 to **remove** them. The Cash Wholesale rules now skip "Everfurn Theo" so a re-run never re-lists them; owner to delete both in Admin → Products (search "Theo").
 - **First real test order** (cheap item + refund) to prove ITN → Paid → emails end to end in live mode — not yet confirmed.
 - **Photos** (owner investigating): SMD's embedded photos are ~113px; better photos should be uploaded for key products.
