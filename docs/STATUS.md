@@ -8,7 +8,7 @@ _Last updated: 2026-09-28_
 - **Email:** working (Gmail SMTP as procompretoria@gmail.com); test email confirmed 2026-09-25
 - **Admin account:** created by the owner
 - **Live products:** 4,164 (2026-09-28, after the SMD auto-lists; was 1,397)
-- **Deployed:** main @ `85de4de` (2026-09-28): includes `server/smd-autolist-cli.js` (auto-list + `--tidy`) and the `.env*` gitignore.
+- **Deployed:** main @ `d918983` (2026-09-28): full-path category dropdowns in admin, `smd-autolist-cli.js` (auto-list + `--tidy`), `.env*` gitignore. Auto-deploy workflow is in place; the deploy step waits for the `DEPLOY_SSH_KEY` / `DEPLOY_KNOWN_HOSTS` secrets (deploy/DEPLOY.md).
 
 | Category | Live | Delivery |
 |---|---|---|
