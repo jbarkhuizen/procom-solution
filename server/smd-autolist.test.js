@@ -121,6 +121,7 @@ test('cash wholesale: product name beats SMD category, and rule order holds', ()
   assert.equal(where('Ellies Secure Series - Wireless Doorbell - Battery operated Receiver and Transmitter', 'Electrical'), 'Power & Electrical › Switches, Sockets & Wiring');
   assert.equal(where('Volkano Galactic Mini Moon LED Mood Light – Battery Operated', 'Lighting'), 'Smart Home & Lighting › Lamps & Indoor Lighting');
   assert.equal(where('Volkano Extra Series CR2016 Pack of 2 Batteries', 'Electrical'), 'Power & Electrical › Batteries');
+  assert.equal(where('Quest Giant Wooden Tumble Tower (60 Pc) - Natural', 'Toys and games'), 'Toys & Games › Games & Novelties');
   assert.equal(where('TP-Link Vigi C330I 3MP 6mm Outdoor Bullet Network Camera', 'Networking', 'VIGI'), 'Networking › Security Cameras');
   assert.equal(where('SA Filament PLA Hyper Filament 1kg - Black', 'Devices', 'SA Filament'), '3D Printing › Filament – PLA');
   assert.equal(where('SA Filament Silk PLA Plus Filament 1kg - Brown', 'Devices', 'SA Filament'), '3D Printing › Filament – PLA');

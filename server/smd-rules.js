@@ -137,7 +137,7 @@ const CASH_RULES = [
   r('Office & School', 'Stationery', { cat: /^Education and learning$/ }),
 
   r('Toys & Games', 'STEM & Building Toys', { cat: /^Toys and games$/, name: /build|kit|circuit|volt lab|magnetic|tiles|experiment|robot|science|mags|tank/i }),
-  r('Toys & Games', 'Toys & Games', { cat: /^(Toys and games|Kitchen and Home|Rideables)$/ }),
+  r('Toys & Games', 'Games & Novelties', { cat: /^(Toys and games|Kitchen and Home|Rideables)$/ }),
 ];
 
 // Too big for the default 1 kg courier bracket: soundbars and subwoofers,

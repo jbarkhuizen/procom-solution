@@ -54,20 +54,18 @@ _Last updated: 2026-09-28_
 | 2026-09-27 | Infant Essential: 13 Baby & Toddler sub-categories; Lifree and Loop & Co listed too; default markup; colour variants listed as separate products |
 | 2026-09-27 | Cash Wholesale: category structure approved (4 new top-level categories); items already listed by hand keep their category; Creality tab skipped (listed from the Creality list); SA Filament listed under 3D Printing › Filament; laptops and phones listed; Gaming Chairs & Desks listed with delivery quoted |
 | 2026-09-27 | Phones and Laptops & Tablets: markup pinned at 10% on the category (same as today's default, but stays 10% if the default changes). Heavy Cash Wholesale items (49: soundbars/subwoofers, big party speakers, 24"/27" monitors, projector screens, large TV mounts, racing cockpit, electric scooter) listed with delivery quoted |
+| 2026-09-28 | Legal pages reuse Lapanza3d's reviewed wording, adapted to Procom. Site name stays Procom Solutions, contact procompretoria@gmail.com; procompretoria.co.za not registered. Bubble Buddy duplicate left as is |
 | 2026-09-28 | Automatic deploys: GitHub Actions deploys `main` using a key locked to `deploy-app.sh` (forced command in `~deploy/.ssh/authorized_keys`, comment `github-actions-procom`); secrets DEPLOY_SSH_KEY + DEPLOY_KNOWN_HOSTS set on the repo |
 | 2026-09-28 | Hand-listed products on Gaming, Networking and Smart Home & Lighting (148) moved into the matching sub-categories with `smd-autolist-cli.js --tidy --apply` (backup `pre-autolist-2026-09-28T07-22-28-578Z.db`). The two mispriced TOSLINK cables stay skipped. |
 
 ## Open items / backlog
 
-- **Everfurn Theo Dining Table (White)** — Box 1 of 2 and Box 2 of 2 are **hidden**; each costs R65,219.99 from SMD. Owner to confirm the price with SMD; if genuine, merge into one product.
+- **Everfurn Theo Dining Table (White)** — Box 1 of 2 and Box 2 of 2 (hidden, R65,219.99 each from SMD): owner decided 2026-09-28 to **remove** them — delete in Admin → Products (search "Theo").
 - **First real test order** (cheap item + refund) to prove ITN → Paid → emails end to end in live mode — not yet confirmed.
-- **Photos**: SMD's embedded photos are ~113px; better photos should be uploaded for key products.
-- **Weights**: supplier lists have none (default 1 kg). Heavy categories use delivery quotes; other large one-offs (e.g. filament maker, 10-roll filament dryer in 3D Upgrades) may need the per-product "delivery quoted" override.
-- **Filament overlap with lapanza3d.co.za** — decided 2026-09-27: Procom lists SA Filament too.
-- **Legal pages** (Terms, Privacy, Returns) written for SA law — should get a quick legal review.
+- **Photos** (owner investigating): SMD's embedded photos are ~113px; better photos should be uploaded for key products.
+- **Weights** (owner investigating): supplier lists have none (default 1 kg). Heavy categories use delivery quotes; other large one-offs (e.g. filament maker, 10-roll filament dryer in 3D Upgrades) may need the per-product "delivery quoted" override.
+- **Legal pages** — replaced 2026-09-28 with Lapanza3d.co.za's reviewed Terms/Privacy/Returns, adapted to Procom: dropship ready stock (7-day cooling-off on everything), delivery quoted for large items, guest checkout only, warehouse supplier + couriers listed as recipients of delivery details, risk passes on delivery. Physical address shown: 23 Gladiator Rd, Pierre van Ryneveld (same partnership as Lapanza).
 - **SMD auto-lists done 2026-09-28** (Infant Essential 286, Cash Wholesale 2,481). Next month: import the new files, then run `node server/smd-autolist-cli.js` on the server (dry run) and `--apply` (see DEPLOY.md) -- the browser button can time out on the Cash list.
-- **Sub-category named like its parent**: Toys & Games › Toys & Games (10 items, slug `toys-games-2`) -- consider renaming (e.g. "Games & Novelties") in Admin → Categories.
-- **Ask SMD**: Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price. (The two Ellies TOSLINK cables priced ~R1.08m stay skipped -- owner: ignore.)
+- **Sub-category named like its parent**: Toys & Games › Toys & Games (10 items) — rename to exactly **Games & Novelties** in Admin → Categories (the Cash Wholesale rule now uses that name; any other name makes the next auto-list recreate "Toys & Games").
+- **Bubble Buddy** (Avalanche DB0008 / DB0009, same name and price): owner — leave as is. The two Ellies TOSLINK cables (~R1.08m) stay skipped.
 - **Heavy items**: 44 Cash Wholesale products marked delivery quoted (5 more heavy ones were already hand-listed and keep their setting). Medium items (20-30 m extension reels, single 8" party speakers, metal desk lamps), Totes Babe bags and the R3,900 Loop & Co display box still ship at the default 1 kg.
-- **Server housekeeping**: `.env.bak-20260925*` files sit in the app directory; now gitignored (next deploy) but better moved out or deleted.
-- Optional: register procompretoria.co.za and point it at the same site.
