@@ -20,8 +20,9 @@ const skip = (reason, test) => ({ skip: reason, ...test });
 
 const INFANT_RULES = [
   r('Toys & Games', 'Outdoor & Bubble Toys', { name: /^avalanche/i }),
-  r('Health & Wellness', 'Adult Incontinence', { name: /lifree/i }),
-  r('Home & Kitchen', 'Kitchen & Drinkware', { name: /loop & co/i }),
+  // Existing live categories -- not new "Health & Wellness" / "Kitchen & Drinkware".
+  r('Health & Beauty', 'Personal Care & Wellness', { name: /lifree/i }),
+  r('Home & Kitchen', 'Food Storage & Drinkware', { name: /loop & co/i }),
   r('Baby & Toddler', 'Nappy & Changing Bags', { name: /totes babe|diaper backpack|caddy|shoulder bag/i }),
   r('Baby & Toddler', 'Maternity & Breastfeeding', { name: /breast|nipple shield|nipple puller|nipple care|maternity|milk storage|milk saver|milk valve|lanolin|storage bag/i }),
   // "Bottles & Accessories Cleanser" is cleaning, not a bottle.
@@ -67,7 +68,11 @@ const CASH_RULES = [
   r('Mobile & Wearables', 'Chargers & Cables', { cat: /^Electrical$/, name: /wall charger/i }),
 
   // --- by brand tab
-  r('3D Printing', 'Filament', { sheet: /^SA Filament$/ }),
+  // Live sub-categories are split by material, named with an en dash.
+  r('3D Printing', 'Filament – PETG', { sheet: /^SA Filament$/, name: /petg/i }),
+  r('3D Printing', 'Filament – ABS & ASA', { sheet: /^SA Filament$/, name: /\b(abs|asa)\b/i }),
+  r('3D Printing', 'Filament – TPU & Specialist', { sheet: /^SA Filament$/, name: /\btpu\b/i }),
+  r('3D Printing', 'Filament – PLA', { sheet: /^SA Filament$/ }),
   r('Networking', 'Security Cameras', { sheet: /^VIGI$/ }),
   r('Networking', 'Business Switches & Access Points', { sheet: /^Omada$/ }),
 

@@ -33,7 +33,7 @@ test('classifies names whose keywords overlap', () => {
   assert.equal(sub('Totes Babe Wavy Series Stroller Caddy Grey'), 'Nappy & Changing Bags');
   assert.equal(sub('Echo Baby Silicone Stacking Rings - Ocean'), 'Baby Toys & Keepsakes');
   assert.deepEqual(classifyInfantItem('Avalanche Double Bubble - Cyclone'), { parent: 'Toys & Games', sub: 'Outdoor & Bubble Toys', quote: false });
-  assert.deepEqual(classifyInfantItem('Lifree Powerful L - 10 Pc'), { parent: 'Health & Wellness', sub: 'Adult Incontinence', quote: false });
+  assert.deepEqual(classifyInfantItem('Lifree Powerful L - 10 Pc'), { parent: 'Health & Beauty', sub: 'Personal Care & Wellness', quote: false });
   assert.equal(classifyInfantItem('Something unrelated'), null);
 });
 
@@ -62,13 +62,13 @@ test('dry run changes nothing; real run creates categories and lists each colour
   assert.equal(r.created, 4);
   assert.deepEqual(r.errors, []);
   // Baby & Toddler and Home & Kitchen are seeded; only their sub-categories are new.
-  assert.deepEqual(r.categoriesCreated.sort(), ['Feeding & Weaning', 'Kitchen & Drinkware', 'Sterilising & Cleaning']);
+  assert.deepEqual(r.categoriesCreated.sort(), ['Feeding & Weaning', 'Food Storage & Drinkware', 'Sterilising & Cleaning']);
   const placed = db.prepare(`SELECT p.supplier_code code, c.name cat, parent.name parent, p.markup_pct FROM products p
     JOIN categories c ON c.id = p.category_id JOIN categories parent ON parent.id = c.parent_id ORDER BY code`).all();
   assert.deepEqual(placed.map((p) => [p.code, p.parent, p.cat]), [
     ['EB-1000-BL', 'Baby & Toddler', 'Feeding & Weaning'],
     ['EB-1000-IV', 'Baby & Toddler', 'Feeding & Weaning'],
-    ['LAC-PDQ-TQ', 'Home & Kitchen', 'Kitchen & Drinkware'],
+    ['LAC-PDQ-TQ', 'Home & Kitchen', 'Food Storage & Drinkware'],
     ['SEL-8013', 'Baby & Toddler', 'Sterilising & Cleaning'],
   ]);
   assert.ok(placed.every((p) => p.markup_pct == null), 'default markup');
@@ -118,7 +118,11 @@ test('cash wholesale: product name beats SMD category, and rule order holds', ()
   assert.equal(where('Ellies Ultra Series - Alkaline Batteries AA 4 Pack - WT', 'Electrical'), 'Power & Electrical › Batteries');
   assert.equal(where('Insta360 X5 Battery', 'Photography'), 'Cameras & Photography › Camera Accessories');
   assert.equal(where('TP-Link Vigi C330I 3MP 6mm Outdoor Bullet Network Camera', 'Networking', 'VIGI'), 'Networking › Security Cameras');
-  assert.equal(where('SA Filament PLA Hyper Filament 1kg - Black', 'Devices', 'SA Filament'), '3D Printing › Filament');
+  assert.equal(where('SA Filament PLA Hyper Filament 1kg - Black', 'Devices', 'SA Filament'), '3D Printing › Filament – PLA');
+  assert.equal(where('SA Filament Silk PLA Plus Filament 1kg - Brown', 'Devices', 'SA Filament'), '3D Printing › Filament – PLA');
+  assert.equal(where('SA Filament PETG Speed Green Filament 1kg,1.75mm', 'Devices', 'SA Filament'), '3D Printing › Filament – PETG');
+  assert.equal(where('SA Filament ABS Premium Filament 1kg - Black', 'Devices', 'SA Filament'), '3D Printing › Filament – ABS & ASA');
+  assert.equal(where('SA Filament TPU 95A 500g - Red', 'Devices', 'SA Filament'), '3D Printing › Filament – TPU & Specialist');
   assert.equal(where('Creality K1 Max 3D Printer 300x300x300', 'Devices', 'Creality'), 'skip: Creality: listed from the Creality list');
   assert.equal(where('Volkano On The Go PDQ Box', 'Display Unit', 'Volkano'), 'skip: Display stand, not for sale');
   assert.deepEqual(cash('Mercury VX Gaming Chair - Black', 'Furniture'), { parent: 'Gaming', sub: 'Gaming Chairs & Desks', quote: true });
