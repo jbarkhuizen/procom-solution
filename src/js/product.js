@@ -98,7 +98,7 @@ async function load() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 mt-0.5"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>${p.quoteDelivery
             ? '<strong>Large item — delivery is quoted after your order.</strong> You pay for the product at checkout; we then send you the courier cost to your address within 1 business day, before anything ships.'
-            : 'Delivered nationwide via PUDO locker or courier, or local delivery in Pretoria East. Delivery options and costs are shown at checkout.'}</span>
+            : 'Delivered nationwide by courier, straight from our warehouse. The delivery cost is shown at checkout.'}</span>
         </div>
         ${p.description ? `<div class="rich-text text-sm text-espresso/80 leading-relaxed mt-5">${paragraphs(p.description)}</div>` : ''}
         ${specs}
