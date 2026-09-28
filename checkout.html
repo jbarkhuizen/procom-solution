@@ -25,6 +25,7 @@
       <div class="space-y-10">
         <fieldset>
           <legend class="font-serif text-2xl tracking-tight mb-4">1. Your details</legend>
+          <div id="account-slot" class="mb-4"></div>
           <div class="grid sm:grid-cols-2 gap-4">
             <div><label class="form-label" for="firstName">First name</label><input class="form-input" id="firstName" name="firstName" autocomplete="given-name" required></div>
             <div><label class="form-label" for="lastName">Last name</label><input class="form-input" id="lastName" name="lastName" autocomplete="family-name" required></div>
@@ -73,8 +74,10 @@
       <aside class="lg:sticky lg:top-24 border-2 border-charcoal rounded-sm p-6 bg-linen/40 brutal">
         <p class="font-serif text-xl mb-4">Order summary</p>
         <div id="summary-items" class="space-y-3 text-sm mb-4"></div>
+        <div id="promo-slot" class="mb-4"></div>
         <dl class="text-sm space-y-2 border-t border-charcoal/15 pt-4">
           <div class="flex justify-between"><dt class="text-espresso/70">Subtotal</dt><dd id="sum-subtotal">R 0.00</dd></div>
+          <div id="sum-discount-row" class="flex justify-between hidden"><dt class="text-espresso/70">Discount</dt><dd id="sum-discount" class="text-terracotta">—</dd></div>
           <div class="flex justify-between"><dt class="text-espresso/70">Delivery</dt><dd id="sum-shipping">—</dd></div>
           <div class="flex justify-between text-lg font-semibold border-t border-charcoal/15 pt-3"><dt>Total</dt><dd id="sum-total">R 0.00</dd></div>
         </dl>

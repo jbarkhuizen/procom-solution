@@ -1320,6 +1320,17 @@ routes.backups = async () => {
   });
 };
 
+// ============================================================== feature pages
+
+// Pages in admin/pages/*.js register their routes with these helpers
+// (server/features/README.md). A page that fails to load never blocks the rest.
+const kit = { $, $$, h, rand, toRands, fmtDate, api, toast, fail, view, setTop, options, pager, statusBadge, setHtml, siteSettings, categories, flattenTree };
+await Promise.all(
+  ['clients', 'registered-users', 'invoice-history', 'promos', 'specials'].map((name) =>
+    import(`./pages/${name}.js`).then((m) => m.default(routes, kit)).catch((err) => console.error(`Admin page ${name} failed to load`, err)),
+  ),
+);
+
 // ============================================================== boot
 
 (async function boot() {

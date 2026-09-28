@@ -2,6 +2,8 @@ import './site.js';
 import { api, esc, formatRand } from './api.js';
 import { getCart, cartSubtotal, cartWeight, refreshCart } from './cart.js';
 import { setHtml } from './dom.js';
+import { initPromo, promoPayload, promoDiscountCents } from './checkout-promo.js';
+import { initAccountCheckout } from './checkout-account.js';
 
 const form = document.getElementById('checkout-form');
 const PREFS_KEY = 'procom-checkout-details';
@@ -121,7 +123,10 @@ function renderSummary() {
   document.getElementById('sum-subtotal').textContent = formatRand(sub);
   document.getElementById('sum-shipping').textContent =
     !plan.length || picks.some((o) => !o) ? 'Choose an option' : allCollect ? 'Free — collect' : quote ? `${fee ? `${formatRand(fee)} + ` : ''}quoted after order` : fee ? formatRand(fee) : 'Free';
-  document.getElementById('sum-total').textContent = formatRand(sub + fee);
+  const discount = Math.min(sub, promoDiscountCents());
+  document.getElementById('sum-discount-row').classList.toggle('hidden', !discount);
+  document.getElementById('sum-discount').textContent = `−${formatRand(discount)}`;
+  document.getElementById('sum-total').textContent = formatRand(sub - discount + fee);
 }
 
 function restoreDetails() {
@@ -185,6 +190,7 @@ form.addEventListener('submit', async (e) => {
         customer,
         notes: fd.get('notes'),
         delivery: Object.fromEntries(plan.map((g) => [g.key, chosen(g).id])),
+        ...promoPayload(),
         paymentMethod: fd.get('paymentMethod'),
         items: getCart().map((i) => ({ productId: i.productId, quantity: i.quantity })),
       },
@@ -209,6 +215,8 @@ async function init() {
     return;
   }
   restoreDetails();
+  await initAccountCheckout(form).catch(() => {});
+  initPromo({ onChange: renderSummary });
   await loadPlan();
   window.addEventListener('cart:updated', () => {
     if (!getCart().length) location.reload();

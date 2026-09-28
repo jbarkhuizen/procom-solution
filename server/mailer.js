@@ -31,7 +31,7 @@ export async function sendMail({ to, subject, html, replyTo }) {
   }
 }
 
-function layout(title, body) {
+export function layout(title, body) {
   const s = getSettings();
   return `<!doctype html><html><body style="margin:0;background:#f7f3eb;font-family:Arial,sans-serif;color:#1a1612">
   <div style="max-width:620px;margin:0 auto;padding:28px 20px">
@@ -55,11 +55,12 @@ export function collectionBlock(c) {
 
 const collectShipments = (order) => (order.shipments || []).filter((sh) => sh.method === 'collect');
 
-function itemsTable(order) {
+export function itemsTable(order) {
   const rows = order.items
     .map((i) => `<tr><td style="padding:6px 0">${escapeHtml(i.name)} × ${i.quantity}</td><td style="padding:6px 0;text-align:right">${formatRand(i.lineTotalCents)}</td></tr>`)
     .join('');
   return `<table style="width:100%;border-collapse:collapse;font-size:14px">${rows}
+    ${order.discountCents ? `<tr><td style="padding:6px 0">Discount${order.promoCode ? ` (${escapeHtml(order.promoCode)})` : ''}</td><td style="padding:6px 0;text-align:right">−${formatRand(order.discountCents)}</td></tr>` : ''}
     <tr><td style="padding:6px 0;border-top:1px solid #e5ddd0">Delivery: ${escapeHtml(order.shippingName)}</td><td style="padding:6px 0;border-top:1px solid #e5ddd0;text-align:right">${formatRand(order.shippingCents)}</td></tr>
     <tr><td style="padding:6px 0;font-weight:700">Total</td><td style="padding:6px 0;text-align:right;font-weight:700">${formatRand(order.totalCents)}</td></tr></table>`;
 }

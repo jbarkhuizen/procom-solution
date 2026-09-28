@@ -303,6 +303,11 @@ admin.put('/admins/:id/password', wrap((req) => ({ ok: orNotFound(auth.resetAdmi
 admin.get('/backups', wrap(() => listBackups()));
 admin.post('/backups', wrap(async () => createBackup('manual')));
 
+// Feature modules (server/features/README.md) add their own routes.
+for (const name of ['accounts', 'invoices', 'promos', 'specials']) {
+  (await import(`./features/${name}.js`)).register({ app, admin, wrap, rateLimit, express, siteUrl: SITE_URL });
+}
+
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // --------------------------------------------------------------- static files

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { specialPriceCents } from './features/specials.js';
 import { getDb } from './db.js';
 import { getSettings } from './settings.js';
 import { effectiveMarkupPct, computeRetailCents, marginCents } from './pricing.js';
@@ -189,8 +190,13 @@ function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set(
     images,
     image: images[0] || '',
     fulfilment: r.fulfilment,
-    priceCents: r.price_cents,
-    compareAtCents: r.compare_at_cents,
+    // A running special shows as the price, with the normal price struck through.
+    ...(() => {
+      const special = admin ? null : specialPriceCents(r);
+      return special != null && special < r.price_cents
+        ? { priceCents: special, compareAtCents: Math.max(r.price_cents, r.compare_at_cents || 0), onSpecial: true }
+        : { priceCents: r.price_cents, compareAtCents: r.compare_at_cents, onSpecial: false };
+    })(),
     weightG: r.weight_g,
     minOrderQty: r.min_order_qty,
     inStock,
