@@ -25,7 +25,15 @@ touches Lapanza or the others.
 
 ## Updating the live site (every time)
 
-From Johan's PC, after pushing to GitHub:
+**Automatic:** every merge/push to `main` deploys itself through GitHub
+Actions (`.github/workflows/deploy.yml`): the tests run on GitHub, then it
+logs in once and runs `deploy-app.sh`, then checks
+`https://www.procomsolutions.co.za/api/health` and that lapanza3d.co.za still
+answers. Watch it under the repo's **Actions** tab; a red run means the live
+site was *not* updated (or a site check failed after it was). Needs the
+one-time setup below; until then the deploy step is skipped.
+
+**Manual** (still works; from Johan's PC, after pushing to GitHub):
 
 ```bash
 ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147 "bash /opt/procomsolutions/app/deploy/deploy-app.sh"
@@ -38,6 +46,46 @@ columns are added automatically on restart (`COLUMN_MIGRATIONS` in `server/db.js
 **Log in as few times as possible.** The server runs fail2ban: many SSH logins
 within a few minutes bans your IP for about 30 minutes (websites keep working,
 only SSH is refused). Chain commands into one `ssh ... '...'` session.
+
+## Automatic deploys: one-time setup (Johan)
+
+A key used **only** by GitHub Actions. On the server it is pinned to the
+deploy script, so even if it leaked it could only redeploy `main` -- no shell.
+
+1. **On your PC (PowerShell)** -- make the key; press Enter twice when asked
+   for a passphrase (Actions can't type one):
+
+   ```powershell
+   ssh-keygen -t ed25519 -f "$HOME\.ssh\procom_gh_deploy" -C "github-actions-procom"
+   Get-Content "$HOME\.ssh\procom_gh_deploy.pub"
+   ssh-keyscan -t ed25519 41.222.36.147
+   ```
+
+   Keep the two output lines (the `ssh-ed25519 AAAA… github-actions-procom`
+   public key, and the `41.222.36.147 ssh-ed25519 AAAA…` host line).
+
+2. **On the server** (`deploy@Lapanza` prompt) -- allow the key, locked to
+   the deploy script. Paste the public key line where shown, inside the
+   single quotes:
+
+   ```bash
+   echo 'command="bash /opt/procomsolutions/app/deploy/deploy-app.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty PASTE-PUBLIC-KEY-LINE-HERE' >> ~/.ssh/authorized_keys
+   ```
+
+3. **On GitHub** -- repo **Settings → Secrets and variables → Actions → New
+   repository secret**, twice:
+   - `DEPLOY_SSH_KEY`: the whole private key file. Copy it with
+     `Get-Content "$HOME\.ssh\procom_gh_deploy" -Raw | Set-Clipboard`
+     and paste (including the BEGIN/END lines).
+   - `DEPLOY_KNOWN_HOSTS`: the `41.222.36.147 ssh-ed25519 …` host line.
+
+4. **Test** -- repo **Actions → Deploy → Run workflow**. Green = deployed.
+   Then delete the private key from your PC (GitHub keeps its own copy):
+   `Remove-Item "$HOME\.ssh\procom_gh_deploy"`.
+
+To revoke: delete that line from `~/.ssh/authorized_keys` on the server and
+the two secrets on GitHub. Never paste the private key into chat or a file in
+the repo -- the repo and its Actions logs are public.
 
 ## Bulk data changes on the live site
 

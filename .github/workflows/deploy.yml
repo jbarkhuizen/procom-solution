@@ -1,0 +1,87 @@
+# Deploy procomsolutions.co.za on every push to main.
+#
+# Tests run on GitHub first; only a green main is deployed. The deploy logs in
+# as `deploy` with a key used for nothing else: on the server its
+# authorized_keys line is pinned to `command="bash .../deploy-app.sh"`, so the
+# key can run the deploy script and nothing more (no shell, no forwarding).
+#
+# One-time setup (see deploy/DEPLOY.md, "Automatic deploys"):
+#   repo secret DEPLOY_SSH_KEY     -- the private key (whole file)
+#   repo secret DEPLOY_KNOWN_HOSTS -- `ssh-keyscan -t ed25519 41.222.36.147` output
+# Until both exist the deploy job is skipped, so merges stay green.
+#
+# Logs are public (public repo): never echo secrets or .env values here.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits rather than cancelling a
+# half-finished deploy.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: 41.222.36.147
+  DEPLOY_USER: deploy
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check deploy secrets
+        id: secrets
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -n "$KEY" ] && [ -n "$HOSTS" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Deploy skipped: add DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS repo secrets (deploy/DEPLOY.md)."
+          fi
+
+      - name: Deploy to the VPS
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+          # The server ignores the requested command and runs deploy-app.sh.
+          # One login per deploy keeps fail2ban happy.
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" deploy
+
+      - name: Check the live sites
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          sleep 5
+          curl -fsS --retry 5 --retry-delay 3 https://www.procomsolutions.co.za/api/health
+          echo
+          # The VPS is shared: make sure Lapanza is still up too.
+          code=$(curl -sL -o /dev/null -w '%{http_code}' --retry 3 https://lapanza3d.co.za)
+          echo "lapanza3d.co.za -> $code"
+          [ "$code" = "200" ]
+
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
