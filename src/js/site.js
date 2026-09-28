@@ -67,7 +67,8 @@ async function mountNav() {
       </a>
       ${THEME_BTN}
     </div>
-    <a href="/shop.html" class="${linkCls} ${page === 'shop' && !currentCategorySlug() ? 'active' : ''}">All products</a>`;
+    <a href="/shop.html" class="${linkCls} ${page === 'shop' && !currentCategorySlug() ? 'active' : ''}">All products</a>
+    <a href="/specials.html" class="${linkCls} ${page === 'specials' ? 'active' : ''}">Specials</a>`;
   const tail = `<a href="/contact.html" class="${linkCls} ${page === 'contact' ? 'active' : ''}">Get in touch</a>
     <a href="/returns.html" class="${linkCls} border-b">Delivery &amp; Returns</a>`;
   navs.forEach((n) => setHtml(n, head + '<div data-cat-links></div>' + tail));

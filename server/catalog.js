@@ -88,7 +88,7 @@ export function sitemapEntries(db = getDb()) {
   walk(categoryTree({ activeOnly: true }, db));
   const catUpdated = new Map(db.prepare('SELECT id, updated_at FROM categories').all().map((r) => [r.id, r.updated_at]));
   return [
-    ...['/', '/shop.html', '/contact.html', '/terms.html', '/privacy.html', '/returns.html'].map((path) => ({ path })),
+    ...['/', '/shop.html', '/specials.html', '/contact.html', '/terms.html', '/privacy.html', '/returns.html'].map((path) => ({ path })),
     ...cats.map((c) => ({ path: `/shop.html?category=${encodeURIComponent(c.slug)}`, lastmod: day(catUpdated.get(c.id)) })),
     ...db
       .prepare('SELECT slug, updated_at FROM products WHERE active = 1 ORDER BY updated_at DESC')

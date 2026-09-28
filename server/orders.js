@@ -113,6 +113,13 @@ function nextOrderNumber(db) {
   return `PC${n}`;
 }
 
+// A logged-in customer's order belongs to their account even if they typed a
+// different email at checkout (accounts.onOrderCreated only matches by email).
+export function linkOrderToClient(orderId, clientId, db = getDb()) {
+  if (!clientId) return;
+  db.prepare('UPDATE orders SET client_id = ? WHERE id = ? AND client_id IS NULL').run(clientId, orderId);
+}
+
 // Checkout preview: the same plan createOrder will price, for the cart's
 // product ids + quantities (unknown/hidden products are ignored here).
 export function deliveryPlanForCart(lines, db = getDb()) {
