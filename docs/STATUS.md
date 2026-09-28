@@ -65,7 +65,6 @@ _Last updated: 2026-09-28_
 - **Filament overlap with lapanza3d.co.za** — decided 2026-09-27: Procom lists SA Filament too.
 - **Legal pages** (Terms, Privacy, Returns) written for SA law — should get a quick legal review.
 - **SMD auto-lists done 2026-09-28** (Infant Essential 286, Cash Wholesale 2,481). Next month: import the new files, then run `node server/smd-autolist-cli.js` on the server (dry run) and `--apply` (see DEPLOY.md) -- the browser button can time out on the Cash list.
-- **3 products misfiled in Power & Electrical › Batteries** by the first Cash run (battery rule fixed since): ELL-6000-WT and ELL-6001-WT (Ellies wireless doorbells → Switches, Sockets & Wiring) and VK-50022-MMN (Volkano Mini Moon mood light → Smart Home & Lighting › Lamps & Indoor Lighting). Move by hand in Products.
 - **Sub-category named like its parent**: Toys & Games › Toys & Games (10 items, slug `toys-games-2`) -- consider renaming (e.g. "Games & Novelties") in Admin → Categories.
 - **Ask SMD**: Avalanche DB0008 and DB0009 are both "Bubble Buddy" at the same price. (The two Ellies TOSLINK cables priced ~R1.08m stay skipped -- owner: ignore.)
 - **Heavy items**: 44 Cash Wholesale products marked delivery quoted (5 more heavy ones were already hand-listed and keep their setting). Medium items (20-30 m extension reels, single 8" party speakers, metal desk lamps), Totes Babe bags and the R3,900 Loop & Co display box still ship at the default 1 kg.
