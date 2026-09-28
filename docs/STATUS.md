@@ -61,6 +61,7 @@ _Last updated: 2026-09-28_
 
 ## Open items / backlog
 
+- **SMD courier charges unknown** (2026-09-28) — owner to find out how SMD bills delivery to customers (flat, by weight/size, per parcel, free over a value, remote-area surcharge) and whether it's billed per order or monthly. Until then checkout courier prices are the Lapanza3d defaults and may not cover SMD's cost. All stock is SMD dropship — no local stock.
 - **Everfurn Theo Dining Table (White)** — Box 1 of 2 and Box 2 of 2 (hidden, R65,219.99 each from SMD): owner decided 2026-09-28 to **remove** them. The Cash Wholesale rules now skip "Everfurn Theo" so a re-run never re-lists them; owner to delete both in Admin → Products (search "Theo").
 - **First real test order** (cheap item + refund) to prove ITN → Paid → emails end to end in live mode — not yet confirmed.
 - **Photos** (owner investigating): SMD's embedded photos are ~113px; better photos should be uploaded for key products.
