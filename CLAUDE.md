@@ -55,6 +55,8 @@ Commands: `npm run dev` (API :8788 watch + Vite :5174), `npm test`, `npm run bui
 
 ## Deploying (VPS shared with lapanza3d, barkie, johanbarkhuizen, zatoengineering)
 
+**Merging to `main` deploys automatically** (`.github/workflows/deploy.yml`: tests on GitHub → one SSH login with a key locked to `deploy-app.sh` via a forced command → health check of procomsolutions + lapanza3d). Needs repo secrets `DEPLOY_SSH_KEY` + `DEPLOY_KNOWN_HOSTS` (setup: `deploy/DEPLOY.md`); without them the deploy job is skipped. Cloud sessions (claude.ai/code) have no SSH access to the VPS -- they deploy only through this workflow; check the Actions run, not the server. Manual deploy from Johan's PC:
+
 ```bash
 git push origin main
 ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147 "bash /opt/procomsolutions/app/deploy/deploy-app.sh"
