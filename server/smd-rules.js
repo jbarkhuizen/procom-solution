@@ -45,6 +45,8 @@ const CASH_RULES = [
   skip('Supplier junk row', { cat: /^(Other|Fashion and beauty|Health and wellness|Vehicle Security System)$/ }),
   skip('Refurbished or consumable', { cat: /^Intangible$/ }),
   skip('Creality: listed from the Creality list', { sheet: /^Creality$/ }),
+  // Owner removed these two hidden products (2026-09-28); never re-list them.
+  skip('Everfurn Theo dining table: removed by owner', { name: /everfurn.*theo/i }),
 
   // --- by product name, whatever SMD called it
   r('Computers & Peripherals', 'Laptops & Tablets', { cat: /^Devices$/, name: /^(?!.*(stand|lock|cool|cover|pillow|writing tablet|charger)).*(laptop|macbook|ipad|\btablet\b|acer (e10|14")|primebook|expertbook|lenovo v15)/i }, { markup: 10 }),

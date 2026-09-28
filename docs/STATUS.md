@@ -60,11 +60,11 @@ _Last updated: 2026-09-28_
 
 ## Open items / backlog
 
-- **Everfurn Theo Dining Table (White)** — Box 1 of 2 and Box 2 of 2 (hidden, R65,219.99 each from SMD): owner decided 2026-09-28 to **remove** them — delete in Admin → Products (search "Theo").
+- **Everfurn Theo Dining Table (White)** — Box 1 of 2 and Box 2 of 2 (hidden, R65,219.99 each from SMD): owner decided 2026-09-28 to **remove** them. The Cash Wholesale rules now skip "Everfurn Theo" so a re-run never re-lists them; owner to delete both in Admin → Products (search "Theo").
 - **First real test order** (cheap item + refund) to prove ITN → Paid → emails end to end in live mode — not yet confirmed.
 - **Photos** (owner investigating): SMD's embedded photos are ~113px; better photos should be uploaded for key products.
 - **Weights** (owner investigating): supplier lists have none (default 1 kg). Heavy categories use delivery quotes; other large one-offs (e.g. filament maker, 10-roll filament dryer in 3D Upgrades) may need the per-product "delivery quoted" override.
-- **Legal pages** — replaced 2026-09-28 with Lapanza3d.co.za's reviewed Terms/Privacy/Returns, adapted to Procom: dropship ready stock (7-day cooling-off on everything), delivery quoted for large items, guest checkout only, warehouse supplier + couriers listed as recipients of delivery details, risk passes on delivery. Physical address shown: 23 Gladiator Rd, Pierre van Ryneveld (same partnership as Lapanza).
+- **Legal pages** — replaced 2026-09-28 with Lapanza3d.co.za's reviewed Terms/Privacy/Returns, adapted to Procom: dropship ready stock (7-day cooling-off on everything), delivery quoted for large items, guest checkout only, warehouse supplier + couriers listed as recipients of delivery details, risk passes on delivery. Physical address shown: 23 Gladiator Rd, Pierre van Ryneveld (same partnership as Lapanza) — confirmed by owner 2026-09-28.
 - **SMD auto-lists done 2026-09-28** (Infant Essential 286, Cash Wholesale 2,481). Next month: import the new files, then run `node server/smd-autolist-cli.js` on the server (dry run) and `--apply` (see DEPLOY.md) -- the browser button can time out on the Cash list.
 - **Sub-category named like its parent**: Toys & Games › Toys & Games (10 items) — rename to exactly **Games & Novelties** in Admin → Categories (the Cash Wholesale rule now uses that name; any other name makes the next auto-list recreate "Toys & Games").
 - **Bubble Buddy** (Avalanche DB0008 / DB0009, same name and price): owner — leave as is. The two Ellies TOSLINK cables (~R1.08m) stay skipped.
