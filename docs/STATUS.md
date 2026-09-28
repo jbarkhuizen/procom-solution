@@ -8,7 +8,11 @@ _Last updated: 2026-09-28_
 - **Email:** working (Gmail SMTP as procompretoria@gmail.com); test email confirmed 2026-09-25
 - **Admin account:** created by the owner
 - **Live products:** 4,164 (2026-09-28, after the SMD auto-lists; was 1,397)
+- **Delivery (per supplier, since 2026-09-28):** every live product is SMD's → courier **R150** incl VAT per order, **free** when SMD's invoice (our cost incl VAT, excluding our markup) is R5,000+, large items included; or **free collection** at SMD's Edenvale office (Mon–Fri 09:00–16:00, collection notice + ID). Store-wide courier brackets (0–3 kg R150, 3–10 kg R220, 10–25 kg R300) and delivery quotes now apply only to non-SMD suppliers and products without a supplier. PUDO + local delivery switched off.
+- **Google:** site verified in Search Console, sitemap submitted 2026-09-28.
 - **Deployed:** automatically on every merge to `main` via GitHub Actions (`.github/workflows/deploy.yml`) since 2026-09-28 -- first run 36403935284 green (server tests 49/49, health ok, lapanza3d 200). Check the Actions tab for the current live commit.
+
+The *Delivery* column is the category's quote flag. It only takes effect for non-SMD suppliers (SMD's flat R150 covers everything).
 
 | Category | Live | Delivery |
 |---|---|---|
@@ -29,7 +33,7 @@ _Last updated: 2026-09-28_
 | TV & Video (TV Cables & Accessories 32, TV Wall Mounts & Stands 32, Projectors & Screens 1) — new | 65 | heavy items quoted per product |
 | Office & School (Calculators 45, Stationery 14, Label Printers 5) — new | 64 | normal |
 | Health & Beauty (Hair Care 22, Personal Care & Wellness 25 incl. Lifree) | 47 | normal |
-| Toys & Games (STEM & Building Toys 22, Outdoor & Bubble Toys 11, Toys & Games 10) — new | 43 | normal |
+| Toys & Games (STEM & Building Toys 22, Outdoor & Bubble Toys 11, Games & Novelties 10) — new | 43 | normal |
 
 **Suppliers:** SMD (Warehouse), Esquire, IDS, Huge PC, Dicspeed. All imports so far are SMD's
 (Cash wholesale, Home and Beyond, Infant Essential, Creality list, two promo flyers).
@@ -65,12 +69,16 @@ _Last updated: 2026-09-28_
 
 ## Open items / backlog
 
-- **Everfurn Theo Dining Table (White)** — Box 1 of 2 and Box 2 of 2 (hidden, R65,219.99 each from SMD): owner decided 2026-09-28 to **remove** them. The Cash Wholesale rules now skip "Everfurn Theo" so a re-run never re-lists them; owner to delete both in Admin → Products (search "Theo").
-- **First real test order** (cheap item + refund) to prove ITN → Paid → emails end to end in live mode — not yet confirmed.
-- **Photos** (owner investigating): SMD's embedded photos are ~113px; better photos should be uploaded for key products.
-- **Weights** (owner investigating): supplier lists have none (default 1 kg). Heavy categories use delivery quotes; other large one-offs (e.g. filament maker, 10-roll filament dryer in 3D Upgrades) may need the per-product "delivery quoted" override.
-- **Legal pages** — replaced 2026-09-28 with Lapanza3d.co.za's reviewed Terms/Privacy/Returns, adapted to Procom: dropship ready stock (7-day cooling-off on everything), delivery quoted for large items, guest checkout only, warehouse supplier + couriers listed as recipients of delivery details, risk passes on delivery. Physical address shown: 23 Gladiator Rd, Pierre van Ryneveld (same partnership as Lapanza) — confirmed by owner 2026-09-28.
-- **SMD auto-lists done 2026-09-28** (Infant Essential 286, Cash Wholesale 2,481). Next month: import the new files, then run `node server/smd-autolist-cli.js` on the server (dry run) and `--apply` (see DEPLOY.md) -- the browser button can time out on the Cash list.
-- **Sub-category named like its parent**: Toys & Games › Toys & Games (10 items) — rename to exactly **Games & Novelties** in Admin → Categories (the Cash Wholesale rule now uses that name; any other name makes the next auto-list recreate "Toys & Games").
+**Needs the owner**
+- **First real test order** — not done yet. Buy a cheap SMD item, choose Collect, click "Ready for collection — email notice" in admin, then refund in Payfast. Proves Payfast ITN → Paid → confirmation + owner emails → supplier order sheet → collection notice end to end.
+- **Legal pages — two open choices:** (a) risk in transit passes to the customer *on delivery* (so courier losses are ours) — keep? (b) are Procom's DB backups copied to Google Drive? If yes, the Privacy Policy must list it. (Address 23 Gladiator Rd confirmed.)
+- **Esquire delivery terms** — fill in Admin → Suppliers → Esquire → Delivery when known (public label, flat fee or store-wide, free threshold, collection). Until then Esquire items use the store-wide brackets and quotes. Same for IDS, Huge PC, Dicspeed.
+- **Photos** (owner investigating): SMD's embedded photos are ~113px; upload better photos for key products first.
+- **Google Search Console** — check in 1–2 weeks: sitemap "Success", indexed pages rising. If product pages still aren't indexed after ~4 weeks, consider server-rendered product pages (their content is filled in by JavaScript).
+
+**Routine**
+- **Monthly SMD update:** import the new Infant Essential / Cash Wholesale files, then on the server `node server/smd-autolist-cli.js` (dry run) and `--apply` (see DEPLOY.md) — the browser button can time out on the Cash list. Everfurn Theo boxes are skipped by rule (deleted 2026-09-28).
+
+**Low priority / known**
+- **Weights:** supplier lists have none (default 1 kg). No effect on SMD items (flat fee); matters only for store-mode suppliers.
 - **Bubble Buddy** (Avalanche DB0008 / DB0009, same name and price): owner — leave as is. The two Ellies TOSLINK cables (~R1.08m) stay skipped.
-- **Heavy items**: 44 Cash Wholesale products marked delivery quoted (5 more heavy ones were already hand-listed and keep their setting). Medium items (20-30 m extension reels, single 8" party speakers, metal desk lamps), Totes Babe bags and the R3,900 Loop & Co display box still ship at the default 1 kg.
