@@ -93,9 +93,17 @@ function flattenTree(tree, depth = 0, out = []) {
   }
   return out;
 }
+// Full path labels ("Gaming › Gaming Headsets") so a sub-category is
+// recognisable once selected. Always refetched: categories created on the
+// server (e.g. by the SMD auto-list CLI) must show without a page reload.
 async function categoryOptions() {
-  const { tree } = await categories();
-  return flattenTree(tree).map((c) => ({ value: c.id, label: `${'— '.repeat(c.depth)}${c.name}` }));
+  const { tree } = await categories(true);
+  const path = [];
+  return flattenTree(tree).map((c) => {
+    path.length = c.depth;
+    path.push(c.name);
+    return { value: c.id, label: path.join(' › ') };
+  });
 }
 
 let settingsCache = null;
@@ -397,11 +405,11 @@ async function productEditor(id) {
     <div class="stack gap-4">
       <div class="panel stack gap-3">
         <label class="field"><span>Product name</span><input name="name" required value="${h(d.name)}"></label>
-        <div class="grid-3">
+        <div class="grid-2">
           <label class="field"><span>Brand</span><input name="brand" value="${h(d.brand)}"></label>
           <label class="field"><span>SKU</span><input name="sku" value="${h(d.sku)}" placeholder="auto if blank"></label>
-          <label class="field"><span>Category</span><select name="categoryId">${options(cats, d.categoryId, { empty: '(none)' })}</select></label>
         </div>
+        <label class="field"><span>Category</span><select name="categoryId">${options(cats, d.categoryId, { empty: '(none)' })}</select></label>
         <label class="field"><span>Short description (shown near the price)</span><input name="shortDescription" value="${h(d.shortDescription)}" maxlength="300"></label>
         <label class="field"><span>Full description (blank line = new paragraph)</span><textarea name="description" rows="7">${h(d.description)}</textarea></label>
         <label class="field"><span>Specifications — one per line as <code>Label: value</code></span><textarea name="specs" rows="5" placeholder="Connectivity: USB-A&#10;Warranty: 12 months">${h((d.specs || []).map((s) => `${s.label}: ${s.value}`).join('\n'))}</textarea></label>
