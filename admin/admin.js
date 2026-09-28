@@ -1133,22 +1133,30 @@ routes.suppliers = async () => {
 routes.shipping = async () => {
   setTop('Settings', 'Shipping options', '<button class="btn btn-primary" data-ship-new>+ Option</button>');
   const list = await api('/shipping');
+  // Weights only mean something for "Auto by weight" (the server drops them
+  // for "Customer picks"), so they're locked until that type is chosen.
+  const weightsOff = (o) => ((o?.optionType || 'fixed') === 'fixed' ? 'disabled title="Choose “Auto by weight” to set weights"' : '');
   const row = (o) => `<tr data-id="${h(o?.id || '')}">
     <td><input class="inline-input" name="name" value="${h(o?.name)}" placeholder="Option name"></td>
     <td><input class="inline-input" name="category" value="${h(o?.category)}" placeholder="Courier / PUDO Locker / Local Delivery" list="ship-cats"></td>
     <td><select class="inline-input" name="optionType">${options([{ value: 'fixed', label: 'Customer picks' }, { value: 'auto_weight', label: 'Auto by weight' }], o?.optionType || 'fixed')}</select></td>
-    <td><input class="inline-input" name="minWeight" type="number" min="0" value="${o?.minWeight ?? 0}" style="width:6rem"></td>
-    <td><input class="inline-input" name="maxWeight" type="number" min="0" value="${o?.maxWeight ?? ''}" placeholder="∞" style="width:6rem"></td>
+    <td><input class="inline-input" name="minWeight" type="number" min="0" value="${o?.minWeight ?? 0}" style="width:6rem" ${weightsOff(o)}></td>
+    <td><input class="inline-input" name="maxWeight" type="number" min="0" value="${o?.maxWeight ?? ''}" placeholder="∞" style="width:6rem" ${weightsOff(o)}></td>
     <td><input class="inline-input" name="price" type="number" step="0.01" min="0" value="${toRands(o?.priceCents ?? 0)}" style="width:7rem"></td>
     <td><input type="checkbox" name="active" ${!o || o.active ? 'checked' : ''}></td>
     <td style="white-space:nowrap"><button class="btn small btn-primary" data-save>Save</button> ${o ? '<button class="btn small btn-danger" data-del>×</button>' : ''}</td>
   </tr>`;
   const root = view(`<div class="panel table-wrap">
-    <p class="mini-help">Same model as lapanza3d: “Auto by weight” options (Courier) are picked automatically from the cart weight — their ranges must not overlap, and both ends count, so the next range starts one gram later (e.g. 0–3000, 3001–10000, 10001–25000). Save each row on its own. “Customer picks” options are listed under their category at checkout. Weights in grams. PUDO options ask the customer for their locker.</p>
+    <p class="mini-help">Same model as lapanza3d: “Auto by weight” options (Courier) are picked automatically from the cart weight — their ranges must not overlap, and both ends count, so the next range starts one gram later (e.g. 0–3000, 3001–10000, 10001–25000). Save each row on its own. “Customer picks” options are listed under their category at checkout. Weights in grams, and only for “Auto by weight” — choose that type first. PUDO options ask the customer for their locker.</p>
     <datalist id="ship-cats"><option>Courier</option><option>PUDO Locker</option><option>Local Delivery</option></datalist>
     <table class="catalog"><thead><tr><th>Name</th><th>Group</th><th>Type</th><th>Min g</th><th>Max g</th><th>Price R</th><th>On</th><th></th></tr></thead>
     <tbody id="ship-rows">${list.map(row).join('')}</tbody></table></div>`);
   $('[data-ship-new]').addEventListener('click', () => $('#ship-rows', root).insertAdjacentHTML('afterbegin', row(null)));
+  root.addEventListener('change', (e) => {
+    if (e.target.name !== 'optionType') return;
+    const tr = e.target.closest('tr');
+    for (const n of ['minWeight', 'maxWeight']) tr.querySelector(`[name="${n}"]`).disabled = e.target.value === 'fixed';
+  });
   root.addEventListener('click', async (e) => {
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
