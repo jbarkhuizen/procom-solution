@@ -1012,20 +1012,20 @@ async function orderDetail(id) {
               </div>
             </div>`;
           })() : ''}
-          ${o.collection ? `<div class="panel" style="border:2px solid var(--brand);margin-bottom:1rem">
-              <div class="section-head"><h3>Customer collects from the warehouse</h3>${o.collectionReadyAt ? `<span class="badge ok">Ready email sent ${h(fmtDate(o.collectionReadyAt))}</span>` : '<span class="badge warn">Not ready yet</span>'}</div>
-              <p class="mini-help">Send the supplier order below (it asks them to pack and hold it). When they confirm it's ready, click the button: the customer gets the collection address, hours, map link and what to bring. Set the status to Delivered once collected.</p>
+          ${o.shipments.filter((sh) => sh.method === 'collect').map((sh) => `<div class="panel" style="border:2px solid var(--brand);margin-bottom:1rem">
+              <div class="section-head"><h3>Customer collects from the ${h(sh.label)}</h3>${sh.readyAt ? `<span class="badge ok">Notice sent ${h(fmtDate(sh.readyAt))}</span>` : '<span class="badge warn">Not ready yet</span>'}</div>
+              <p class="mini-help">Send the supplier order below (it asks them to pack and hold it). When they confirm it's ready, click the button: the customer gets the <strong>collection notice</strong> (order number, items, address, hours, what to bring). Set the status to Delivered once collected.</p>
               <div class="toolbar" style="margin:0.5rem 0 0">
-                ${o.paymentStatus === 'paid' ? `<button class="btn small btn-primary" data-collect-ready>${o.collectionReadyAt ? 'Resend “ready for collection” email' : 'Ready for collection — email customer'}</button>` : '<span class="mini-help">Available once the order is paid.</span>'}
+                ${o.paymentStatus === 'paid' ? `<button class="btn small btn-primary" data-collect-ready="${h(sh.key)}">${sh.readyAt ? 'Resend collection notice' : 'Ready for collection — email notice'}</button>` : '<span class="mini-help">Available once the order is paid.</span>'}
               </div>
-            </div>` : ''}
+            </div>`).join('')}
           <div class="section-head"><h3>Items</h3>${statusBadge(o.status)}</div>
           <div class="table-wrap"><table class="catalog"><thead><tr><th>Product</th><th>Fulfilment</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Line</th><th class="num">Unit cost</th></tr></thead><tbody>
             ${o.items.map((i) => `<tr><td><strong>${h(i.name)}</strong><br><span class="muted">${h(i.sku)}${i.supplierCode ? ` · supplier code ${h(i.supplierCode)}` : ''}</span></td><td>${i.fulfilment === 'dropship' ? `<span class="badge info">Dropship${i.supplierName ? ` · ${h(i.supplierName)}` : ''}</span>` : '<span class="badge ok">Own stock</span>'}</td><td class="num">${i.quantity}</td><td class="num">${rand(i.unitPriceCents)}</td><td class="num">${rand(i.lineTotalCents)}</td><td class="num muted">${rand(i.unitCostCents)}</td></tr>`).join('')}
           </tbody></table></div>
           <div class="meta-list" style="margin-top:1rem">
             <div><span>Subtotal</span><span>${rand(o.subtotalCents)}</span></div>
-            <div><span>Delivery · ${h(o.shippingName)}</span><span>${rand(o.shippingCents)}</span></div>
+            ${o.shipments.length > 1 ? o.shipments.map((sh) => `<div><span>Delivery · ${h(sh.label)}: ${h(sh.name)}</span><span>${rand(sh.feeCents)}</span></div>`).join('') : `<div><span>Delivery · ${h(o.shippingName)}</span><span>${rand(o.shippingCents)}</span></div>`}
             <div><span><strong>Total paid</strong></span><strong>${rand(o.totalCents)}</strong></div>
             <div><span>Supplier cost (excl VAT)</span><span>${rand(cost)}</span></div>
             <div><span>Payment</span><span>${h(o.paymentMethod === 'payfast_eft' ? 'Instant EFT' : 'Card')} · ${h(o.paymentStatus)}${o.pfPaymentId ? ` · pf ${h(o.pfPaymentId)}` : ''}</span></div>
@@ -1066,7 +1066,7 @@ async function orderDetail(id) {
           <label class="field"><span>Status</span><select name="status">${options(Object.entries(STATUS).map(([value, [label]]) => ({ value, label })), o.status)}</select></label>
           <label class="field"><span>Supplier order reference</span><input name="supplierRef" value="${h(o.supplierRef)}"></label>
           <label class="field"><span>Tracking number</span><input name="trackingNumber" value="${h(o.trackingNumber)}"></label>
-          ${o.collection ? '' : '<label class="field checkbox"><input type="checkbox" name="notifyCustomer" checked><span>Email customer when marked Shipped</span></label>'}
+          ${o.shipments.every((sh) => sh.method === 'collect') ? '' : '<label class="field checkbox"><input type="checkbox" name="notifyCustomer" checked><span>Email customer when marked Shipped</span></label>'}
           <label class="field"><span>Internal notes</span><textarea name="adminNotes" rows="3">${h(o.adminNotes)}</textarea></label>
           <button class="btn btn-primary">Save</button>
         </form>
@@ -1079,7 +1079,7 @@ async function orderDetail(id) {
       if (!confirm(`Email ${o.email} that order ${o.orderNumber} is ready for collection?`)) return;
       ready.disabled = true;
       try {
-        await api(`/orders/${o.id}/collection-ready`, { method: 'POST' });
+        await api(`/orders/${o.id}/collection-ready`, { method: 'POST', body: { shipment: ready.dataset.collectReady } });
         toast('Customer emailed — ready for collection');
         orderDetail(o.id);
       } catch (err) { ready.disabled = false; fail(err); }
@@ -1110,7 +1110,7 @@ routes.suppliers = async () => {
   const list = await api('/suppliers');
   const root = view(`<div class="editor-layout">
     <div class="panel table-wrap"><table class="catalog"><thead><tr><th>Supplier</th><th>Contact</th><th class="num">Listed</th><th class="num">In feed</th></tr></thead><tbody>
-      ${list.map((s) => `<tr data-id="${h(s.id)}"><td><strong>${h(s.name)}</strong><br><span class="muted">${h(s.leadTimeText)}</span></td><td>${h(s.contactName)}<br><span class="muted">${h(s.email)} ${h(s.phone)}</span></td><td class="num">${s.productCount}</td><td class="num">${s.feedCount}</td></tr>`).join('')}
+      ${list.map((s) => `<tr data-id="${h(s.id)}"><td><strong>${h(s.name)}</strong><br><span class="muted">${h(s.leadTimeText)}</span><br><span class="muted">${s.deliveryMode === 'flat' ? `Courier ${rand(s.deliveryFeeCents)}${s.freeOverCostCents != null ? `, free from ${rand(s.freeOverCostCents)} cost` : ''}` : 'Store-wide shipping'}${s.collectionEnabled ? ' · collection' : ''}</span></td><td>${h(s.contactName)}<br><span class="muted">${h(s.email)} ${h(s.phone)}</span></td><td class="num">${s.productCount}</td><td class="num">${s.feedCount}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="panel" id="sup-editor"><p class="muted">Select a supplier to edit. The lead-time text is what customers see as the delivery estimate on dropshipped products.</p></div>
   </div>`);
@@ -1124,12 +1124,23 @@ routes.suppliers = async () => {
       <label class="field"><span>Order email</span><input name="email" type="email" value="${h(s?.email)}"></label>
       <label class="field"><span>Customer-facing lead time</span><input name="leadTimeText" value="${h(s?.leadTimeText || 'Ships from our warehouse in 2-5 business days')}"></label>
       <label class="field"><span>Notes (account no., terms…)</span><textarea name="notes" rows="3">${h(s?.notes)}</textarea></label>
+      <div class="section-head" style="margin-top:0.5rem"><h3>Delivery</h3></div>
+      <label class="field"><span>Name customers see (never the supplier's name)</span><input name="publicLabel" value="${h(s?.publicLabel)}" placeholder="e.g. Edenvale warehouse"></label>
+      <label class="field"><span>How this supplier delivers</span><select name="deliveryMode">${options([{ value: 'store', label: 'Store-wide shipping options (weight brackets, quotes for large items)' }, { value: 'flat', label: 'Flat courier fee per order (covers large items too)' }], s?.deliveryMode || 'store')}</select></label>
+      <div class="grid-2"><label class="field"><span>Courier fee R (flat)</span><input name="deliveryFee" type="number" step="0.01" min="0" value="${toRands(s?.deliveryFeeCents ?? 0)}"></label>
+      <label class="field"><span>Free when their invoice (our cost incl VAT) reaches R</span><input name="freeOverCost" type="number" step="0.01" min="0" value="${s?.freeOverCostCents != null ? toRands(s.freeOverCostCents) : ''}" placeholder="blank = never free"></label></div>
+      <label class="field checkbox"><input type="checkbox" name="collectionEnabled" ${s?.collectionEnabled ? 'checked' : ''}><span>Customers can collect from this supplier (free)</span></label>
+      <label class="field"><span>Collection address (checkout map &amp; emails only)</span><input name="collectionAddress" value="${h(s?.collectionAddress)}"></label>
+      <div class="grid-2"><label class="field"><span>Collection hours</span><input name="collectionHours" value="${h(s?.collectionHours)}" placeholder="Mon–Fri 09:00–16:00"></label>
+      <label class="field"><span>Usually ready</span><input name="collectionLeadText" value="${h(s?.collectionLeadText)}" placeholder="typically 2–3 business days after payment"></label></div>
+      <label class="field"><span>What the collector must bring</span><textarea name="collectionRequirements" rows="2">${h(s?.collectionRequirements)}</textarea></label>
+      <p class="mini-help">A cart with items from several suppliers gets one delivery choice per supplier, and the fees add up. Products without a supplier use the store-wide shipping options.</p>
       <div class="row-card-actions">${s ? '<button type="button" class="btn btn-danger" id="s-del">Delete</button>' : '<span></span>'}<button class="btn btn-primary">Save</button></div></form>`,
     );
     $('#sform', root).addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await api(s ? `/suppliers/${s.id}` : '/suppliers', { method: s ? 'PUT' : 'POST', body: Object.fromEntries(new FormData(e.target)) });
+        await api(s ? `/suppliers/${s.id}` : '/suppliers', { method: s ? 'PUT' : 'POST', body: { ...Object.fromEntries(new FormData(e.target)), collectionEnabled: e.target.collectionEnabled.checked } });
         toast('Supplier saved');
         routes.suppliers();
       } catch (err) { fail(err); }
@@ -1237,13 +1248,7 @@ routes.settings = async () => {
       ${f('whatsappNumber', 'WhatsApp number (international, e.g. 27826639608)')}
       ${f('ownerNotifyEmail', 'Send new-order & enquiry notifications to', 'email')}
     </div>
-    <div class="panel stack gap-3">
-      <div class="section-head"><h3>Warehouse collection</h3></div>
-      ${f('collectionAddress', 'Collection address (checkout map & emails only)')}
-      ${f('collectionHours', 'Collection hours')}
-      ${f('collectionLeadText', 'When it is usually ready (after “ready for collection —”)')}
-      <p class="mini-help">Shown only when a customer chooses “Collect” at checkout and in their order emails. Switch collection on/off under Shipping options (the “Collection” row).</p>
-    </div>
+
     <div class="panel stack gap-3">
       <div class="section-head"><h3>Pricing</h3></div>
       ${f('defaultMarkupPct', 'Default markup % on supplier cost', 'number', 'step="0.5" min="0" max="500"')}

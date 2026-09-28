@@ -36,6 +36,20 @@ const COLUMN_MIGRATIONS = [
   // Customer collects from the warehouse; ready email sent when the admin says so.
   ['orders', 'collection', 'INTEGER NOT NULL DEFAULT 0'],
   ['orders', 'collection_ready_at', "TEXT NOT NULL DEFAULT ''"],
+  // Per-supplier delivery (server/delivery.js). 'store' = the store-wide
+  // shipping options + delivery quotes; 'flat' = one courier fee per order,
+  // free once the supplier's cost (incl VAT) reaches free_over_cost_cents.
+  ['suppliers', 'delivery_mode', "TEXT NOT NULL DEFAULT 'store'"],
+  ['suppliers', 'delivery_fee_cents', 'INTEGER NOT NULL DEFAULT 0'],
+  ['suppliers', 'free_over_cost_cents', 'INTEGER'],
+  ['suppliers', 'public_label', "TEXT NOT NULL DEFAULT ''"],        // what customers see, e.g. "Edenvale warehouse"
+  ['suppliers', 'collection_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+  ['suppliers', 'collection_address', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'collection_hours', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'collection_requirements', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'collection_lead_text', "TEXT NOT NULL DEFAULT ''"],
+  // One entry per supplier shipment: [{supplierId, label, method, name, feeCents, readyAt}]
+  ['orders', 'fulfilment_json', "TEXT NOT NULL DEFAULT ''"],
 ];
 
 export function migrate(conn) {
@@ -254,11 +268,21 @@ export const DEFAULT_SETTINGS = {
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
   legalEntity: 'Lapanza (trading as Procom Solutions)',
-  // Warehouse collection point: shown only at checkout (when "Collect" is
-  // chosen) and in order emails -- deliberately not on public pages.
-  collectionAddress: '2 Lascelles Road, Meadowbrook, Edenvale, Johannesburg',
-  collectionHours: 'Weekdays during business hours',
-  collectionLeadText: 'typically 2–3 business days after payment',
+};
+
+// SMD's delivery terms (owner, 2026-09-28): courier R150 incl VAT per order,
+// free once SMD's invoice (our cost incl VAT) is R5,000+, covering large items
+// too; or free collection at their Edenvale office.
+export const SMD_DELIVERY = {
+  delivery_mode: 'flat',
+  delivery_fee_cents: 15000,
+  free_over_cost_cents: 500000,
+  public_label: 'Edenvale warehouse',
+  collection_enabled: 1,
+  collection_address: '2 Lascelles Road, Meadowbrook, Edenvale, Johannesburg',
+  collection_hours: 'Mon–Fri 09:00–16:00',
+  collection_requirements: "Bring your collection notice (the “ready for collection” email, printed or on your phone) and the collector's ID, driver's licence or passport. Anyone with the collection notice can collect.",
+  collection_lead_text: 'typically 2–3 business days after payment',
 };
 
 // Mirrors lapanza3d.co.za's live shipping table (2026-09-25), minus the
@@ -319,13 +343,6 @@ function seedDefaults(conn) {
     DEFAULT_SHIPPING.forEach(([name, type, cat, min, max, rand], i) => ins.run(randomUUID(), name, type, cat, min, max, rand * 100, i, now, now));
   }
 
-  // Free warehouse collection. Added once: an admin who doesn't want it
-  // switches it off (inactive rows still count, so it isn't re-created).
-  if (!conn.prepare("SELECT 1 FROM shipping_options WHERE category = 'Collection'").get()) {
-    conn.prepare(`INSERT INTO shipping_options (id, name, option_type, category, min_weight, max_weight, price_cents, active, sort_order, created_at, updated_at)
-      VALUES (?, 'Collect from our Edenvale warehouse (free)', 'fixed', 'Collection', 0, NULL, 0, 1, 0, ?, ?)`).run(randomUUID(), now, now);
-  }
-
   if (conn.prepare('SELECT COUNT(*) n FROM categories').get().n === 0) {
     const ins = conn.prepare('INSERT INTO categories (id, parent_id, name, slug, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
     DEFAULT_CATEGORIES.forEach(([name, slug, children], i) => {
@@ -338,6 +355,19 @@ function seedDefaults(conn) {
   if (conn.prepare('SELECT COUNT(*) n FROM suppliers').get().n === 0) {
     conn.prepare('INSERT INTO suppliers (id, name, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
       .run(randomUUID(), 'SMD (Warehouse)', 'Wholesale pricelists: Cash wholesale, Home and Beyond, Infant Essential. Dropship direct to customer.', now, now);
+  }
+
+  // One-time: give SMD its delivery terms, and retire the store-wide
+  // "Collection" shipping option (collection is per supplier now). Marked done
+  // in settings, so later edits in Admin -> Suppliers are never overwritten.
+  if (!conn.prepare("SELECT 1 FROM settings WHERE key = 'setup:supplierDeliveryV1'").get()) {
+    const smd = conn.prepare("SELECT id FROM suppliers WHERE name LIKE 'SMD%' ORDER BY created_at LIMIT 1").get();
+    if (smd) {
+      const cols = Object.keys(SMD_DELIVERY);
+      conn.prepare(`UPDATE suppliers SET ${cols.map((c) => `${c} = @${c}`).join(', ')}, updated_at = @now WHERE id = @id`).run({ ...SMD_DELIVERY, now, id: smd.id });
+    }
+    conn.prepare("UPDATE shipping_options SET active = 0, updated_at = ? WHERE category = 'Collection'").run(now);
+    conn.prepare("INSERT INTO settings (key, value) VALUES ('setup:supplierDeliveryV1', ?)").run(JSON.stringify(now));
   }
 }
 

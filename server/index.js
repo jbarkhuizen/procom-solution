@@ -122,6 +122,8 @@ app.post('/api/cart/refresh', wrap((req) => {
     .map((p) => ({ id: p.id, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, inStock: p.inStock, stockQty: p.stockQty, minOrderQty: p.minOrderQty, quoteDelivery: p.quoteDelivery, active: true }));
 }));
 app.get('/api/shipping-options', wrap(() => shipping.listShippingOptions({ activeOnly: true })));
+// Checkout's delivery choices for a cart: one group per supplier shipment.
+app.post('/api/checkout/delivery', wrap((req) => orders.deliveryPlanForCart(req.body?.items)));
 
 const checkoutLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
 app.post('/api/checkout', checkoutLimiter, wrap((req) => {
@@ -262,14 +264,14 @@ admin.get('/orders/:id', wrap((req) => {
   return { ...o, supplierSheets: orders.supplierOrderSheet(o) };
 }));
 admin.post('/orders/:id/collection-ready', wrap((req) => {
-  const o = orNotFound(orders.markCollectionReady(req.params.id, req.admin.username));
-  mailer.sendCollectionReady(o);
-  return { ...o, supplierSheets: orders.supplierOrderSheet(o) };
+  const { order, shipment } = orNotFound(orders.markCollectionReady(req.params.id, req.body?.shipment || null, req.admin.username));
+  mailer.sendCollectionReady(order, shipment);
+  return { ...order, supplierSheets: orders.supplierOrderSheet(order) };
 }));
 admin.put('/orders/:id', wrap((req) => {
   const result = orNotFound(orders.updateOrder(req.params.id, req.body || {}, req.admin.username));
   // Collection orders get the "ready for collection" email instead (below).
-  if (result.statusChangedTo === 'shipped' && req.body.notifyCustomer !== false && !result.order.collection) {
+  if (result.statusChangedTo === 'shipped' && req.body.notifyCustomer !== false && !result.order.shipments.every((sh) => sh.method === 'collect')) {
     mailer.sendShippedNotice(result.order);
     orders.logOrderEvent(result.order.id, 'Shipping notification emailed to customer', req.admin.username);
   }
