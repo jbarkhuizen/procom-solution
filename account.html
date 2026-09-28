@@ -2,22 +2,137 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Account — Procom Solutions</title>
+<title>My Account — Procom Solutions</title>
+<meta name="description" content="Log in to your Procom Solutions account to see your orders and invoices and check out faster.">
 <meta name="robots" content="noindex">
 <!-- @include head -->
-<script type="module" src="/src/js/site.js"></script>
+<script type="module" src="/src/js/account.js"></script>
 </head>
-<body class="font-sans antialiased" data-page="404">
+<body class="font-sans antialiased" data-page="account">
 <!-- @include shell-top -->
-<main id="main" class="flex-1 px-6 py-24 text-center">
-  <p class="eyebrow mb-4">Error 404</p>
-  <h1 class="font-serif text-5xl md:text-6xl tracking-tight mb-5">Page not found.</h1>
-  <p class="text-espresso/70 mb-10">The page may have moved, or the product is no longer listed.</p>
-  <div class="flex flex-wrap justify-center gap-3">
-    <a href="/" class="inline-flex bg-charcoal text-cream rounded-full px-6 py-3 text-sm font-semibold hover:bg-terracotta">Home</a>
-    <a href="/shop.html" class="inline-flex border-2 border-charcoal rounded-full px-6 py-3 text-sm font-semibold hover:bg-charcoal hover:text-cream">Shop all products</a>
+
+<main id="main" class="flex-1 px-6 sm:px-10 lg:px-14 py-10 md:py-14">
+  <div class="mx-auto w-full max-w-5xl">
+    <div id="acc-notice" class="hidden rounded-sm border-2 p-4 text-sm mb-6" role="status"></div>
+    <p id="acc-loading" class="text-sm text-espresso/60">Loading…</p>
+
+    <!-- Logged out: log in + create account -->
+    <section id="acc-guest" class="hidden">
+      <p class="eyebrow mb-3">My account</p>
+      <h1 class="font-serif text-4xl md:text-5xl tracking-tight mb-3">Log in or create an account</h1>
+      <p class="text-espresso/70 leading-relaxed max-w-2xl mb-10">An account is optional — you can always check out as a guest. With one you can see your orders and invoices, and your details are filled in for you at checkout.</p>
+      <div class="grid md:grid-cols-2 gap-8 items-start">
+        <form id="login-form" class="border-2 border-charcoal rounded-sm p-7 bg-linen/40 brutal space-y-4" novalidate>
+          <p class="font-serif text-2xl tracking-tight">Log in</p>
+          <div><label class="form-label" for="l-email">Email</label><input class="form-input" id="l-email" name="email" type="email" autocomplete="email" required></div>
+          <div><label class="form-label" for="l-password">Password</label><input class="form-input" id="l-password" name="password" type="password" autocomplete="current-password" required></div>
+          <button type="submit" class="w-full bg-charcoal text-cream rounded-full px-6 py-3.5 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Log in</button>
+          <p class="text-sm"><a href="#forgot" data-show="forgot" class="underline text-espresso/70 hover:text-terracotta">Forgot your password?</a></p>
+          <p class="text-sm hidden" data-result role="status"></p>
+        </form>
+
+        <form id="register-form" class="border-2 border-charcoal rounded-sm p-7 bg-linen/40 brutal space-y-4" novalidate>
+          <p class="font-serif text-2xl tracking-tight">Create an account</p>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div><label class="form-label" for="r-first">First name</label><input class="form-input" id="r-first" name="firstName" autocomplete="given-name" required></div>
+            <div><label class="form-label" for="r-last">Surname</label><input class="form-input" id="r-last" name="lastName" autocomplete="family-name" required></div>
+          </div>
+          <div><label class="form-label" for="r-email">Email</label><input class="form-input" id="r-email" name="email" type="email" autocomplete="email" required></div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div><label class="form-label" for="r-password">Password</label><input class="form-input" id="r-password" name="password" type="password" minlength="8" placeholder="8+ characters" autocomplete="new-password" required></div>
+            <div><label class="form-label" for="r-confirm">Confirm password</label><input class="form-input" id="r-confirm" name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+          </div>
+          <label class="flex items-start gap-2.5 text-sm cursor-pointer"><input type="checkbox" name="newsletter" class="mt-1 accent-terracotta"> <span>Email me about specials and new products (you can unsubscribe any time).</span></label>
+          <div class="hidden" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+          <button type="submit" class="w-full bg-charcoal text-cream rounded-full px-6 py-3.5 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Create account</button>
+          <p class="text-xs text-espresso/55">By creating an account you agree to our <a href="/terms.html" class="underline hover:text-terracotta">Terms</a> and <a href="/privacy.html" class="underline hover:text-terracotta">Privacy Policy</a>.</p>
+          <p class="text-sm hidden" data-result role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- Logged out: ask for a reset link -->
+    <section id="acc-forgot" class="hidden max-w-md">
+      <p class="eyebrow mb-3">My account</p>
+      <h1 class="font-serif text-4xl tracking-tight mb-3">Reset your password</h1>
+      <p class="text-espresso/70 mb-8">Enter your email and we'll send you a link to choose a new password.</p>
+      <form id="forgot-form" class="border-2 border-charcoal rounded-sm p-7 bg-linen/40 brutal space-y-4" novalidate>
+        <div><label class="form-label" for="f-email">Email</label><input class="form-input" id="f-email" name="email" type="email" autocomplete="email" required></div>
+        <button type="submit" class="w-full bg-charcoal text-cream rounded-full px-6 py-3.5 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Send reset link</button>
+        <p class="text-sm"><a href="#login" data-show="guest" class="underline text-espresso/70 hover:text-terracotta">Back to log in</a></p>
+        <p class="text-sm hidden" data-result role="status"></p>
+      </form>
+    </section>
+
+    <!-- From an emailed link (?reset=...): choose a new password -->
+    <section id="acc-reset" class="hidden max-w-md">
+      <p class="eyebrow mb-3">My account</p>
+      <h1 class="font-serif text-4xl tracking-tight mb-8">Choose a new password</h1>
+      <form id="reset-form" class="border-2 border-charcoal rounded-sm p-7 bg-linen/40 brutal space-y-4" novalidate>
+        <div><label class="form-label" for="n-password">New password (8+ characters)</label><input class="form-input" id="n-password" name="password" type="password" minlength="8" autocomplete="new-password" required></div>
+        <div><label class="form-label" for="n-confirm">Confirm password</label><input class="form-input" id="n-confirm" name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+        <button type="submit" class="w-full bg-charcoal text-cream rounded-full px-6 py-3.5 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Save password and log in</button>
+        <p class="text-sm hidden" data-result role="status"></p>
+      </form>
+    </section>
+
+    <!-- Logged in -->
+    <section id="acc-member" class="hidden">
+      <div class="flex flex-wrap items-end justify-between gap-4 mb-10">
+        <div>
+          <p class="eyebrow mb-3">My account</p>
+          <h1 id="acc-welcome" class="font-serif text-4xl md:text-5xl tracking-tight">Welcome back</h1>
+          <p id="acc-email" class="text-sm text-espresso/60 mt-2"></p>
+        </div>
+        <button type="button" id="logout-btn" class="border-2 border-charcoal rounded-full px-5 py-2 text-xs uppercase tracking-wide font-semibold hover:bg-charcoal hover:text-cream transition-colors">Log out</button>
+      </div>
+
+      <h2 class="font-serif text-2xl tracking-tight mb-4">Your orders</h2>
+      <div id="acc-orders" class="mb-12"></div>
+
+      <div class="grid lg:grid-cols-[1fr_320px] gap-8 items-start">
+        <form id="details-form" class="border-2 border-charcoal rounded-sm p-7 bg-linen/40 brutal space-y-4" novalidate>
+          <p class="font-serif text-2xl tracking-tight">Delivery details</p>
+          <p class="text-sm text-espresso/60 -mt-2">Filled in for you at checkout.</p>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div><label class="form-label" for="d-first">First name</label><input class="form-input" id="d-first" name="firstName" autocomplete="given-name" required></div>
+            <div><label class="form-label" for="d-last">Surname</label><input class="form-input" id="d-last" name="lastName" autocomplete="family-name"></div>
+            <div class="sm:col-span-2"><label class="form-label" for="d-phone">Cellphone</label><input class="form-input" id="d-phone" name="phone" type="tel" autocomplete="tel" placeholder="082 000 0000"></div>
+            <div class="sm:col-span-2"><label class="form-label" for="d-line1">Street address</label><input class="form-input" id="d-line1" name="addressLine1" autocomplete="address-line1"></div>
+            <div class="sm:col-span-2"><label class="form-label" for="d-line2">Complex / unit (optional)</label><input class="form-input" id="d-line2" name="addressLine2" autocomplete="address-line2"></div>
+            <div><label class="form-label" for="d-suburb">Suburb</label><input class="form-input" id="d-suburb" name="suburb" autocomplete="address-level3"></div>
+            <div><label class="form-label" for="d-city">City</label><input class="form-input" id="d-city" name="city" autocomplete="address-level2"></div>
+            <div><label class="form-label" for="d-province">Province</label>
+              <select class="form-input" id="d-province" name="province" autocomplete="address-level1">
+                <option value="">Select…</option><option>Gauteng</option><option>Western Cape</option><option>KwaZulu-Natal</option><option>Eastern Cape</option><option>Free State</option><option>Limpopo</option><option>Mpumalanga</option><option>North West</option><option>Northern Cape</option>
+              </select>
+            </div>
+            <div><label class="form-label" for="d-postal">Postal code</label><input class="form-input" id="d-postal" name="postalCode" autocomplete="postal-code" inputmode="numeric"></div>
+          </div>
+          <button type="submit" class="bg-charcoal text-cream rounded-full px-6 py-3 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Save details</button>
+          <p class="text-sm hidden" data-result role="status"></p>
+        </form>
+
+        <div class="space-y-8">
+          <form id="newsletter-form" class="border-2 border-charcoal rounded-sm p-6 space-y-3">
+            <p class="font-serif text-xl tracking-tight">Newsletter</p>
+            <label class="flex items-start gap-2.5 text-sm cursor-pointer"><input type="checkbox" name="newsletter" id="nl-check" class="mt-1 accent-terracotta"> <span>Email me about specials and new products.</span></label>
+            <p class="text-sm hidden" data-result role="status"></p>
+          </form>
+
+          <form id="password-form" class="border-2 border-charcoal rounded-sm p-6 space-y-3" novalidate>
+            <p class="font-serif text-xl tracking-tight">Change password</p>
+            <div><label class="form-label" for="p-current">Current password</label><input class="form-input" id="p-current" name="currentPassword" type="password" autocomplete="current-password" required></div>
+            <div><label class="form-label" for="p-new">New password (8+ characters)</label><input class="form-input" id="p-new" name="newPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+            <button type="submit" class="border-2 border-charcoal rounded-full px-5 py-2 text-sm font-semibold hover:bg-charcoal hover:text-cream transition-colors disabled:opacity-50">Change password</button>
+            <p class="text-sm hidden" data-result role="status"></p>
+          </form>
+        </div>
+      </div>
+    </section>
   </div>
 </main>
+
 <!-- @include shell-bottom -->
 </body>
 </html>
