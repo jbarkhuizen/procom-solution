@@ -21,6 +21,7 @@ server/            API (index.js), schema+migrations (db.js), catalog, pricing, 
   feed.js          preview cache, column mapping, import, list-from-feed, delete import
   smd-rules.js     per-pricelist category rules for SMD lists (Infant Essential, Cash Wholesale)
   smd-autolist.js  applies those rules: preview, create missing categories, list
+  smd-autolist-cli.js  same from the server shell (dry run; --apply backs up the DB first)
   remote-images.js background photo-URL downloader (SSRF-guarded)
   *.test.js        node --test suites (npm test)
 admin/             admin SPA served at /admin (no build step); dom.js = only HTML sink
