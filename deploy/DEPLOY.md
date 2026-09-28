@@ -88,6 +88,18 @@ Open https://www.procomsolutions.co.za/admin/. A fresh database shows
    and why. Click **List** to create the categories and list everything at
    the default markup. Safe to repeat each month; it only lists new items and
    never moves products you categorised yourself.
+
+   The Cash Wholesale list can take over a minute on the live database --
+   longer than nginx lets a browser request run. If the button times out,
+   run it on the server instead (works from PowerShell as-is):
+
+   ```bash
+   ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147 "cd /opt/procomsolutions/app && node server/smd-autolist-cli.js"
+   ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147 "cd /opt/procomsolutions/app && node server/smd-autolist-cli.js --apply"
+   ```
+
+   The first is a dry run (nothing changes); `--apply` saves a database
+   backup to `data/backups/pre-autolist-*.db`, then lists.
 3. Monthly: upload the new lists. Costs update, auto-priced products
    reprice, and discontinued items go out of stock.
 
