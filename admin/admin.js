@@ -891,7 +891,7 @@ routes.categories = async () => {
           <button class="btn small" data-edit="${h(c.id)}">Edit</button>
         </div>`).join('') || '<p class="empty">No categories yet.</p>'}
       </div>
-      <div class="panel" id="cat-editor"><p class="muted">Select a category to edit, or add a new one. Markup set here applies to every auto-priced product inside it (and its sub-categories) unless the product overrides it. Site default: ${cfg.defaultMarkupPct}%.</p></div>
+      <div class="panel sticky-panel" id="cat-editor"><p class="muted">Select a category to edit, or add a new one. Markup set here applies to every auto-priced product inside it (and its sub-categories) unless the product overrides it. Site default: ${cfg.defaultMarkupPct}%.</p></div>
     </div>`);
 
   const editor = (c) => {
@@ -914,6 +914,10 @@ routes.categories = async () => {
         ${c ? '<p class="mini-help">Deleting moves its products and sub-categories up to the parent.</p>' : ''}
       </form>`,
     );
+    // The tree is long: without this the form opens far above (or, on a
+    // phone, below) the row that was clicked and Edit looks dead.
+    $('#cat-editor', root).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#cform input[name=name]', root).focus({ preventScroll: true });
     $('#cform', root).addEventListener('submit', async (e) => {
       e.preventDefault();
       const body = { ...Object.fromEntries(new FormData(e.target)), active: e.target.active.checked, quoteDelivery: e.target.quoteDelivery.checked };
