@@ -9,3 +9,6 @@ data/uploads/
 *.log
 .playwright-mcp/
 .claude/settings.local.json
+
+# Agent worktrees (local only)
+.claude/worktrees/
