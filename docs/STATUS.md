@@ -8,7 +8,7 @@ _Last updated: 2026-09-28_
 - **Email:** working (Gmail SMTP as procompretoria@gmail.com); test email confirmed 2026-09-25
 - **Admin account:** created by the owner
 - **Live products:** 4,164 (2026-09-28, after the SMD auto-lists; was 1,397)
-- **Deployed:** main @ `d918983` (2026-09-28): full-path category dropdowns in admin, `smd-autolist-cli.js` (auto-list + `--tidy`), `.env*` gitignore. Auto-deploy workflow is in place; the deploy step waits for the `DEPLOY_SSH_KEY` / `DEPLOY_KNOWN_HOSTS` secrets (deploy/DEPLOY.md).
+- **Deployed:** automatically on every merge to `main` via GitHub Actions (`.github/workflows/deploy.yml`) since 2026-09-28 -- first run 36403935284 green (server tests 49/49, health ok, lapanza3d 200). Check the Actions tab for the current live commit.
 
 | Category | Live | Delivery |
 |---|---|---|
@@ -54,6 +54,7 @@ _Last updated: 2026-09-28_
 | 2026-09-27 | Infant Essential: 13 Baby & Toddler sub-categories; Lifree and Loop & Co listed too; default markup; colour variants listed as separate products |
 | 2026-09-27 | Cash Wholesale: category structure approved (4 new top-level categories); items already listed by hand keep their category; Creality tab skipped (listed from the Creality list); SA Filament listed under 3D Printing › Filament; laptops and phones listed; Gaming Chairs & Desks listed with delivery quoted |
 | 2026-09-27 | Phones and Laptops & Tablets: markup pinned at 10% on the category (same as today's default, but stays 10% if the default changes). Heavy Cash Wholesale items (49: soundbars/subwoofers, big party speakers, 24"/27" monitors, projector screens, large TV mounts, racing cockpit, electric scooter) listed with delivery quoted |
+| 2026-09-28 | Automatic deploys: GitHub Actions deploys `main` using a key locked to `deploy-app.sh` (forced command in `~deploy/.ssh/authorized_keys`, comment `github-actions-procom`); secrets DEPLOY_SSH_KEY + DEPLOY_KNOWN_HOSTS set on the repo |
 | 2026-09-28 | Hand-listed products on Gaming, Networking and Smart Home & Lighting (148) moved into the matching sub-categories with `smd-autolist-cli.js --tidy --apply` (backup `pre-autolist-2026-09-28T07-22-28-578Z.db`). The two mispriced TOSLINK cables stay skipped. |
 
 ## Open items / backlog
