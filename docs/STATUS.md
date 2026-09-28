@@ -21,7 +21,7 @@ _Last updated: 2026-09-27_
 | Furniture (Desks & Office Chairs, Tables, Shelving & Storage, Seating & Living) | 186 | quoted |
 | Luggage & Travel (Suitcases, Luggage Sets & Business Trolleys) | 103 | quoted |
 | Health & Beauty (Hair Care, Personal Care & Wellness) | 44 | normal |
-| Baby & Toddler (13 sub-categories) + Toys & Games, Health & Wellness | _pending: run the Infant Essential auto-list after deploy (286 items)_ | normal |
+| Baby & Toddler (13 sub-categories) + Toys & Games › Outdoor & Bubble Toys; Lifree → Health & Beauty › Personal Care & Wellness; Loop & Co → Home & Kitchen › Food Storage & Drinkware | _pending: run the Infant Essential auto-list after deploy (286 items)_ | normal |
 | Cash Wholesale: Audio, Cameras & Photography, TV & Video, Office & School (new) + sub-categories under existing categories | _pending: run the Cash Wholesale auto-list after deploy (up to 2,791 items, minus those already listed)_ | Gaming Chairs & Desks quoted; 49 heavy items quoted per product |
 
 **Suppliers:** SMD (Warehouse), Esquire, IDS, Huge PC, Dicspeed. All imports so far are SMD's
