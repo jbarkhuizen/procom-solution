@@ -6,6 +6,11 @@ import { setHtml } from './dom.js';
 const form = document.getElementById('checkout-form');
 const PREFS_KEY = 'procom-checkout-details';
 let options = [];
+let site = {};
+
+// "Customer picks" options in the Collection group (mirrors server/shipping.js).
+const isCollection = (o) => Boolean(o && o.optionType === 'fixed' && /^collect/i.test(o.category));
+const QUOTE = 'quote'; // radio value for "delivery quoted after order" on large-item carts
 
 function notice(message, tone = 'warn') {
   const el = document.getElementById('notice');
@@ -23,24 +28,27 @@ function selectedOption() {
 }
 
 // Courier brackets collapse into the single one matching the cart weight;
-// named options (PUDO, Local) are listed for the customer to choose.
+// named options (Collection) are listed for the customer to choose.
+const optionHtml = (value, name, price, prev, note = '') => `<label class="ship-option"><input type="radio" name="shippingOptionId" value="${esc(value)}" ${value === prev ? 'checked' : ''} required>
+  <span class="flex-1"><span class="block text-sm font-semibold leading-snug">${esc(name)}</span><span class="block text-sm text-terracotta font-semibold mt-0.5">${esc(price)}</span>${note ? `<span class="block text-xs text-espresso/65 mt-1 leading-relaxed">${note}</span>` : ''}</span></label>`;
+
 function renderShipping() {
   const weight = cartWeight();
   document.getElementById('weight').textContent = formatKg(weight);
+  const prev = form.querySelector('input[name="shippingOptionId"]:checked')?.value;
   if (cartNeedsDeliveryQuote()) {
-    // Large items: no courier choice here -- delivery is quoted after the order
-    // (the server enforces this too, whatever is submitted).
+    // Large items: collect for free, or have delivery quoted after the order
+    // (the server decides which from the option sent, never from the client's price).
     const big = getCart().filter((i) => i.quoteDelivery).map((i) => esc(i.name));
+    const bigList = `${big.slice(0, 3).join(', ')}${big.length > 3 ? '…' : ''}`;
     setHtml(
       document.getElementById('ship-options'),
-      `<div class="rounded-sm border-2 border-terracotta bg-linen/60 p-4 text-sm leading-relaxed">
-        <p class="font-semibold mb-1">Delivery will be quoted after your order</p>
-        <p class="text-espresso/75">Your cart includes large items (${big.slice(0, 3).join(', ')}${big.length > 3 ? '…' : ''}), so the whole order ships together by courier. Pay for the products now; we'll send you the delivery cost to your address within 1 business day, before anything ships.</p>
-      </div>`,
+      `<div><p class="form-label mb-2">Your cart includes large items (${bigList})</p><div class="grid sm:grid-cols-2 gap-3">${[
+        ...options.filter(isCollection).map((o) => optionHtml(o.id, o.name, formatRand(o.priceCents), prev)),
+        optionHtml(QUOTE, 'Delivery quoted after order', 'Quoted separately', prev, "Pay for the products now; we'll send you the courier cost to your address within 1 business day, before anything ships."),
+      ].join('')}</div></div>`,
     );
-    document.getElementById('pudo-fields').classList.add('hidden');
-    document.getElementById('address-fields').classList.remove('hidden');
-    renderSummary();
+    syncDeliveryFields();
     return;
   }
   const groups = new Map();
@@ -49,29 +57,37 @@ function renderShipping() {
     if (!groups.has(o.category)) groups.set(o.category, []);
     groups.get(o.category).push(o);
   }
-  const prev = selectedOption()?.id;
   setHtml(
     document.getElementById('ship-options'),
     [...groups.entries()]
-      .map(
-        ([cat, opts]) => `<div><p class="form-label mb-2">${esc(cat)}</p><div class="grid sm:grid-cols-2 gap-3">${opts
-          .map(
-            (o) => `<label class="ship-option"><input type="radio" name="shippingOptionId" value="${esc(o.id)}" ${o.id === prev ? 'checked' : ''} required>
-            <span class="flex-1"><span class="block text-sm font-semibold leading-snug">${esc(o.name)}</span><span class="block text-sm text-terracotta font-semibold mt-0.5">${formatRand(o.priceCents)}</span></span></label>`,
-          )
-          .join('')}</div></div>`,
-      )
+      .map(([cat, opts]) => `<div><p class="form-label mb-2">${esc(cat)}</p><div class="grid sm:grid-cols-2 gap-3">${opts.map((o) => optionHtml(o.id, o.name, formatRand(o.priceCents), prev)).join('')}</div></div>`)
       .join('') || '<p class="text-sm text-terracotta">No delivery option covers this order weight — please WhatsApp us and we will arrange delivery.</p>',
   );
   syncDeliveryFields();
 }
 
+// The map loads only once collection is chosen (Google sees nothing before that).
+function showCollectMap() {
+  const box = document.getElementById('collect-map');
+  if (box.firstChild || !site.collectionAddress) return;
+  const f = document.createElement('iframe');
+  f.src = `https://maps.google.com/maps?q=${encodeURIComponent(site.collectionAddress)}&z=15&output=embed`;
+  f.title = 'Map of the collection address';
+  f.loading = 'lazy';
+  f.referrerPolicy = 'no-referrer-when-downgrade';
+  f.className = 'w-full h-full border-0';
+  box.appendChild(f);
+}
+
 function syncDeliveryFields() {
   const o = selectedOption();
+  const collect = isCollection(o);
   const isPudo = Boolean(o && o.optionType === 'fixed' && /pudo/i.test(o.category));
   const toDoor = Boolean(o && /door/i.test(o.name));
   document.getElementById('pudo-fields').classList.toggle('hidden', !isPudo);
-  document.getElementById('address-fields').classList.toggle('hidden', isPudo && !toDoor);
+  document.getElementById('address-fields').classList.toggle('hidden', collect || (isPudo && !toDoor));
+  document.getElementById('collect-info').classList.toggle('hidden', !collect);
+  if (collect) showCollectMap();
   renderSummary();
 }
 
@@ -88,10 +104,11 @@ function renderSummary() {
       .join(''),
   );
   const sub = cartSubtotal();
-  const quote = cartNeedsDeliveryQuote();
-  const ship = quote ? null : selectedOption();
+  const ship = selectedOption();
+  const quote = cartNeedsDeliveryQuote() && !isCollection(ship);
+  const chose = form.querySelector('input[name="shippingOptionId"]:checked');
   document.getElementById('sum-subtotal').textContent = formatRand(sub);
-  document.getElementById('sum-shipping').textContent = quote ? 'Quoted after order' : ship ? formatRand(ship.priceCents) : 'Choose an option';
+  document.getElementById('sum-shipping').textContent = !chose ? 'Choose an option' : isCollection(ship) ? 'Free — collect' : quote ? 'Quoted after order' : formatRand(ship.priceCents);
   document.getElementById('sum-total').textContent = formatRand(sub + (ship?.priceCents || 0));
 }
 
@@ -139,7 +156,7 @@ form.addEventListener('submit', async (e) => {
   document.getElementById('form-error').classList.add('hidden');
   const fd = new FormData(form);
   if (!fd.get('terms')) return showError('Please accept the Terms & Conditions to continue.');
-  if (!cartNeedsDeliveryQuote() && !fd.get('shippingOptionId')) return showError('Please choose a delivery option.');
+  if (!fd.get('shippingOptionId')) return showError('Please choose a delivery or collection option.');
   const customer = Object.fromEntries(['firstName', 'lastName', 'email', 'phone', 'addressLine1', 'addressLine2', 'suburb', 'city', 'province', 'postalCode', 'pudoLocker'].map((k) => [k, String(fd.get(k) || '').trim()]));
   const btn = document.getElementById('pay-btn');
   btn.disabled = true;
@@ -150,7 +167,7 @@ form.addEventListener('submit', async (e) => {
       body: {
         customer,
         notes: fd.get('notes'),
-        shippingOptionId: fd.get('shippingOptionId'),
+        shippingOptionId: fd.get('shippingOptionId') === QUOTE ? '' : fd.get('shippingOptionId'),
         paymentMethod: fd.get('paymentMethod'),
         items: getCart().map((i) => ({ productId: i.productId, quantity: i.quantity })),
       },
@@ -175,7 +192,11 @@ async function init() {
     return;
   }
   restoreDetails();
-  options = await api('/api/shipping-options');
+  [options, site] = await Promise.all([api('/api/shipping-options'), api('/api/site').catch(() => ({}))]);
+  document.getElementById('collect-address').textContent = site.collectionAddress || '';
+  document.getElementById('collect-hours').textContent = site.collectionHours || '';
+  document.getElementById('collect-lead').textContent = site.collectionLeadText || 'typically 2–3 business days after payment';
+  document.getElementById('collect-map-link').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.collectionAddress || '')}`;
   renderShipping();
   window.addEventListener('cart:updated', () => {
     if (!getCart().length) location.reload();

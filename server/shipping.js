@@ -19,6 +19,11 @@ function row(r) {
   };
 }
 
+// "Customer picks" options in the Collection group: no delivery address needed.
+export function isCollectionOption(o) {
+  return Boolean(o && o.optionType === 'fixed' && /^collect/i.test(o.category));
+}
+
 export function listShippingOptions({ activeOnly = false } = {}, db = getDb()) {
   return db
     .prepare(`SELECT * FROM shipping_options ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY category, sort_order, price_cents`)

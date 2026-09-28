@@ -261,9 +261,15 @@ admin.get('/orders/:id', wrap((req) => {
   const o = orNotFound(orders.getOrder(req.params.id));
   return { ...o, supplierSheets: orders.supplierOrderSheet(o) };
 }));
+admin.post('/orders/:id/collection-ready', wrap((req) => {
+  const o = orNotFound(orders.markCollectionReady(req.params.id, req.admin.username));
+  mailer.sendCollectionReady(o);
+  return { ...o, supplierSheets: orders.supplierOrderSheet(o) };
+}));
 admin.put('/orders/:id', wrap((req) => {
   const result = orNotFound(orders.updateOrder(req.params.id, req.body || {}, req.admin.username));
-  if (result.statusChangedTo === 'shipped' && req.body.notifyCustomer !== false) {
+  // Collection orders get the "ready for collection" email instead (below).
+  if (result.statusChangedTo === 'shipped' && req.body.notifyCustomer !== false && !result.order.collection) {
     mailer.sendShippedNotice(result.order);
     orders.logOrderEvent(result.order.id, 'Shipping notification emailed to customer', req.admin.username);
   }
