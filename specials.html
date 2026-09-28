@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Specials — Procom Solutions</title>
+<meta name="description" content="Current specials and sale prices at Procom Solutions. Nationwide delivery.">
+<link rel="canonical" href="https://www.procomsolutions.co.za/specials.html">
+<meta property="og:title" content="Specials — Procom Solutions">
+<meta property="og:type" content="website">
+<!-- @include head -->
+<script type="module" src="/src/js/specials.js"></script>
+</head>
+<body class="font-sans antialiased" data-page="specials">
+<!-- @include shell-top -->
+
+<main id="main" class="flex-1 px-5 sm:px-8 lg:px-12 py-6 md:py-8">
+  <div class="mx-auto w-full max-w-7xl">
+    <nav class="text-xs text-espresso/50 mb-2" aria-label="Breadcrumb"><a href="/" class="hover:text-terracotta">Home</a> / <span class="text-espresso/80">Specials</span></nav>
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-5 border-b border-charcoal/10 pb-3">
+      <h1 class="font-serif text-3xl md:text-[2.4rem] tracking-tight leading-tight">Specials</h1>
+      <p class="text-sm text-espresso/60" id="result-count" aria-live="polite"></p>
+    </div>
+    <div id="grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
+    <nav id="pager" class="pager flex flex-wrap justify-center gap-1.5 mt-8" aria-label="Pages"></nav>
+  </div>
+</main>
+
+<!-- @include shell-bottom -->
+</body>
+</html>
