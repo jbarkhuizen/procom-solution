@@ -1,16 +1,11 @@
 import './site.js';
 import { api, esc, formatRand } from './api.js';
-import { getCart, cartSubtotal, cartWeight, refreshCart, cartNeedsDeliveryQuote } from './cart.js';
+import { getCart, cartSubtotal, cartWeight, refreshCart } from './cart.js';
 import { setHtml } from './dom.js';
 
 const form = document.getElementById('checkout-form');
 const PREFS_KEY = 'procom-checkout-details';
-let options = [];
-let site = {};
-
-// "Customer picks" options in the Collection group (mirrors server/shipping.js).
-const isCollection = (o) => Boolean(o && o.optionType === 'fixed' && /^collect/i.test(o.category));
-const QUOTE = 'quote'; // radio value for "delivery quoted after order" on large-item carts
+let plan = []; // one group per supplier shipment, from /api/checkout/delivery
 
 function notice(message, tone = 'warn') {
   const el = document.getElementById('notice');
@@ -22,72 +17,87 @@ function formatKg(g) {
   return g >= 1000 ? `${(g / 1000).toFixed(g % 1000 ? 1 : 0)} kg` : `${g} g`;
 }
 
-function selectedOption() {
-  const id = form.querySelector('input[name="shippingOptionId"]:checked')?.value;
-  return options.find((o) => o.id === id) || null;
+// The chosen option of each shipment (null until picked).
+function chosen(g) {
+  const id = form.querySelector(`input[name="ship-${CSS.escape(g.key)}"]:checked`)?.value;
+  return g.options.find((o) => o.id === id) || null;
 }
 
-// Courier brackets collapse into the single one matching the cart weight;
-// named options (Collection) are listed for the customer to choose.
-const optionHtml = (value, name, price, prev, note = '') => `<label class="ship-option"><input type="radio" name="shippingOptionId" value="${esc(value)}" ${value === prev ? 'checked' : ''} required>
-  <span class="flex-1"><span class="block text-sm font-semibold leading-snug">${esc(name)}</span><span class="block text-sm text-terracotta font-semibold mt-0.5">${esc(price)}</span>${note ? `<span class="block text-xs text-espresso/65 mt-1 leading-relaxed">${note}</span>` : ''}</span></label>`;
+const optionHtml = (g, o, prev) => {
+  const price = o.method === 'quote' ? 'Quoted separately' : o.priceCents ? formatRand(o.priceCents) : 'Free';
+  const note =
+    o.method === 'quote' ? "Pay for the products now; we'll send you the courier cost to your address within 1 business day, before anything ships."
+    : o.method === 'courier' && o.priceCents ? 'Free delivery on larger orders from this warehouse.'
+    : '';
+  return `<label class="ship-option"><input type="radio" name="ship-${esc(g.key)}" value="${esc(o.id)}" ${o.id === prev ? 'checked' : ''} required>
+  <span class="flex-1"><span class="block text-sm font-semibold leading-snug">${esc(o.name)}</span><span class="block text-sm text-terracotta font-semibold mt-0.5">${esc(price)}</span>${note ? `<span class="block text-xs text-espresso/65 mt-1 leading-relaxed">${esc(note)}</span>` : ''}</span></label>`;
+};
+
+// Where and how to collect -- only rendered once Collect is chosen for that shipment.
+const collectHtml = (c) => `<div class="mt-3 rounded-sm border-2 border-charcoal bg-linen/60 p-4 text-sm leading-relaxed">
+  <p class="text-espresso/75 mb-3">We'll email you a <strong>collection notice</strong> when your order is ready — ${esc(c.leadText)}. Please wait for it before you go.</p>
+  <p><span class="font-semibold">Address:</span> ${esc(c.address)}</p>
+  ${c.hours ? `<p><span class="font-semibold">Hours:</span> ${esc(c.hours)}</p>` : ''}
+  ${c.requirements ? `<p class="mt-1"><span class="font-semibold">Bring:</span> ${esc(c.requirements)}</p>` : ''}
+  <div class="collect-map mt-3 aspect-[4/3] sm:aspect-[16/9] w-full rounded-sm overflow-hidden border border-charcoal/15 bg-white" data-address="${esc(c.address)}"></div>
+  <a class="inline-block mt-2 underline hover:text-terracotta" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(c.address)}">Open in Google Maps</a>
+</div>`;
 
 function renderShipping() {
-  const weight = cartWeight();
-  document.getElementById('weight').textContent = formatKg(weight);
-  const prev = form.querySelector('input[name="shippingOptionId"]:checked')?.value;
-  if (cartNeedsDeliveryQuote()) {
-    // Large items: collect for free, or have delivery quoted after the order
-    // (the server decides which from the option sent, never from the client's price).
-    const big = getCart().filter((i) => i.quoteDelivery).map((i) => esc(i.name));
-    const bigList = `${big.slice(0, 3).join(', ')}${big.length > 3 ? '…' : ''}`;
-    setHtml(
-      document.getElementById('ship-options'),
-      `<div><p class="form-label mb-2">Your cart includes large items (${bigList})</p><div class="grid sm:grid-cols-2 gap-3">${[
-        ...options.filter(isCollection).map((o) => optionHtml(o.id, o.name, formatRand(o.priceCents), prev)),
-        optionHtml(QUOTE, 'Delivery quoted after order', 'Quoted separately', prev, "Pay for the products now; we'll send you the courier cost to your address within 1 business day, before anything ships."),
-      ].join('')}</div></div>`,
-    );
-    syncDeliveryFields();
-    return;
-  }
-  const groups = new Map();
-  for (const o of options) {
-    if (o.optionType === 'auto_weight' && (weight < o.minWeight || (o.maxWeight != null && weight > o.maxWeight))) continue;
-    if (!groups.has(o.category)) groups.set(o.category, []);
-    groups.get(o.category).push(o);
-  }
+  document.getElementById('weight').textContent = formatKg(cartWeight());
+  const prev = Object.fromEntries(plan.map((g) => [g.key, chosen(g)?.id]));
+  const many = plan.length > 1;
   setHtml(
     document.getElementById('ship-options'),
-    [...groups.entries()]
-      .map(([cat, opts]) => `<div><p class="form-label mb-2">${esc(cat)}</p><div class="grid sm:grid-cols-2 gap-3">${opts.map((o) => optionHtml(o.id, o.name, formatRand(o.priceCents), prev)).join('')}</div></div>`)
-      .join('') || '<p class="text-sm text-terracotta">No delivery option covers this order weight — please WhatsApp us and we will arrange delivery.</p>',
+    plan
+      .map((g) => {
+        const pick = prev[g.key] || (g.options.length === 1 ? g.options[0].id : undefined);
+        return `<div data-group="${esc(g.key)}">
+        ${many ? `<p class="form-label mb-1">${esc(g.heading)}</p><p class="text-xs text-espresso/60 mb-2">${g.items.map((i) => `${Number(i.quantity)} × ${esc(i.name)}`).join(' · ')}</p>` : ''}
+        ${g.largeItems.length ? `<p class="text-xs text-espresso/70 mb-2">Includes large items (${g.largeItems.slice(0, 3).map(esc).join(', ')}${g.largeItems.length > 3 ? '…' : ''}).</p>` : ''}
+        ${g.options.length ? `<div class="grid sm:grid-cols-2 gap-3">${g.options.map((o) => optionHtml(g, o, pick)).join('')}</div>` : '<p class="text-sm text-terracotta">No delivery option covers this order weight — please WhatsApp us and we will arrange delivery.</p>'}
+        <div class="collect-slot"></div>
+      </div>`;
+      })
+      .join('') || '<p class="text-sm text-espresso/60">Loading delivery options…</p>',
   );
   syncDeliveryFields();
 }
 
 // The map loads only once collection is chosen (Google sees nothing before that).
-function showCollectMap() {
-  const box = document.getElementById('collect-map');
-  if (box.firstChild || !site.collectionAddress) return;
-  const f = document.createElement('iframe');
-  f.src = `https://maps.google.com/maps?q=${encodeURIComponent(site.collectionAddress)}&z=15&output=embed`;
-  f.title = 'Map of the collection address';
-  f.loading = 'lazy';
-  f.referrerPolicy = 'no-referrer-when-downgrade';
-  f.className = 'w-full h-full border-0';
-  box.appendChild(f);
+function showMaps() {
+  for (const box of document.querySelectorAll('.collect-map')) {
+    if (box.firstChild) continue;
+    const f = document.createElement('iframe');
+    f.src = `https://maps.google.com/maps?q=${encodeURIComponent(box.dataset.address)}&z=15&output=embed`;
+    f.title = 'Map of the collection address';
+    f.loading = 'lazy';
+    f.referrerPolicy = 'no-referrer-when-downgrade';
+    f.className = 'w-full h-full border-0';
+    box.appendChild(f);
+  }
 }
 
 function syncDeliveryFields() {
-  const o = selectedOption();
-  const collect = isCollection(o);
-  const isPudo = Boolean(o && o.optionType === 'fixed' && /pudo/i.test(o.category));
-  const toDoor = Boolean(o && /door/i.test(o.name));
-  document.getElementById('pudo-fields').classList.toggle('hidden', !isPudo);
-  document.getElementById('address-fields').classList.toggle('hidden', collect || (isPudo && !toDoor));
-  document.getElementById('collect-info').classList.toggle('hidden', !collect);
-  if (collect) showCollectMap();
+  let needsAddress = false;
+  let pudo = false;
+  let toDoor = false;
+  for (const g of plan) {
+    const o = chosen(g);
+    const slot = document.querySelector(`[data-group="${CSS.escape(g.key)}"] .collect-slot`);
+    const isCollect = o?.method === 'collect';
+    if (slot && isCollect !== Boolean(slot.firstChild)) setHtml(slot, isCollect ? collectHtml(o.collection) : '');
+    if (!o || o.method === 'courier' || o.method === 'quote') needsAddress = true;
+    if (o?.method === 'store') {
+      const isPudo = /pudo/i.test(o.category || '');
+      pudo ||= isPudo;
+      toDoor ||= isPudo && /door/i.test(o.name);
+      if (!isPudo) needsAddress = true;
+    }
+  }
+  document.getElementById('pudo-fields').classList.toggle('hidden', !pudo);
+  document.getElementById('address-fields').classList.toggle('hidden', !(needsAddress || toDoor));
+  showMaps();
   renderSummary();
 }
 
@@ -104,12 +114,14 @@ function renderSummary() {
       .join(''),
   );
   const sub = cartSubtotal();
-  const ship = selectedOption();
-  const quote = cartNeedsDeliveryQuote() && !isCollection(ship);
-  const chose = form.querySelector('input[name="shippingOptionId"]:checked');
+  const picks = plan.map(chosen);
+  const fee = picks.reduce((t, o) => t + (o?.priceCents || 0), 0);
+  const quote = picks.some((o) => o?.method === 'quote');
+  const allCollect = picks.length && picks.every((o) => o?.method === 'collect');
   document.getElementById('sum-subtotal').textContent = formatRand(sub);
-  document.getElementById('sum-shipping').textContent = !chose ? 'Choose an option' : isCollection(ship) ? 'Free — collect' : quote ? 'Quoted after order' : formatRand(ship.priceCents);
-  document.getElementById('sum-total').textContent = formatRand(sub + (ship?.priceCents || 0));
+  document.getElementById('sum-shipping').textContent =
+    !plan.length || picks.some((o) => !o) ? 'Choose an option' : allCollect ? 'Free — collect' : quote ? `${fee ? `${formatRand(fee)} + ` : ''}quoted after order` : fee ? formatRand(fee) : 'Free';
+  document.getElementById('sum-total').textContent = formatRand(sub + fee);
 }
 
 function restoreDetails() {
@@ -148,15 +160,20 @@ function submitToPayfast({ actionUrl, fields }) {
 }
 
 form.addEventListener('change', (e) => {
-  if (e.target.name === 'shippingOptionId') syncDeliveryFields();
+  if (e.target.name?.startsWith('ship-')) syncDeliveryFields();
 });
+
+async function loadPlan() {
+  plan = await api('/api/checkout/delivery', { method: 'POST', body: { items: getCart().map((i) => ({ productId: i.productId, quantity: i.quantity })) } }).catch(() => []);
+  renderShipping();
+}
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   document.getElementById('form-error').classList.add('hidden');
   const fd = new FormData(form);
   if (!fd.get('terms')) return showError('Please accept the Terms & Conditions to continue.');
-  if (!fd.get('shippingOptionId')) return showError('Please choose a delivery or collection option.');
+  if (!plan.length || plan.some((g) => !chosen(g))) return showError(plan.length > 1 ? 'Please choose delivery or collection for each warehouse.' : 'Please choose a delivery or collection option.');
   const customer = Object.fromEntries(['firstName', 'lastName', 'email', 'phone', 'addressLine1', 'addressLine2', 'suburb', 'city', 'province', 'postalCode', 'pudoLocker'].map((k) => [k, String(fd.get(k) || '').trim()]));
   const btn = document.getElementById('pay-btn');
   btn.disabled = true;
@@ -167,7 +184,7 @@ form.addEventListener('submit', async (e) => {
       body: {
         customer,
         notes: fd.get('notes'),
-        shippingOptionId: fd.get('shippingOptionId') === QUOTE ? '' : fd.get('shippingOptionId'),
+        delivery: Object.fromEntries(plan.map((g) => [g.key, chosen(g).id])),
         paymentMethod: fd.get('paymentMethod'),
         items: getCart().map((i) => ({ productId: i.productId, quantity: i.quantity })),
       },
@@ -192,15 +209,10 @@ async function init() {
     return;
   }
   restoreDetails();
-  [options, site] = await Promise.all([api('/api/shipping-options'), api('/api/site').catch(() => ({}))]);
-  document.getElementById('collect-address').textContent = site.collectionAddress || '';
-  document.getElementById('collect-hours').textContent = site.collectionHours || '';
-  document.getElementById('collect-lead').textContent = site.collectionLeadText || 'typically 2–3 business days after payment';
-  document.getElementById('collect-map-link').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.collectionAddress || '')}`;
-  renderShipping();
+  await loadPlan();
   window.addEventListener('cart:updated', () => {
     if (!getCart().length) location.reload();
-    renderShipping();
+    loadPlan();
   });
 }
 

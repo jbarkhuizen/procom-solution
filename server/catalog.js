@@ -170,7 +170,8 @@ export function deleteCategory(id, db = getDb()) {
 
 function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set() } = {}) {
   if (!r) return null;
-  const quoteDelivery = needsDeliveryQuote(r, quoteSet);
+  // Flat-fee suppliers (e.g. SMD) deliver everything for their one fee: no quotes.
+  const quoteDelivery = r.supplier_delivery_mode !== 'flat' && needsDeliveryQuote(r, quoteSet);
   const images = parseJsonArray(r.images);
   const inStock = r.fulfilment === 'stock' ? r.stock_qty > 0 : Boolean(r.supplier_in_stock);
   const base = {
@@ -217,7 +218,7 @@ function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set(
 }
 
 const PRODUCT_SELECT = `
-  SELECT p.*, c.name AS category_name, c.slug AS category_slug, s.name AS supplier_name, s.lead_time_text
+  SELECT p.*, c.name AS category_name, c.slug AS category_slug, s.name AS supplier_name, s.lead_time_text, s.delivery_mode AS supplier_delivery_mode
   FROM products p
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN suppliers s ON s.id = p.supplier_id`;
@@ -491,27 +492,48 @@ export function bulkUpdateProducts({ ids, action, value }, db = getDb()) {
 
 // ----------------------------------------------------------------- suppliers
 
+function rowToSupplier(s) {
+  return {
+    id: s.id,
+    name: s.name,
+    contactName: s.contact_name,
+    email: s.email,
+    phone: s.phone,
+    leadTimeText: s.lead_time_text,
+    notes: s.notes,
+    productCount: s.product_count,
+    feedCount: s.feed_count,
+    deliveryMode: s.delivery_mode === 'flat' ? 'flat' : 'store',
+    deliveryFeeCents: s.delivery_fee_cents || 0,
+    freeOverCostCents: s.free_over_cost_cents ?? null,
+    publicLabel: s.public_label || '',
+    collectionEnabled: Boolean(s.collection_enabled),
+    collectionAddress: s.collection_address || '',
+    collectionHours: s.collection_hours || '',
+    collectionRequirements: s.collection_requirements || '',
+    collectionLeadText: s.collection_lead_text || '',
+  };
+}
+
 export function listSuppliers(db = getDb()) {
   return db
     .prepare(`SELECT s.*, (SELECT COUNT(*) FROM products p WHERE p.supplier_id = s.id) AS product_count,
       (SELECT COUNT(*) FROM feed_items f WHERE f.supplier_id = s.id) AS feed_count FROM suppliers s ORDER BY s.name`)
     .all()
-    .map((s) => ({
-      id: s.id,
-      name: s.name,
-      contactName: s.contact_name,
-      email: s.email,
-      phone: s.phone,
-      leadTimeText: s.lead_time_text,
-      notes: s.notes,
-      productCount: s.product_count,
-      feedCount: s.feed_count,
-    }));
+    .map(rowToSupplier);
 }
 
+const randToCents = (v) => (v === '' || v == null ? null : Math.round(Number(v) * 100));
+
+// Fields left out of `data` keep their current value (the delivery fields were
+// added later, so older callers don't wipe them).
 export function saveSupplier(data, id = null, db = getDb()) {
   const name = String(data.name || '').trim();
   if (!name) throw new Error('Supplier name is required');
+  const cur = id ? db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id) : null;
+  if (id && !cur) return null;
+  const pick = (key, col, map = (v) => String(v ?? '')) => (data[key] !== undefined ? map(data[key]) : cur ? cur[col] : map(undefined));
+  const bool = (v) => (v === true || v === 1 || v === '1' || v === 'on' ? 1 : 0);
   const f = {
     name,
     contact_name: String(data.contactName || ''),
@@ -519,14 +541,24 @@ export function saveSupplier(data, id = null, db = getDb()) {
     phone: String(data.phone || ''),
     lead_time_text: String(data.leadTimeText || 'Ships from our warehouse in 2-5 business days'),
     notes: String(data.notes || ''),
+    delivery_mode: pick('deliveryMode', 'delivery_mode', (v) => (v === 'flat' ? 'flat' : 'store')),
+    delivery_fee_cents: pick('deliveryFee', 'delivery_fee_cents', (v) => Math.max(0, randToCents(v) || 0)),
+    free_over_cost_cents: pick('freeOverCost', 'free_over_cost_cents', (v) => (randToCents(v) == null ? null : Math.max(0, randToCents(v)))),
+    public_label: pick('publicLabel', 'public_label'),
+    collection_enabled: pick('collectionEnabled', 'collection_enabled', bool),
+    collection_address: pick('collectionAddress', 'collection_address'),
+    collection_hours: pick('collectionHours', 'collection_hours'),
+    collection_requirements: pick('collectionRequirements', 'collection_requirements'),
+    collection_lead_text: pick('collectionLeadText', 'collection_lead_text'),
     updated_at: now(),
   };
+  if (f.collection_enabled && !String(f.collection_address).trim()) throw new Error('Enter the collection address, or switch collection off');
+  const cols = Object.keys(f).filter((k) => k !== 'updated_at');
   if (id) {
-    if (!db.prepare(`UPDATE suppliers SET name=@name, contact_name=@contact_name, email=@email, phone=@phone, lead_time_text=@lead_time_text, notes=@notes, updated_at=@updated_at WHERE id=@id`).run({ ...f, id }).changes) return null;
+    db.prepare(`UPDATE suppliers SET ${cols.map((k) => `${k}=@${k}`).join(', ')}, updated_at=@updated_at WHERE id=@id`).run({ ...f, id });
   } else {
     id = randomUUID();
-    db.prepare(`INSERT INTO suppliers (id, name, contact_name, email, phone, lead_time_text, notes, created_at, updated_at)
-      VALUES (@id, @name, @contact_name, @email, @phone, @lead_time_text, @notes, @updated_at, @updated_at)`).run({ ...f, id });
+    db.prepare(`INSERT INTO suppliers (id, ${cols.join(', ')}, created_at, updated_at) VALUES (@id, ${cols.map((k) => '@' + k).join(', ')}, @updated_at, @updated_at)`).run({ ...f, id });
   }
   return listSuppliers(db).find((s) => s.id === id);
 }

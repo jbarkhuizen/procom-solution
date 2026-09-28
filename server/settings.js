@@ -46,8 +46,5 @@ export function publicSettings(db = getDb()) {
     vatRegistered: s.vatRegistered,
     vatNumber: s.vatRegistered ? s.vatNumber : '',
     legalEntity: s.legalEntity,
-    collectionAddress: s.collectionAddress,
-    collectionHours: s.collectionHours,
-    collectionLeadText: s.collectionLeadText,
   };
 }

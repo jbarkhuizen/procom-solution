@@ -147,7 +147,7 @@ test('unpaid orders cannot be moved into fulfilment', () => {
 test('supplier sheet lists supplier codes and ships to the customer', () => {
   const sup = db.prepare('SELECT id FROM suppliers').get().id;
   const p = product({ supplierId: sup, supplierCode: 'AM-10001-BK' });
-  const o = orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: p.id, quantity: 1 }] });
+  const o = orders.createOrder({ customer, delivery: { [sup]: 'courier' }, items: [{ productId: p.id, quantity: 1 }] });
   const [sheet] = orders.supplierOrderSheet(orders.getOrder(o.id));
   assert.match(sheet.text, /1 x AM-10001-BK/);
   assert.match(sheet.text, /1 Main Rd/);
@@ -182,26 +182,47 @@ test('checkout with a large item: delivery R0, order flagged, client shipping ch
   assert.equal(orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: small.id, quantity: 1 }] }).deliveryQuote, false);
 });
 
-test('warehouse collection: free, no address, beats the delivery quote, ready only once paid', () => {
-  const collect = db.prepare("SELECT id FROM shipping_options WHERE category = 'Collection'").get().id;
-  const big = product({ name: 'K2 Printer', sku: 'K2', weightG: 1000, quoteDelivery: '1' });
-  const small = product({ name: 'Cable', sku: 'CB', weightG: 100 });
+test('SMD delivery: R150 courier, free from R5,000 supplier cost incl VAT, covers large items', () => {
+  const smd = db.prepare("SELECT id FROM suppliers WHERE name LIKE 'SMD%'").get().id;
+  const chair = product({ name: 'Chair', sku: 'CH1', supplierId: smd, costCents: 100000, quoteDelivery: '1' }); // R1,000 cost
+  const buy = (qty, choice, cust = customer) => orders.createOrder({ customer: cust, delivery: { [smd]: choice }, items: [{ productId: chair.id, quantity: qty }] });
+  const small = buy(1, 'courier');
+  assert.equal(small.shippingCents, 15000);
+  assert.equal(small.deliveryQuote, false); // flat-fee suppliers never quote
+  assert.equal(buy(4, 'courier').shippingCents, 15000); // SMD invoice 4 x R1,000 x 1.15 = R4,600
+  assert.equal(buy(5, 'courier').shippingCents, 0); // R5,750 incl VAT: free
+});
+
+test('warehouse collection: free, no address, collection notice only once paid', () => {
+  const smd = db.prepare("SELECT id FROM suppliers WHERE name LIKE 'SMD%'").get().id;
+  const cable = product({ name: 'Cable', sku: 'CB', supplierId: smd, weightG: 100 });
   const noAddr = { firstName: 'Ann', lastName: 'Lee', email: 'ann@example.com', phone: '0821234567' };
-  const o = orders.createOrder({ customer: noAddr, shippingOptionId: collect, items: [{ productId: big.id, quantity: 1 }, { productId: small.id, quantity: 1 }] });
+  const o = orders.createOrder({ customer: noAddr, delivery: { [smd]: 'collect' }, items: [{ productId: cable.id, quantity: 1 }] });
   assert.equal(o.collection, true);
-  assert.equal(o.deliveryQuote, false);
   assert.equal(o.shippingCents, 0);
+  assert.match(o.shipments[0].collection.hours, /09:00/);
   assert.match(orders.supplierOrderSheet(o)[0].text, /COLLECT/);
-  assert.doesNotMatch(orders.supplierOrderSheet(o)[0].text, /deliver directly/);
   assert.throws(() => orders.markCollectionReady(o.id), /not been paid/);
   orders.markOrderPaid(o.id);
-  assert.ok(orders.markCollectionReady(o.id).collectionReadyAt);
-  // Courier orders can't be marked ready for collection; a switched-off collection option isn't honoured.
-  const courier = orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: small.id, quantity: 1 }] });
-  assert.equal(courier.collection, false);
-  assert.throws(() => orders.markCollectionReady(courier.id), /not for collection/);
-  db.prepare('UPDATE shipping_options SET active = 0 WHERE id = ?').run(collect);
-  assert.throws(() => orders.createOrder({ customer: noAddr, shippingOptionId: collect, items: [{ productId: small.id, quantity: 1 }] }));
+  const { order, shipment } = orders.markCollectionReady(o.id);
+  assert.ok(order.collectionReadyAt && shipment.readyAt);
+  // Courier needs an address; an order with nothing to collect can't be marked ready.
+  assert.throws(() => orders.createOrder({ customer: noAddr, delivery: { [smd]: 'courier' }, items: [{ productId: cable.id, quantity: 1 }] }), /delivery address/);
+  const courier = orders.createOrder({ customer, delivery: { [smd]: 'courier' }, items: [{ productId: cable.id, quantity: 1 }] });
+  assert.throws(() => orders.markCollectionReady(courier.id), /nothing to collect/);
+});
+
+test('mixed cart: one shipment per supplier, fees add up, each choice required', () => {
+  const smd = db.prepare("SELECT id FROM suppliers WHERE name LIKE 'SMD%'").get().id;
+  const esq = catalog.saveSupplier({ name: 'Esquire' }).id; // store-wide options
+  const a = product({ name: 'SMD Cable', sku: 'A1', supplierId: smd, weightG: 100 });
+  const b = product({ name: 'Esq Mouse', sku: 'B1', supplierId: esq, weightG: 500 });
+  const items = [{ productId: a.id, quantity: 1 }, { productId: b.id, quantity: 1 }];
+  assert.throws(() => orders.createOrder({ customer, delivery: { [smd]: 'courier' }, items }), /choose how/);
+  const o = orders.createOrder({ customer, delivery: { [smd]: 'courier', store: courierSmall() }, items });
+  assert.equal(o.shipments.length, 2);
+  assert.equal(o.shippingCents, 15000 + 8000);
+  assert.equal(orders.supplierOrderSheet(o).length, 2);
 });
 
 test('products saved without a SKU in the same instant get distinct codes', () => {
