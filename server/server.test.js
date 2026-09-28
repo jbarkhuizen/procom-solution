@@ -182,6 +182,11 @@ test('checkout with a large item: delivery R0, order flagged, client shipping ch
   assert.equal(orders.createOrder({ customer, shippingOptionId: courierSmall(), items: [{ productId: small.id, quantity: 1 }] }).deliveryQuote, false);
 });
 
+test('products saved without a SKU in the same instant get distinct codes', () => {
+  const skus = Array.from({ length: 5 }, (_, i) => product({ name: `Quick ${i}` }).sku);
+  assert.equal(new Set(skus).size, 5);
+});
+
 test('sitemap lists live products and non-empty categories only', () => {
   const live = product({ name: 'Live Mouse' });
   product({ name: 'Hidden Mouse', active: false });
