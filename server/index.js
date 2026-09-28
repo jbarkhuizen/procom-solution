@@ -149,14 +149,9 @@ app.post('/api/contact', contactLimiter, wrap((req) => {
 }));
 
 app.get('/sitemap.xml', (_req, res) => {
-  const db = getDb();
-  const urls = [
-    '/', '/shop.html', '/contact.html',
-    ...db.prepare('SELECT slug FROM categories WHERE active = 1').all().map((c) => `/shop.html?category=${c.slug}`),
-    ...db.prepare('SELECT slug, updated_at FROM products WHERE active = 1').all().map((p) => `/product.html?p=${p.slug}`),
-  ];
+  const urls = catalog.sitemapEntries();
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
-    .map((u) => `  <url><loc>${escapeHtml(SITE_URL + u)}</loc></url>`)
+    .map((u) => `  <url><loc>${escapeHtml(SITE_URL + u.path)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}</url>`)
     .join('\n')}\n</urlset>`);
 });
 
