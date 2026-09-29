@@ -92,7 +92,7 @@ const ROWS = [
   ['incomeCents', 'Income (money received)'],
   ['cogsCents', 'Cost of goods (incl supplier VAT)'],
   ['deliveryCostCents', 'Delivery cost'],
-  ['payfastFeesCents', 'Payfast fees (estimate)'],
+  ['payfastFeesCents', 'Payfast fees'],
   ['expensesCents', 'Expenses'],
   ['profitCents', 'Profit'],
 ];
@@ -144,7 +144,19 @@ export default function register(routes, kit) {
 
     const overrideRows = overrides.map((o) => `<tr><td><a href="#/orders/${h(encodeURIComponent(o.orderId))}">${h(o.orderNumber)}</a></td><td class="num">${rand(o.deliveryChargedCents)}</td><td class="num">${rand(o.ruleCostCents)}</td><td class="num"><strong>${rand(o.costCents)}</strong></td><td>${h(o.note)}</td><td><button class="btn small" data-override-del="${h(o.orderNumber)}">Remove</button></td></tr>`).join('');
 
-    const feeInput = (m, f, label, rule) => `<label class="field"><span>${h(label)}</span><input type="number" min="0" step="0.01" data-fee="${m}.${f}" value="${h(f === 'pct' ? rule[f] : (rule[f] / 100).toFixed(2))}"></label>`;
+    // Fee on R1,000 incl VAT (when Payfast adds VAT), so methods compare at a glance.
+    const vatF = fees.addVat ? 1 + d.assumptions.vatRatePct / 100 : 1;
+    const on1000 = (m) => ((1000 * m.pct) / 100 + m.fixedCents / 100) * vatF;
+    const rnum = (cents) => (cents / 100).toFixed(2);
+    const methodRows = fees.methods.map((m) => `<tr data-method="${h(m.key)}">
+        <td><input type="checkbox" data-f="enabled" ${m.enabled ? 'checked' : ''} aria-label="${h(m.name)} switched on"></td>
+        <td>${h(m.name)}</td>
+        <td><input type="number" min="0" step="0.01" data-f="fixedCents" value="${h(rnum(m.fixedCents))}" style="width:5.5rem"></td>
+        <td><input type="number" min="0" max="20" step="0.01" data-f="pct" value="${h(m.pct)}" style="width:5rem"></td>
+        <td><input type="number" min="0" step="0.01" data-f="minCents" value="${h(rnum(m.minCents))}" style="width:6rem"></td>
+        <td><input type="number" min="0" step="0.01" data-f="maxCents" value="${h(rnum(m.maxCents))}" style="width:8rem"></td>
+        <td class="num">R${h(on1000(m).toFixed(2))}</td></tr>`).join('');
+    const methodOptions = (sel) => fees.methods.map((m) => `<option value="${h(m.key)}" ${m.key === sel ? 'selected' : ''}>${h(m.name)}</option>`).join('');
 
     const root = view(`
       <div class="toolbar">
@@ -189,7 +201,7 @@ export default function register(routes, kit) {
       <div class="panel table-wrap" style="margin-bottom:1rem">
         <div class="section-head"><h3>Month by month</h3><span class="muted">newest first</span></div>
         <table class="catalog" id="fo-months">
-          <thead><tr><th>Month</th><th class="num">Orders</th><th class="num">Goods</th><th class="num">Delivery charged</th><th class="num">Income</th><th class="num">Cost of goods</th><th class="num">Delivery cost</th><th class="num">Payfast fees (est.)</th><th class="num">Expenses</th><th class="num">Profit</th><th class="num">Gross margin</th></tr></thead>
+          <thead><tr><th>Month</th><th class="num">Orders</th><th class="num">Goods</th><th class="num">Delivery charged</th><th class="num">Income</th><th class="num">Cost of goods</th><th class="num">Delivery cost</th><th class="num">Payfast fees</th><th class="num">Expenses</th><th class="num">Profit</th><th class="num">Gross margin</th></tr></thead>
           <tbody>${monthRows}${totalRow}</tbody>
         </table>
       </div>
@@ -200,7 +212,7 @@ export default function register(routes, kit) {
           <li><strong>Income</strong> = paid orders, counted on the day Payfast confirmed payment (South African time). Goods = what the items sold for after promo discounts; delivery charged = what customers paid for delivery. Unpaid and <strong>cancelled</strong> orders are left out.</li>
           <li><strong>Cost of goods</strong> = the supplier cost on each order line × quantity, <strong>plus ${h(d.assumptions.vatRatePct)}% VAT</strong> — supplier prices exclude VAT, and because Procom is not VAT-registered, the VAT we pay the supplier is a cost.</li>
           <li><strong>Delivery cost</strong> (assumption): for SMD courier deliveries we pay SMD the same fee the customer paid (R150), and nothing when the order qualified for free delivery (same R5,000 rule). Collections cost R0. Store-wide options are counted at the fee charged. Where a real cost differs, set it per order below${d.assumptions.deliveryOverrides ? ` (${h(d.assumptions.deliveryOverrides)} set)` : ''}.</li>
-          <li><strong>Payfast fees</strong> are an <strong>estimate</strong> per order: card ${h(fees.card.pct)}% + ${rand(fees.card.fixedCents)}, Instant EFT ${h(fees.eft.pct)}%${fees.eft.fixedCents ? ` + ${rand(fees.eft.fixedCents)}` : ''}${fees.eft.minCents ? ` (min ${rand(fees.eft.minCents)})` : ''}${fees.addVat ? ', plus VAT on the fee' : ''}. It uses the method chosen at checkout. Adjust the rates below to match your Payfast statement.</li>
+          <li><strong>Payfast fees</strong> = the <strong>actual fee Payfast reports</strong> with each payment (${h(d.assumptions.actualFeeOrders || 0)} paid order${d.assumptions.actualFeeOrders === 1 ? '' : 's'} so far). For older orders it is an <strong>estimate</strong>: card orders at ${h(fees.card.name)} (${h(fees.card.pct)}% + ${rand(fees.card.fixedCents)}), Instant EFT at ${h(fees.eft.name)} (${h(fees.eft.pct)}%${fees.eft.fixedCents ? ` + ${rand(fees.eft.fixedCents)}` : ''})${fees.addVat ? ', plus VAT on the fee' : ''}. Set the rates below from your Payfast dashboard (Settings → Payment methods).</li>
           <li><strong>Expenses</strong> = what you captured on the Expenses page, by expense date.</li>
           <li><strong>Profit</strong> = income − cost of goods − delivery cost − Payfast fees − expenses. <strong>Gross margin</strong> = (goods − cost of goods) ÷ goods.</li>
         </ul>
@@ -208,12 +220,16 @@ export default function register(routes, kit) {
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 440px), 1fr));gap:0.75rem;align-items:start">
         <form class="panel stack gap-3" id="fo-fees" style="min-width:0">
-          <div class="section-head"><h3>Payfast fees</h3><span class="badge warn">estimate — adjust to your Payfast statement</span></div>
-          <p class="mini-help" style="margin:0">Defaults are Payfast's published rates (card 3.2% + R2.00, Instant EFT 2% with a R2.00 minimum, excluding VAT).</p>
-          <div class="grid-3">${feeInput('card', 'pct', 'Card %', fees.card)}${feeInput('card', 'fixedCents', 'Card fixed (R)', fees.card)}${feeInput('card', 'minCents', 'Card minimum (R)', fees.card)}</div>
-          <div class="grid-3">${feeInput('eft', 'pct', 'Instant EFT %', fees.eft)}${feeInput('eft', 'fixedCents', 'EFT fixed (R)', fees.eft)}${feeInput('eft', 'minCents', 'EFT minimum (R)', fees.eft)}</div>
+          <div class="section-head"><h3>Payfast payment methods &amp; fees</h3><span class="badge">copy from your Payfast dashboard</span></div>
+          <p class="mini-help" style="margin:0">Fees as Payfast shows them (excluding VAT). Tick the methods switched on in Payfast. Min/max = the order amounts Payfast accepts for that method. <strong>Instant EFT</strong> is offered at checkout only while it is ticked here (and switch it on in Payfast too). The margin check in Site settings uses the dearest method that is switched on: <strong>${h(fees.pricing.name)}</strong> (R${h(on1000(fees.pricing).toFixed(2))} on R1,000).</p>
+          <div class="table-wrap"><table class="catalog" id="fo-methods"><thead><tr><th>On</th><th>Method</th><th>Fixed (R)</th><th>%</th><th>Min order (R)</th><th>Max order (R)</th><th class="num">Fee on R1,000${fees.addVat ? ' incl VAT' : ''}</th></tr></thead><tbody>${methodRows}</tbody></table></div>
+          <div class="grid-3">
+            <label class="field"><span>Estimate card orders with</span><select id="fo-card-method">${methodOptions(fees.cardMethod)}</select></label>
+            <label class="field"><span>Estimate Instant EFT orders with</span><select id="fo-eft-method">${methodOptions(fees.eftMethod)}</select></label>
+          </div>
+          <p class="mini-help" style="margin:0">Estimates are only used when Payfast didn't report the actual fee (orders paid before 29 Sept 2026). On the Payfast page the customer may choose any card-type method (credit, debit, Apple/Google/Samsung Pay, SnapScan, Zapper, QR).</p>
           <label class="field checkbox"><input type="checkbox" id="fo-addvat" ${fees.addVat ? 'checked' : ''}><span>Payfast adds VAT to its fees (we can't claim it back)</span></label>
-          <div><button class="btn btn-primary" type="submit">Save fee estimates</button></div>
+          <div><button class="btn btn-primary" type="submit">Save Payfast fees</button></div>
         </form>
         <div class="panel stack gap-3" style="min-width:0">
           <div class="section-head"><h3>Actual delivery cost for an order</h3></div>
@@ -246,15 +262,18 @@ export default function register(routes, kit) {
 
     $('#fo-fees', root).addEventListener('submit', async (e) => {
       e.preventDefault();
-      const payfastFees = { card: {}, eft: {}, addVat: $('#fo-addvat', root).checked };
-      for (const input of root.querySelectorAll('[data-fee]')) {
-        const [m, f] = input.dataset.fee.split('.');
-        const v = Number(input.value || 0);
-        payfastFees[m][f] = f === 'pct' ? v : Math.round(v * 100);
-      }
+      const methods = [...root.querySelectorAll('#fo-methods tr[data-method]')].map((tr) => {
+        const m = { key: tr.dataset.method };
+        for (const input of tr.querySelectorAll('[data-f]')) {
+          const f = input.dataset.f;
+          m[f] = f === 'enabled' ? input.checked : f === 'pct' ? Number(input.value || 0) : Math.round(Number(input.value || 0) * 100);
+        }
+        return m;
+      });
+      const payfastFees = { methods, cardMethod: $('#fo-card-method', root).value, eftMethod: $('#fo-eft-method', root).value, addVat: $('#fo-addvat', root).checked };
       try {
         await api('/finance/settings', { method: 'PUT', body: { payfastFees } });
-        toast('Payfast fee estimates saved');
+        toast('Payfast fees saved');
         reload();
       } catch (err) { fail(err); }
     });
@@ -280,7 +299,7 @@ export default function register(routes, kit) {
     });
 
     $('[data-fo="csv"]')?.addEventListener('click', () => {
-      const head = ['Month', 'Paid orders', 'Goods (R)', 'Delivery charged (R)', 'Income (R)', 'Cost of goods incl VAT (R)', 'Delivery cost (R)', 'Payfast fees est. (R)', 'Expenses (R)', 'Profit (R)', 'Gross margin %', 'Cancelled orders', 'Cancelled (R)'];
+      const head = ['Month', 'Paid orders', 'Goods (R)', 'Delivery charged (R)', 'Income (R)', 'Cost of goods incl VAT (R)', 'Delivery cost (R)', 'Payfast fees (R)', 'Expenses (R)', 'Profit (R)', 'Gross margin %', 'Cancelled orders', 'Cancelled (R)'];
       const r2 = (c) => ((Number(c) || 0) / 100).toFixed(2);
       const line = (label, m) => [label, m.orders, r2(m.goodsCents), r2(m.deliveryChargedCents), r2(m.incomeCents), r2(m.cogsCents), r2(m.deliveryCostCents), r2(m.payfastFeesCents), r2(m.expensesCents), r2(m.profitCents), m.grossMarginPct ?? '', m.cancelledOrders, r2(m.cancelledCents)];
       downloadCsv(`financial-overview-${d.from}-to-${d.to}.csv`, [head, ...d.months.map((m) => line(m.month, m)), line('Total', t)]);

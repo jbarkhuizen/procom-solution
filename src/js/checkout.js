@@ -9,6 +9,8 @@ import { track } from './analytics-beacon.js';
 const form = document.getElementById('checkout-form');
 const PREFS_KEY = 'procom-checkout-details';
 let plan = []; // one group per supplier shipment, from /api/checkout/delivery
+// Instant EFT is offered only while it is switched on in Payfast and the total is within its limits.
+let payOptions = { eft: { enabled: false, minCents: 0, maxCents: 0 } };
 
 function notice(message, tone = 'warn') {
   const el = document.getElementById('notice');
@@ -135,6 +137,16 @@ function renderSummary() {
   document.getElementById('sum-discount-row').classList.toggle('hidden', !discount);
   document.getElementById('sum-discount').textContent = `−${formatRand(discount)}`;
   document.getElementById('sum-total').textContent = formatRand(sub - discount + fee);
+  showPaymentOptions(sub - discount + fee);
+}
+
+function showPaymentOptions(totalCents) {
+  const { eft } = payOptions;
+  const ok = eft.enabled && totalCents >= eft.minCents && totalCents <= eft.maxCents;
+  const label = document.getElementById('pay-eft');
+  label.classList.toggle('hidden', !ok);
+  const radio = label.querySelector('input');
+  if (!ok && radio.checked) form.querySelector('input[name="paymentMethod"][value="payfast_card"]').checked = true;
 }
 
 function restoreDetails() {
@@ -214,6 +226,10 @@ form.addEventListener('submit', async (e) => {
 });
 
 async function init() {
+  api('/api/payment-options').then((o) => {
+    payOptions = o;
+    renderSummary();
+  }).catch(() => {});
   if (new URLSearchParams(location.search).get('cancelled')) notice('Payment was cancelled — nothing was charged. Your cart is still here whenever you are ready.');
   const { changed } = await refreshCart().catch(() => ({ changed: false }));
   if (changed) notice('Some prices or availability in your cart changed since you added them. Please review your order below.');

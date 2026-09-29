@@ -108,21 +108,51 @@ test('legacy orders without fulfilment_json use the old shipping fields', () => 
   assert.equal(totals().deliveryCostCents, 0);
 });
 
-test('Payfast fee estimates per method, with minimum and VAT on the fee', () => {
+test('Payfast method table: defaults from the dashboard, estimates per checkout method, VAT on the fee', () => {
   const fees = finance.getFinanceSettings(db).payfastFees;
-  assert.deepEqual(fees.card, { pct: 3.2, fixedCents: 200, minCents: 0 });
+  assert.equal(fees.methods.length, 15);
+  assert.equal(fees.card.name, 'Credit Card');
+  assert.deepEqual([fees.card.pct, fees.card.fixedCents], [3.2, 200]);
+  assert.equal(fees.eft.enabled, false, 'Instant EFT is off in Payfast');
+  assert.equal(fees.pricing.name, 'Debit Card', 'dearest switched-on method (3.5% + R2) drives the margin check');
+  assert.equal(finance.estimatePayfastFee(100000, 'payfast_card', fees, 15), 3910); // (R32 + R2) x 1.15 = R39.10
   assert.equal(finance.estimatePayfastFee(40400, 'payfast_card', fees, 15), 1717); // (R12.928 + R2) x 1.15
   assert.equal(finance.estimatePayfastFee(40400, 'payfast_eft', fees, 15), 929); // R8.08 x 1.15
-  assert.equal(finance.estimatePayfastFee(5000, 'payfast_eft', fees, 15), 230); // minimum R2 + VAT
   assert.equal(finance.estimatePayfastFee(0, 'payfast_card', fees, 15), 0);
+  assert.equal(finance.feeForRule(100000, fees.pricing, true, 15), 4255); // (R35 + R2) x 1.15
 
+  // Switch Instant EFT on; an EFT order is estimated with the EFT row.
+  let s = finance.updateFinanceSettings({ payfastFees: { methods: [{ key: 'instant_eft', enabled: true }] } }, db);
+  assert.equal(s.payfastFees.eft.enabled, true);
+  assert.equal(s.payfastFees.methods.find((m) => m.key === 'debit_card').pct, 3.5, 'untouched rows keep their values');
   paid({ paymentMethod: 'payfast_eft', delivery: { [smdId()]: 'courier' }, items: [{ productId: smdProduct().id, quantity: 2 }] });
   assert.equal(totals().payfastFeesCents, 929);
 
-  const s = finance.updateFinanceSettings({ payfastFees: { eft: { pct: 1.5, fixedCents: 100, minCents: 0 }, addVat: false } }, db);
-  assert.deepEqual(s.payfastFees.eft, { pct: 1.5, fixedCents: 100, minCents: 0 });
+  s = finance.updateFinanceSettings({ payfastFees: { methods: [{ key: 'instant_eft', pct: 1.5, fixedCents: 100 }], addVat: false } }, db);
   assert.equal(s.payfastFees.card.pct, 3.2); // untouched
   assert.equal(totals().payfastFeesCents, 706); // 404 x 1.5% = 606 + 100, no VAT
+  assert.throws(() => finance.updateFinanceSettings({ payfastFees: { methods: [{ key: 'zapper', minCents: 5000, maxCents: 100 }] } }, db), /maximum amount/);
+  assert.throws(() => finance.updateFinanceSettings({ payfastFees: { cardMethod: 'bitcoin' } }, db), /Unknown/);
+  s = finance.updateFinanceSettings({ payfastFees: { methods: [{ key: 'zapper', pct: 99 }] } }, db);
+  assert.equal(s.payfastFees.methods.find((m) => m.key === 'zapper').pct, 20, 'percent capped at 20');
+});
+
+test('the actual fee Payfast reports on the payment replaces the estimate', () => {
+  const o = orders.createOrder({ customer, delivery: { [smdId()]: 'courier' }, items: [{ productId: smdProduct().id, quantity: 1 }] });
+  orders.markOrderPaid(o.id, { pfPaymentId: 'pf', feeCents: 1234 });
+  db.prepare("UPDATE orders SET paid_at = '2026-09-10T08:00:00.000Z' WHERE id = ?").run(o.id);
+  assert.equal(totals().payfastFeesCents, 1234);
+  assert.equal(finance.getFinancialOverview(SEPT, db).assumptions.actualFeeOrders, 1);
+});
+
+test('Instant EFT is refused while it is switched off, or outside its order limits', () => {
+  const order = (qty = 1) => orders.createOrder({ customer, paymentMethod: 'payfast_eft', delivery: { [smdId()]: 'collect' }, items: [{ productId: smdProduct().id, quantity: qty }] });
+  assert.throws(() => order(), /Instant EFT is not available/);
+  assert.deepEqual(finance.publicPaymentOptions(db), { eft: { enabled: false, minCents: 500, maxCents: 1000000 } });
+  finance.updateFinanceSettings({ payfastFees: { methods: [{ key: 'instant_eft', enabled: true, maxCents: 20000 }] } }, db);
+  assert.equal(order(1).paymentMethod, 'payfast_eft'); // R127
+  assert.throws(() => order(2), /only available for orders from R5.00 to R200.00/); // R254
+  assert.equal(orders.createOrder({ customer, delivery: { [smdId()]: 'collect' }, items: [{ productId: smdProduct().id, quantity: 2 }] }).paymentMethod, 'payfast_card');
 });
 
 test('cancelled orders are excluded even when paid, and reported separately', () => {
