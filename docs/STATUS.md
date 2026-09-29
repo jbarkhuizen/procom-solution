@@ -2,50 +2,60 @@
 
 _Last updated: 2026-09-29_
 
+## Resume here (handoff for a new conversation)
+
+- **Read first:** this file, then `CLAUDE.md` (layout, business rules, deploy, gotchas) and `deploy/DEPLOY.md` (runbook).
+- **Owner workflow:** changes go on branch `claude/inspiring-galileo-yxx323` -> PR -> owner says "merge and push to production" -> merging to `main` deploys automatically (GitHub Actions: tests, deploy, health check of procomsolutions + lapanza3d). Verify after every deploy: `/api/health` ok, lapanza3d 200. After a code change, the owner usually asks for docs to be updated and pushed too.
+- **Owner preferences:** plain-language reports; propose category tables for approval before listing; confirm before outward-facing actions; logins/settings the owner maintains live in the admin (encrypted), not `.env`; Excel exports for reviews.
+- **Server access (Johan's PC only):** `ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147` -- one SSH session per operation (fail2ban). Read-only checks: pipe a small `node` script into the session that opens `data/procom.db` with `{ readonly: true }`. Never print `.env` values.
+- **Last session (2026-09-29):** Esquire + SMD live APIs, vendor details, own-courier + TV insurance delivery, Load more, warehouse icon, stock on hand, SKU, Specials quick filter, admin reload banner. Last deploy: PR #49 (`f554021`), 191 server tests.
+
 ## Live state
 
 - **Site:** https://www.procomsolutions.co.za — live, taking real payments (Payfast **live**, Lapanza's merchant account)
 - **Email:** working (Gmail SMTP as procompretoria@gmail.com); test email confirmed 2026-09-25
 - **Admin account:** created by the owner
-- **Live products:** **9,182** (2026-09-29 afternoon): SMD 6,442 (4,164 from the pricelists + 2,278 new from SMD's API, listed 14:52 by the SMD auto-list) + Esquire 2,740. SMD stock follows SMD's API (SOH).
-- **Specials page (15:40, 2026-09-29):** 644 products on special (all SMD supplier specials; none set in Admin → Specials), with a category quick filter -- Bags & Laptop Cases 149, Home & Kitchen 90, Mobile & Wearables 78, Smart Home & Lighting 69, Computers & Peripherals 53, Audio 46, then smaller groups. Counts follow SMD's specials automatically.
+- **Live products:** **9,182** (2026-09-29, 16:00): SMD 6,442 (4,164 from the pricelists + 2,278 new from SMD's API, listed 14:52 by the SMD auto-list) + Esquire 2,740. SMD stock follows SMD's API (SOH); Esquire has no stock numbers (in feed = in stock).
+- **Specials page:** 644 products on special (all SMD supplier specials; none set in Admin → Specials), with a category quick filter. Counts follow SMD's specials automatically.
 - **Supplier syncs (automatic, report email after every run):** Esquire API 06:00 / 12:00 / 18:00 SAST (auto-list on); SMD API 06:30 / 12:30 / 18:30 SAST (sync on, auto-list of new SMD products on). Logins/keys in Admin → Suppliers (encrypted, key file `.vault-key` on the server).
-- **Delivery (per supplier, since 2026-09-28):** every live product is SMD's → courier **R150** incl VAT per order, **free** when SMD's invoice (our cost incl VAT, excluding our markup) is R5,000+, large items included; or **free collection** at SMD's Edenvale office (Mon–Fri 09:00–16:00, collection notice + ID). Store-wide courier brackets (0–3 kg R150, 3–10 kg R220, 10–25 kg R300) and delivery quotes now apply only to non-SMD suppliers and products without a supplier. PUDO + local delivery switched off.
+- **Delivery (per supplier):**
+  - **SMD** ("Edenvale warehouse"): courier **R150** incl VAT per order, **free** when SMD's invoice (our cost incl VAT) is R5,000+, large items included; or **free collection** at 2 Lascelles Road, Meadowbrook, Edenvale (Mon–Fri 09:00–16:00, collection notice + ID).
+  - **Esquire** ("Samrand warehouse"): collection at 71 Landmarks Avenue, Kosmosdaal Ext 11, Samrand (Mon–Fri 09:00–16:00 · Sat 09:00–12:00); customer's own courier (free; customer emails waybill + collection date); otherwise store-wide courier brackets (0–3 kg R150, 3–10 kg R220, 10–25 kg R300) or a delivery quote for large items. Esquire TVs by courier add 3% courier insurance as a separate line.
+  - Mixed carts: one delivery choice per supplier, fees add up. PUDO + local delivery switched off.
 - **Google:** site verified in Search Console, sitemap submitted 2026-09-28.
-- **Deployed:** automatically on every merge to `main` via GitHub Actions (`.github/workflows/deploy.yml`) since 2026-09-28 -- first run 36403935284 green (server tests 49/49, health ok, lapanza3d 200). Check the Actions tab for the current live commit.
-- **Admin upgrade (from Lapanza3d), all 21 items live 2026-09-29:** Phase 1 accounts/invoices/promos/specials, Phase 2 analytics/newsletters/finance/marketing, Phase 3 backups (off-site to a Procom-only Google Drive folder, syncing), version history, test cases, about, audit log, todo, settings, nav. 160 server tests.
+- **Deployed:** automatically on every merge to `main` via GitHub Actions (`.github/workflows/deploy.yml`). Check the Actions tab for the current live commit.
+- **Admin upgrade (from Lapanza3d), all 21 items live 2026-09-29:** Phase 1 accounts/invoices/promos/specials, Phase 2 analytics/newsletters/finance/marketing, Phase 3 backups (off-site to a Procom-only Google Drive folder, syncing), version history, test cases, about, audit log, todo, settings, nav.
 
-The *Delivery* column is the category's quote flag. It only takes effect for non-SMD suppliers (SMD's flat R150 covers everything).
+Live categories (2026-09-29, 16:00; *delivery quoted* flags only matter for non-SMD suppliers -- SMD's flat R150 covers everything):
 
-| Category | Live | Delivery |
-|---|---|---|
-| Computers & Peripherals (Keyboards & Mice 149, Headsets & Audio 119, Computer Accessories 82, Cables & Adaptors 23, Laptop & Monitor Stands 14, Webcams & Streaming 12, Laptops & Tablets 9 — 10% markup, PC Components 7, Storage & Memory 6, Monitors 3) | 424 | normal |
-| Networking (Routers & Mesh 122, Wi-Fi Extenders & Adapters 68, Switches 62, Security Cameras 50, Business Switches & Access Points 35, Networking Accessories 15) | 352 | normal |
-| Gaming (Gaming Mice & Keyboards 90, Gaming Headsets 26, Controllers & Racing 24, Gaming Chairs & Desks 11, Handheld & Retro Consoles 8, Mouse Pads & Accessories 4, Gaming Accessories 3) | 166 | Gaming Chairs & Desks quoted |
-| Mobile & Wearables (Chargers & Cables 158, Smartwatches 84, Power Banks 35, Car Accessories 30, Smart Rings & Glasses 19, Phone Accessories 16, Trackers & Tags 10, Phones 3 — 10% markup) | 355 | normal |
-| Audio (Earphones & Earbuds 155, Headphones 112, Speakers 76, Microphones & Karaoke 35, Soundbars & Hi-Fi 21, Audio Accessories 3) — new | 402 | heavy items quoted per product |
-| Power & Electrical (Multiplugs & Surge Protection 110, Adaptors & Extension Leads 86, Switches, Sockets & Wiring 68, Batteries 19, Electrical Accessories 5) | 288 | normal |
-| Home & Kitchen (Utensils & Gadgets 82, Food Storage & Drinkware 56, Cookware & Pans 37, Kitchen Appliances 35, Irons & Floor Care 27, Heating & Cooling 23, Home & Living 14) | 274 | normal |
-| Baby & Toddler (Bottles & Teats 64, Feeding & Weaning 50, Dummies & Teethers 27, Maternity & Breastfeeding 26, Blankets & Swaddles 15, Wipes 15, Bath & Skin Care 14, Oral Care 13, Nappy & Changing Bags 12, Sterilising & Cleaning 12, Health & Safety 11, Baby Toys & Keepsakes 6, Hair Accessories 6) | 271 | normal |
-| Bags & Laptop Cases (Laptop Bags & Backpacks 102, School & Everyday Backpacks 79, Lunch Bags & Bottles 33, Handbags, Purses & Wallets 20, Cable Organisers & Pouches 6) | 240 | normal |
-| Smart Home & Lighting (Light Bulbs 92, Smart Home 51, Outdoor & Flood Lights 42, Lamps & Indoor Lighting 41) | 226 | normal |
-| 3D Printing (13 sub-categories; Filament – PLA 189, – PETG 45, – ABS & ASA 27, – TPU & Specialist 21 incl. SA Filament) | 576 | quoted for FDM/Resin printers + Laser Engravers |
-| Furniture (Desks & Office Chairs, Tables, Shelving & Storage, Seating & Living) | 186 | quoted |
-| Luggage & Travel (Suitcases 88, Luggage Sets & Business Trolleys 16) | 104 | quoted |
-| Cameras & Photography (360 & Action Cameras 41, Camera Accessories 37, Dash Cams 3) — new | 81 | normal |
-| TV & Video (TV Cables & Accessories 32, TV Wall Mounts & Stands 32, Projectors & Screens 1) — new | 65 | heavy items quoted per product |
-| Office & School (Calculators 45, Stationery 14, Label Printers 5) — new | 64 | normal |
-| Health & Beauty (Hair Care 22, Personal Care & Wellness 25 incl. Lifree) | 47 | normal |
-| Toys & Games (STEM & Building Toys 22, Outdoor & Bubble Toys 11, Games & Novelties 10) — new | 43 | normal |
+| Category (biggest sub-categories) | Live |
+|---|---|
+| Computers & Peripherals (Storage & Memory 342, Keyboards & Mice 274, Cables & Adaptors 239, Computer Accessories 179, Ink & Toner 169, Headsets & Audio 144, PC Components 119, Laptops & Tablets 84 -- 10% markup) | 1,716 |
+| Home & Kitchen (Food Storage & Drinkware 209, Utensils & Gadgets 179, Kitchen Appliances 149, Heating & Cooling 115, Large Appliances 28 -- quoted) | 1,000 |
+| Networking (Security Cameras 235, Routers & Mesh 182, Wi-Fi Extenders & Adapters 131, Server Cabinets & Racks 25 -- quoted) | 822 |
+| Audio (Earphones & Earbuds 301, Headphones 196, Speakers 170, Soundbars & Hi-Fi 51 -- heavy items quoted per product) | 785 |
+| Mobile & Wearables (Chargers & Cables 311, Smartwatches 138, Power Banks 83, Phones 13 -- 10% markup) | 693 |
+| 3D Printing (Filament – PLA 197, Laser Engravers 78, Upgrades & Accessories 76; FDM/Resin printers + engravers quoted) | 633 |
+| Power & Electrical (Multiplugs & Surge Protection 163, Adaptors & Extension Leads 146, Switches, Sockets & Wiring 123, Solar & Inverters 78) | 615 |
+| Bags & Laptop Cases (Laptop Bags & Backpacks 216, School & Everyday Backpacks 163) | 471 |
+| Smart Home & Lighting (Smart Home 161, Lamps & Indoor Lighting 123, Light Bulbs 107) | 445 |
+| Gaming (Gaming Mice & Keyboards 128, Controllers & Racing 67, Consoles & Games 53; Gaming Chairs & Desks quoted) | 368 |
+| Baby & Toddler (14 sub-categories; Bottles & Teats 65, Feeding & Weaning 50, Baby Gear & Travel 19) | 315 |
+| Furniture (Desks & Office Chairs 108, Tables 66, Shelving & Storage 61, Seating & Living 54 -- quoted) | 289 |
+| TV & Video (TV Cables 89, Televisions 80 -- quoted + 3% courier insurance, Wall Mounts 53) | 245 |
+| Health & Beauty (Hair Care 99, Personal Care & Wellness 63, Health & Protection 62, Fitness & Sport 8) | 232 |
+| Cameras & Photography (Camera Accessories 78, 360 & Action Cameras 72) | 171 |
+| Luggage & Travel (Suitcases 120 -- quoted, Luggage Sets 21, Travel Bags & Accessories 7) | 148 |
+| Office & School (Calculators 63, Stationery 35, Point of Sale 25) | 147 |
+| Toys & Games (Games & Novelties 45, STEM 28, Outdoor & Bubble Toys 14) | 87 |
 
-**Suppliers:** SMD (Warehouse), Esquire, IDS, Huge PC, Dicspeed. All imports so far are SMD's
-(Cash wholesale, Home and Beyond, Infant Essential, Creality list, two promo flyers).
+**Suppliers:** SMD (Warehouse) and Esquire are live through their APIs; IDS, Huge PC and Dicspeed exist but have no products.
 
-**Imported files (all rows imported):**
-- SMD Home and Beyond (609 rows, 11 brand tabs + Index): all 609 listed; 168 bulk items sold in their minimum quantity
-- Creality wholesale list (474 usable of 475; 1 priced "TBC"): all listed under 3D Printing
-- SMD Infant Essential September 2026 (286 rows, 6 brand tabs): all 286 listed by the auto-list on 2026-09-28
-- SMD Cash Wholesale September 2026 (3,315 rows, 34 brand tabs): 2,481 listed by the auto-list on 2026-09-28 (44 marked delivery quoted); 647 already listed (Creality + hand-listed); 23 skipped (display stands, junk rows, refurbished/consumables, 2 mispriced TOSLINK cables). Backup before the run: `data/backups/pre-autolist-1790577475658.db`
+**SMD pricelist imports (September 2026, before the API):**
+- SMD Home and Beyond (609 rows): all listed; 168 bulk items sold in their minimum quantity
+- Creality wholesale list (474 usable of 475): all listed under 3D Printing
+- SMD Infant Essential (286 rows): all listed by the auto-list on 2026-09-28
+- SMD Cash Wholesale (3,315 rows): 2,481 listed by the auto-list on 2026-09-28; 647 already listed; 23 skipped (display stands, junk rows, refurbished/consumables, 2 mispriced TOSLINK cables)
 
 ## Supplier APIs (live since 2026-09-29)
 
@@ -57,11 +67,11 @@ Deployed: PR #36 (feed, delivery, vendor details, `233b7f2`) and PR #37 (login +
 
 ### SMD
 
-`server/smd-api.js` reads SMD's API (products, prices, stock, media; spec "SMD API INFO" PDF) with the token + Client access key on Admin → Suppliers → SMD. Runs 06:30 / 12:30 / 18:30 SAST once switched on (Warehouse feed → SMD live API; "Check connection" = read-only report). Updates listed SMD products only -- never categories: cost (SMD specials lower the price and show as Sale), stock (SOH), blank descriptions, full-size photos (admin photos never replaced). New SMD SKUs go to Warehouse feed (`smd-api.json`), not auto-listed. Deployed PR #40 (`f24a9df`).
+`server/smd-api.js` reads SMD's API (products, prices, stock, media; spec "SMD API INFO" PDF) with the token + Client access key on Admin → Suppliers → SMD. Runs 06:30 / 12:30 / 18:30 SAST once switched on (Warehouse feed → SMD live API; "Check connection" = read-only report). Updates listed SMD products only -- never categories: cost (SMD specials lower the price and show as Sale), stock (SOH), blank descriptions, full-size photos (admin photos never replaced). New SMD SKUs go to Warehouse feed (`smd-api.json`) and are listed by the SMD auto-list (`server/smd-api-rules.js`, switched on). Deployed PR #40 (`f24a9df`).
 
 New SMD products: category table approved 2026-09-29 (`server/smd-api-rules.js`; smart cameras in Smart Home; Disney/Frozen/Marvel items listed). Auto-list switched on 14:52 → **2,278 listed**, 11 not (perfume/sunglasses, display stand, Everfurn Theo table, 2 suspect prices); new subs Baby Gear & Travel, Travel Bags & Accessories, Fitness & Sport. Pack sizes come from SMD's names ("Order in Qty of N"). Deployed PR #43 (`d383845`).
 
-First sync 2026-09-29 12:44 (owner ran "Sync now"): API 6,322 products / 6,149 stock rows; **3,987 of 4,164** SMD products found (96%); 525 costs down, 18 up (543 prices updated); 518 on SMD special (Sale); 3,973 descriptions filled; 3,987 full-size photo sets queued; **1,943 marked out of stock** -- 1,766 with SOH 0 (SMD reports 0 on 58% of its range) + 177 not in the API (mostly Creality filaments/fans). 2,289 SMD SKUs not sold yet are in Warehouse feed.
+First sync 2026-09-29 12:44 (owner ran "Sync now"): API 6,322 products / 6,149 stock rows; **3,987 of 4,164** SMD products found (96%); 525 costs down, 18 up (543 prices updated); 518 on SMD special (Sale); 3,973 descriptions filled; 3,987 full-size photo sets queued; **1,943 marked out of stock** -- 1,766 with SOH 0 (SMD reports 0 on 58% of its range) + 177 not in the API (mostly Creality filaments/fans). The 2,289 SMD SKUs not sold at that point were listed later the same day (2,278, see above). A second "Sync now" at 14:55 applied stock to them (1,747 out at SOH 0).
 
 ## Decisions made
 
@@ -82,7 +92,7 @@ First sync 2026-09-29 12:44 (owner ran "Sync now"): API 6,322 products / 6,149 s
 | 2026-09-29 | Specials page gets a **category quick filter**: a chip per top-level shop category with specials (with counts) + "All"; filter includes sub-categories, URL `?category=` so filtered views can be shared. |
 | 2026-09-29 | SMD's deep specials (up to ~90% off, e.g. Rocka iPhone 7/8 case R13 was R114) **checked by the owner on the live site: correct** -- no discount cap needed. |
 | 2026-09-29 | **Specials page** lists admin specials **and** every product with a struck-through was-price (SMD specials), biggest saving first -- 644 products after deploy (PR #45). Admin shows a **"new version available -- Reload"** banner when a deploy changes the admin code (PR #44). |
-| 2026-09-29 | Storefront: product page shows the **SKU**; live supplier stock shows as a number on cards and the product page ("107 in stock", "Only 3 left" at ≤5; packs for pack items; quantity box capped); the warehouse icon also shows on out-of-stock items. Merging SMD/Esquire duplicates (210 share a manufacturer code) **postponed** by the owner. |
+| 2026-09-29 | Storefront: product page shows the **SKU**; live supplier stock shows as a number on cards and the product page ("107 in stock", "Only 3 left" at ≤5; packs for pack items; quantity box capped); the warehouse icon also shows on out-of-stock items. (Duplicates: see the later decision -- they stay separate.) |
 | 2026-09-29 | Esquire soundbars, subwoofers, home theatre and hi-fi systems are **delivery quoted** (14 products, like SMD's heavy list). The auto-list now also applies heavy-list changes to products already listed, unless their delivery choice was set by hand. |
 | 2026-09-29 | **SMD stock = SMD's API stock** (owner): SOH 0 means out of stock; items return automatically as SMD restocks. Chosen over "restore for now" and "available on order". |
 | 2026-09-29 | **SMD live API** (spec: SMD API INFO PDF): API token + Client access key on Admin → Suppliers → SMD (encrypted); read-only "Check connection" first, then automatic sync at 06:30/12:30/18:30 (30 min after Esquire), off until switched on. Updates listed SMD products only (never categories): cost from PriceExcl, SMD specials lower our price and show as Sale (normal price struck through); stock from SOH (out at 0 / below pack size, back when restocked, admin's manual out kept, "Only N left" at ≤5, checkout can't exceed stock); SMD long descriptions fill blank descriptions; full-size photos replace SMD's ~113px spreadsheet thumbnails (admin-uploaded/changed photos never touched). RRP ignored (a struck-out price must be one we charged). New SMD SKUs appear in Warehouse feed (file smd-api.json). Safety: >20% of listed SMD products missing from the API = left alone and reported; far fewer prices than last run = run skipped. Monthly pricelists still supply pack sizes. |
@@ -109,11 +119,10 @@ First sync 2026-09-29 12:44 (owner ran "Sync now"): API 6,322 products / 6,149 s
 - **After the Phase 1 deploy:** Admin → Invoice history → **Issue missing invoices** once, so older paid orders (PC10002…) get invoice numbers before new ones.
 - ~~First real test order~~ done: paid live, emails and collection notice arrived.
 - **Legal pages — one open choice:** risk in transit passes to the customer *on delivery* (so courier losses are ours) — keep? (Drive backups are now in the Privacy Policy; address 23 Gladiator Rd confirmed.)
-- **Esquire delivery** (built, applied automatically on first start after deploy): Samrand warehouse collection (71 Landmarks Avenue, Kosmosdaal Ext 11, Samrand, 0157; Mon–Fri 09:00–16:00 · Sat 09:00–12:00), customer's own courier (free; customer emails waybill + collection date), otherwise store-wide courier brackets / quotes. **Still open: Esquire's courier fee** -- when known, set Admin → Suppliers → Esquire → "Flat courier fee". Televisions: 3% courier insurance as its own checkout line (category setting "Courier insurance %"), not charged on collection / own courier.
-- **Vendor details** (Admin → Suppliers): address, order process, portal website, username and encrypted password (key file `.vault-key` on the server, created automatically -- owner may keep a copy of it).
+- **Esquire courier fee** still unknown -- when known, set Admin → Suppliers → Esquire → delivery "Flat courier fee" (until then store-wide brackets / quotes).
+- **Keep a copy of the password key:** `/opt/procomsolutions/app/.vault-key` (created by the server). If it is lost, supplier portal passwords and API keys in Admin → Suppliers must be entered again.
 - **SMD: some Creality items not in the API** (checked 2026-09-29 15:25) -- of 481 Creality-type products, 359 ARE in SMD's API (184 in stock with live SOH, 175 out at SOH 0, back automatically when restocked); ~122 are NOT in the API (Hyper high-speed PLA colours, Hyper Rainbow, Ender fast PLA, K1 fans) and stay out of stock. Ask SMD whether those are discontinued or orderable another way.
-- **Esquire courier fee** still unknown -- set Admin → Suppliers → Esquire → flat courier fee when known (until then store-wide brackets / quotes).
-- **Photos:** SMD full-size photos are downloading in the background since 2026-09-29 (up to 4 per product, replacing the ~113px spreadsheet photos; admin-uploaded photos are kept). Check a few product pages once the queue (Warehouse feed → SMD live API) is empty.
+- **Photos:** SMD full-size photos (up to 4 per product) downloaded 2026-09-29 -- queue empty. Most Esquire photos are small (≤300 px) because that is what Esquire supplies; ask Esquire for better ones if needed.
 - **Google Search Console** — check in 1–2 weeks: sitemap "Success", indexed pages rising. If product pages still aren't indexed after ~4 weeks, consider server-rendered product pages (their content is filled in by JavaScript).
 
 **Routine**
