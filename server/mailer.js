@@ -230,6 +230,14 @@ export function sendSmdReport(report) {
     else if (st.missingSample?.length) body += `<p style="margin:0">Not in the API (${verb} marked out of stock):</p>${list(st.missingSample)}`;
     if (report.stats?.biggestChanges?.length) body += `<p style="margin:0">Biggest cost changes:</p>${list(report.stats.biggestChanges.map((c) => `${c.name} (${c.sku}): ${formatRand(c.from)} → ${formatRand(c.to)} excl VAT`))}`;
     if (st.newSkus) body += `<p style="margin:0"><strong>${st.newSkus} SMD products you don't sell yet</strong> ${report.check ? 'would appear' : 'are now'} in Admin → Warehouse feed (supplier SMD), by SMD category:</p>${list(Object.entries(st.newSkuCategories).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([c, n]) => `${n} · ${c}`))}`;
+    const al = report.autoList;
+    if (al) {
+      const would = al.summary.reduce((n, g) => n + g.newListings, 0);
+      body += report.autoListOn && !report.check
+        ? `<h3 style="font-size:15px;margin:12px 0 0">Auto-list (new SMD products)</h3>${table([row('New products listed', al.created), row('Categories created', al.categoriesCreated.length), row('Errors', al.errors.length)])}${al.categoriesCreated.length ? list(al.categoriesCreated) : ''}`
+        : `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Auto-list ${report.autoListOn ? '' : 'is off'}:</strong> ${would} new SMD product(s) would be listed${al.newCategories.length ? `, creating ${al.newCategories.length} categories` : ''}.${report.autoListOn ? '' : ' Switch it on in Admin → Warehouse feed → SMD live API once the category table is approved.'}</p>`;
+      if (al.unmatched.length) body += `<p style="margin:0"><strong>${al.unmatched.length} new SMD product(s) not recognised</strong> by the category rules (not listed):</p>${list(al.unmatched.slice(0, 30).map((u) => `${u.code} — ${u.name}`))}`;
+    }
     if (report.check) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px">If this looks right, switch the SMD sync on in Admin → Warehouse feed → SMD live API. It then runs at 06:30, 12:30 and 18:30.</p>`;
   }
   const subject = !report.ok

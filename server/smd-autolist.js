@@ -3,9 +3,10 @@ import { saveCategory, bulkUpdateProducts } from './catalog.js';
 import { listFeedItems } from './feed.js';
 import { SMD_LISTS } from './smd-rules.js';
 import { ESQUIRE_LIST } from './esquire-rules.js';
+import { SMD_API_LIST } from './smd-api-rules.js';
 
 // Every list the auto-list knows; tidyParentLevel() stays SMD-only.
-export const AUTOLIST_LISTS = { ...SMD_LISTS, esquire: ESQUIRE_LIST };
+export const AUTOLIST_LISTS = { ...SMD_LISTS, esquire: ESQUIRE_LIST, smdapi: SMD_API_LIST };
 
 // One-click listing of an imported SMD pricelist: each row is sorted into a
 // storefront sub-category by the rules in smd-rules.js, missing categories

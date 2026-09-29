@@ -292,6 +292,10 @@ admin.post('/feed/smd-api/run', wrap((req) => {
   smdApi.syncSmd({ trigger: 'manual', check: req.body?.check !== false });
   return { started: true };
 }));
+admin.put('/feed/smd-api/autolist', wrap((req) => {
+  settings.updateSettings({ smdApiAutoList: req.body?.on === true });
+  return smdApi.smdStatus();
+}));
 admin.put('/feed/smd-api/schedule', wrap((req) => {
   settings.updateSettings({ smdApiSync: req.body?.on === true });
   return smdApi.smdStatus();

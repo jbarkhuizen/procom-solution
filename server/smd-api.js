@@ -3,6 +3,8 @@ import sharp from 'sharp';
 import { getDb } from './db.js';
 import { getSettings } from './settings.js';
 import { repriceProducts, retailForCost } from './catalog.js';
+import { parseMinOrderQty } from './feed.js';
+import { autoList } from './smd-autolist.js';
 import { parseRandToCents, parseJsonArray } from './util.js';
 import { decryptSecret } from './vault.js';
 import { fetchImage } from './remote-images.js';
@@ -165,7 +167,7 @@ const sigOf = (urls) => createHash('sha1').update(urls.join('\n')).digest('hex')
 export function planSmdChanges(cat, db = getDb()) {
   const supplier = findSmdSupplier(db);
   const products = db.prepare("SELECT * FROM products WHERE supplier_id = ? AND fulfilment = 'dropship'").all(supplier.id);
-  const plan = { updates: [], media: [], newFeed: [], feedCost: [] };
+  const plan = { updates: [], media: [], newFeed: [], feedCost: [], pricedSkus: new Set(cat.prices.keys()) };
   const stats = { listed: products.length, matched: 0, notInApi: 0, costUp: 0, costDown: 0, specials: 0, specialsEnded: 0, markedOut: 0, backInStock: 0, lowStock: 0, descriptions: 0, photoSets: 0, newSkus: 0, newSkuCategories: {}, biggestChanges: [] };
   const listed = new Set();
   const missing = [];
@@ -273,9 +275,19 @@ function applyPlan({ plan, supplier }, db) {
       cost_cents = @cost, imported_at = @ts WHERE supplier_id = @s AND code = @code`);
     for (const f of plan.feedCost) feedCost.run({ cost: f.cost, ts, s: supplier.id, code: f.code });
     const ins = db.prepare(`INSERT OR IGNORE INTO feed_items (id, supplier_id, code, name, brand, category, cost_cents, min_order_qty, details, image, image_url, image_status, source_file, source_sheet, in_latest_import, imported_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, '', ?, ?, ?, 'API', 1, ?)`);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'API', 1, ?)`);
     for (const n of plan.newFeed) {
-      ins.run(randomUUID(), supplier.id, n.sku, n.info.name, n.info.brand, n.info.category, n.price.costCents, n.info.long.slice(0, 4000), n.imageUrl, n.imageUrl ? 'pending' : '', SMD_API_FILE, ts);
+      // Pack size from SMD's own name: "... ( Order in Qty of 12 )".
+      ins.run(randomUUID(), supplier.id, n.sku, n.info.name, n.info.brand, n.info.category, n.price.costCents, parseMinOrderQty(n.info.name), n.info.long.slice(0, 4000), n.imageUrl, n.imageUrl ? 'pending' : '', SMD_API_FILE, ts);
+    }
+    // API-only feed rows: pack size from the name, and only SKUs SMD still
+    // prices count as current (the auto-list never lists a withdrawn one).
+    const apiRows = db.prepare('SELECT id, code, name, min_order_qty, in_latest_import FROM feed_items WHERE supplier_id = ? AND source_file = ?').all(supplier.id, SMD_API_FILE);
+    const updApi = db.prepare('UPDATE feed_items SET min_order_qty = ?, in_latest_import = ? WHERE id = ?');
+    for (const f of apiRows) {
+      const moq = parseMinOrderQty(f.name);
+      const current = plan.pricedSkus.has(f.code) ? 1 : 0;
+      if (moq !== f.min_order_qty || current !== f.in_latest_import) updApi.run(moq, current, f.id);
     }
     const q = db.prepare(`INSERT INTO product_media_queue (product_id, urls, sig, status, tries, updated_at) VALUES (?, ?, ?, 'pending', 0, ?)
       ON CONFLICT(product_id) DO UPDATE SET urls = excluded.urls, sig = excluded.sig, status = 'pending', tries = 0, updated_at = excluded.updated_at`);
@@ -309,6 +321,11 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
         report.repriced = applyPlan(planned, db);
         startMediaDownloads(db);
       }
+      // New SMD products (not in the shop yet) -> shop categories by
+      // smd-api-rules.js. Lists only while switched on; otherwise the report
+      // says what it would list.
+      report.autoListOn = Boolean(getSettings(db).smdApiAutoList);
+      report.autoList = autoList({ list: 'smdapi', supplierId: planned.supplier.id, dryRun: check || !report.autoListOn }, db);
       report.ok = true;
     } catch (err) {
       report.error = err.message;
@@ -325,7 +342,9 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
 }
 
 function saveLastRun(db, r) {
-  const summary = { at: r.startedAt, trigger: r.trigger, check: r.check, ok: r.ok, error: r.error, seconds: r.seconds, api: r.api || null, stats: r.stats ? { ...r.stats, biggestChanges: undefined } : null, repriced: r.repriced ?? 0 };
+  const al = r.autoList;
+  const summary = { at: r.startedAt, trigger: r.trigger, check: r.check, ok: r.ok, error: r.error, seconds: r.seconds, api: r.api || null, stats: r.stats ? { ...r.stats, biggestChanges: undefined } : null, repriced: r.repriced ?? 0,
+    listed: al && r.autoListOn && !r.check ? al.created : 0, wouldList: al && (!r.autoListOn || r.check) ? al.summary.reduce((n, g) => n + g.newListings, 0) : 0 };
   db.prepare("INSERT INTO settings (key, value) VALUES ('smdApiLastRun', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(summary));
 }
 
@@ -343,6 +362,7 @@ export function smdStatus(db = getDb()) {
     configured: smdConfigured(db),
     supplier: findSmdSupplier(db) ? { id: findSmdSupplier(db).id, name: findSmdSupplier(db).name } : null,
     syncOn: Boolean(getSettings(db).smdApiSync),
+    autoList: Boolean(getSettings(db).smdApiAutoList),
     runTimesSast: syncTimes(),
     running: Boolean(running),
     photosQueued: db.prepare("SELECT COUNT(*) n FROM product_media_queue WHERE status IN ('pending','downloading')").get().n,

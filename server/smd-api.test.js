@@ -171,3 +171,44 @@ test('SMD runs 30 minutes after Esquire', () => {
   assert.equal(nextRunAt(new Date('2026-09-29T16:45:00Z'), slots).toISOString(), '2026-09-30T04:30:00.000Z'); // 18:45 -> 06:30
   assert.deepEqual(smd.syncTimes(), ['06:30', '12:30', '18:30']);
 });
+
+test('new SMD products: pack size from the name, listed only when auto-list is on, never once withdrawn', async () => {
+  const { updateSettings } = await import('./settings.js');
+  const data = (withB = true) => ({
+    products: [prod('LNL-1', { Name: 'LocknLock Storage Box ( Order in Qty of 12 )', Category: 'Kitchen and Home/Storage' }), prod('B', { Category: 'Audio/Bluetooth Speakers' })].filter((p) => withB || p.Sku !== 'B'),
+    prices: [price('LNL-1', '20.00'), ...(withB ? [price('B', '100.00')] : [])],
+    stock: [],
+    media: [],
+  });
+  let r = await run(data());
+  assert.equal(db.prepare("SELECT min_order_qty m FROM feed_items WHERE code = 'LNL-1'").get().m, 12);
+  assert.equal(r.autoListOn, false);
+  assert.equal(r.autoList.summary.reduce((n, g) => n + g.newListings, 0), 2, 'report says what would be listed');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM products').get().n, 0);
+
+  updateSettings({ smdApiAutoList: true }, db);
+  r = await run(data(false)); // B withdrawn by SMD before auto-list was switched on
+  assert.equal(r.autoList.created, 1);
+  const p = row('LNL-1');
+  assert.equal(p.name, 'LocknLock Storage Box', 'quantity note removed from the shop title');
+  assert.equal(p.min_order_qty, 12);
+  assert.equal(db.prepare('SELECT c.name FROM categories c WHERE c.id = ?').get(p.category_id).name, 'Food Storage & Drinkware');
+  assert.equal(row('B'), undefined, 'withdrawn SKU not listed');
+});
+
+test('SMD API category rules: placement follows the earlier SMD decisions', async () => {
+  const { classifyItem } = await import('./smd-autolist.js');
+  const at = (category, name = 'x') => {
+    const c = classifyItem('smdapi', { category, name });
+    return c?.skip ? `skip` : c && `${c.parent} › ${c.sub}`;
+  };
+  assert.equal(at('Devices/Storage/SSD', 'ARES ARMOR DDR4 PC3200 16GB-DESKTOP'), 'Computers & Peripherals › PC Components');
+  assert.equal(at('Devices/Storage/SSD', 'Kingston A400 480GB SSD'), 'Computers & Peripherals › Storage & Memory');
+  assert.equal(at('Devices/3D Printers/Filament', 'SA Filament PETG Black 1kg'), '3D Printing › Filament – PETG');
+  assert.equal(at('Furniture/Chairs/Gaming chairs'), 'Gaming › Gaming Chairs & Desks');
+  assert.equal(at('Bags/Duffle Bags'), 'Luggage & Travel › Travel Bags & Accessories');
+  assert.equal(at('Smart Home/Smart Cameras/Outdoor'), 'Smart Home & Lighting › Smart Home');
+  assert.equal(at('Devices', 'MTP03HX/A iPhone 15 128GB'), 'Mobile & Wearables › Phones');
+  assert.equal(at('Fashion and beauty/Sunglasses'), 'skip');
+  assert.equal(at('Display Unit'), 'skip');
+});

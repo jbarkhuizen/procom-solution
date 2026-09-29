@@ -332,6 +332,8 @@ export const DEFAULT_SETTINGS = {
   esquireAutoList: false,
   // SMD API sync runs on its schedule only when this is on (after a connection check).
   smdApiSync: false,
+  // ...and lists new SMD products (smd-api-rules.js) only when this is on.
+  smdApiAutoList: false,
 };
 
 // SMD's delivery terms (owner, 2026-09-28): courier R150 incl VAT per order,

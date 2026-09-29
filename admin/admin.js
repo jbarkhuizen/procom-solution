@@ -592,11 +592,14 @@ function smdApiPanel(sm) {
   return `<div class="panel stack gap-3" style="margin-bottom:1rem">
     <div class="section-head"><h3>SMD live API</h3>${!sm.configured ? '<span class="badge bad">API access not set</span>' : sm.syncOn ? `<span class="badge published">Syncs daily at ${h(times)}</span>` : '<span class="badge warn">Sync off</span>'}</div>
     <p class="mini-help">${sm.configured ? last : 'Enter SMD’s API token and Client access key in <a href="#/suppliers">Suppliers → SMD</a> (Supplier API access).'}${sm.running ? ' <span class="badge info">Running…</span>' : ''}${sm.photosQueued ? ` <span class="badge info">${sm.photosQueued} photo sets downloading</span>` : ''}</p>
+    <p class="mini-help">Auto-list of <strong>new</strong> SMD products is <strong>${sm.autoList ? 'ON' : 'OFF'}</strong>${sm.autoList ? ': each sync lists new products into their shop category.' : ': the report shows what would be listed.'}</p>
     <p class="mini-help">Each sync updates your SMD products from SMD's own system: cost (SMD specials show as Sale), stock (out at 0, back when restocked, "Only 3 left" when low), blank descriptions and full-size photos (your own uploaded photos are never replaced). Categories are never changed; SMD products you don't sell yet appear below for listing. A report is emailed after every run.</p>
     <div class="toolbar" style="margin:0">
       ${sm.configured && sm.supplier ? `<button class="btn small" data-smd-run="check" ${sm.running ? 'disabled' : ''}>Check connection (no changes)</button>
       <button class="btn small btn-primary" data-smd-run="sync" ${sm.running ? 'disabled' : ''}>Sync now</button>
-      <button class="btn small" id="smd-switch" data-on="${sm.syncOn ? '1' : ''}">${sm.syncOn ? 'Switch automatic sync off' : 'Switch automatic sync on…'}</button>` : ''}
+      <button class="btn small" id="smd-switch" data-on="${sm.syncOn ? '1' : ''}">${sm.syncOn ? 'Switch automatic sync off' : 'Switch automatic sync on…'}</button>
+      <button class="btn small" data-autolist="smdapi" data-supplier="${h(sm.supplier.id)}">Preview auto-list of new products…</button>
+      <button class="btn small" id="smd-auto" data-on="${sm.autoList ? '1' : ''}">${sm.autoList ? 'Switch auto-list off' : 'Switch auto-list on…'}</button>` : ''}
     </div>
   </div>`;
 }
@@ -867,6 +870,15 @@ routes.feed = async () => {
       }
     }),
   );
+  $('#smd-auto', root)?.addEventListener('click', async (e) => {
+    const on = e.target.dataset.on !== '1';
+    if (on && !confirm('Switch SMD auto-list ON?\n\nFrom the next SMD sync, new SMD products matched by the approved category rules are listed LIVE at the default markup, and categories they need are created. Use "Preview auto-list" first.')) return;
+    try {
+      await api('/feed/smd-api/autolist', { method: 'PUT', body: { on } });
+      toast(`SMD auto-list ${on ? 'on' : 'off'}`);
+      reload();
+    } catch (err) { fail(err); }
+  });
   $('#smd-switch', root)?.addEventListener('click', async (e) => {
     const on = e.target.dataset.on !== '1';
     if (on && !confirm('Switch the automatic SMD sync ON?\n\nIt then runs at 06:30, 12:30 and 18:30 and updates your live SMD products (prices, stock, descriptions, photos).')) return;
