@@ -579,6 +579,28 @@ async function productEditor(id) {
 
 // ============================================================== warehouse feed
 
+// SMD's live API (server/smd-api.js): check first (read-only), then switch on.
+function smdApiPanel(sm) {
+  const lr = sm.lastRun;
+  const st = lr?.stats;
+  const last = !lr
+    ? 'No run yet — start with <strong>Check connection</strong>: it reports what would change and changes nothing.'
+    : !lr.ok
+      ? `<span class="money-up">Last ${lr.check ? 'check' : 'sync'} ${h(fmtDate(lr.at))} failed: ${h(lr.error)}</span>`
+      : `Last ${lr.check ? '<strong>check</strong> (nothing changed)' : 'sync'} ${h(fmtDate(lr.at))}: ${st.matched} of ${st.listed} SMD products found · ${st.costUp + st.costDown} cost changes · ${st.markedOut} out · ${st.backInStock} back · ${st.specials} on special · ${st.photoSets} photo sets · ${st.newSkus} not sold yet`;
+  const times = sm.runTimesSast.join(', ');
+  return `<div class="panel stack gap-3" style="margin-bottom:1rem">
+    <div class="section-head"><h3>SMD live API</h3>${!sm.configured ? '<span class="badge bad">API access not set</span>' : sm.syncOn ? `<span class="badge published">Syncs daily at ${h(times)}</span>` : '<span class="badge warn">Sync off</span>'}</div>
+    <p class="mini-help">${sm.configured ? last : 'Enter SMD’s API token and Client access key in <a href="#/suppliers">Suppliers → SMD</a> (Supplier API access).'}${sm.running ? ' <span class="badge info">Running…</span>' : ''}${sm.photosQueued ? ` <span class="badge info">${sm.photosQueued} photo sets downloading</span>` : ''}</p>
+    <p class="mini-help">Each sync updates your SMD products from SMD's own system: cost (SMD specials show as Sale), stock (out at 0, back when restocked, "Only 3 left" when low), blank descriptions and full-size photos (your own uploaded photos are never replaced). Categories are never changed; SMD products you don't sell yet appear below for listing. A report is emailed after every run.</p>
+    <div class="toolbar" style="margin:0">
+      ${sm.configured && sm.supplier ? `<button class="btn small" data-smd-run="check" ${sm.running ? 'disabled' : ''}>Check connection (no changes)</button>
+      <button class="btn small btn-primary" data-smd-run="sync" ${sm.running ? 'disabled' : ''}>Sync now</button>
+      <button class="btn small" id="smd-switch" data-on="${sm.syncOn ? '1' : ''}">${sm.syncOn ? 'Switch automatic sync off' : 'Switch automatic sync on…'}</button>` : ''}
+    </div>
+  </div>`;
+}
+
 // Esquire's live API feed: pulled by the server on a schedule (server/esquire.js).
 function esquirePanel(esq) {
   const lr = esq.lastRun;
@@ -609,7 +631,7 @@ routes.feed = async () => {
   const [suppliers, cats, cfg] = await Promise.all([api('/suppliers'), categoryOptions(), siteSettings()]);
   if (!s.supplierId && suppliers[0]) s.supplierId = suppliers[0].id;
   const q = new URLSearchParams({ supplierId: s.supplierId, q: s.q, category: s.category, brand: s.brand, listed: s.listed, page: s.page, singleUnit: s.singleUnit ? '1' : '', withImage: s.withImage ? '1' : '', changed: s.changed ? '1' : '' });
-  const [facets, res, esq] = await Promise.all([api(`/feed/facets?supplierId=${encodeURIComponent(s.supplierId)}`), api(`/feed?${q}`), api('/feed/esquire')]);
+  const [facets, res, esq, smdApi] = await Promise.all([api(`/feed/facets?supplierId=${encodeURIComponent(s.supplierId)}`), api(`/feed?${q}`), api('/feed/esquire'), api('/feed/smd-api')]);
   const vat = 1 + cfg.vatRatePct / 100;
   const estPrice = (cost) => Math.ceil((cost * vat * (1 + cfg.defaultMarkupPct / 100)) / 100) * 100;
   const last = facets.imports[0];
@@ -639,6 +661,7 @@ routes.feed = async () => {
       </div>
     </div>
     ${esquirePanel(esq)}
+    ${smdApiPanel(smdApi)}
     <div id="mapping-panel"></div>
 
     <div class="panel" style="margin-bottom:1rem">
@@ -824,6 +847,34 @@ routes.feed = async () => {
       fail(err);
       e.target.disabled = false;
     }
+  });
+  $$('[data-smd-run]', root).forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      const check = btn.dataset.smdRun === 'check';
+      if (!check && !confirm('Sync SMD now?\n\nThis updates your live SMD products: costs and prices, stock, blank descriptions and photos. Tip: run "Check connection" first to see what would change.')) return;
+      btn.disabled = true;
+      try {
+        await api('/feed/smd-api/run', { method: 'POST', body: { check } });
+        toast(check ? 'SMD connection check started — the report email follows' : 'SMD sync started — the report email follows');
+        for (let i = 0; i < 90; i++) {
+          await new Promise((ok) => setTimeout(ok, 5000));
+          if (!(await api('/feed/smd-api')).running) break;
+        }
+        reload();
+      } catch (err) {
+        fail(err);
+        btn.disabled = false;
+      }
+    }),
+  );
+  $('#smd-switch', root)?.addEventListener('click', async (e) => {
+    const on = e.target.dataset.on !== '1';
+    if (on && !confirm('Switch the automatic SMD sync ON?\n\nIt then runs at 06:30, 12:30 and 18:30 and updates your live SMD products (prices, stock, descriptions, photos).')) return;
+    try {
+      await api('/feed/smd-api/schedule', { method: 'PUT', body: { on } });
+      toast(`SMD sync ${on ? 'on' : 'off'}`);
+      reload();
+    } catch (err) { fail(err); }
   });
   $('#esq-auto', root)?.addEventListener('click', async (e) => {
     const on = e.target.dataset.on !== '1';
@@ -1163,7 +1214,7 @@ routes.suppliers = async () => {
   const list = await api('/suppliers');
   const root = view(`<div class="editor-layout">
     <div class="panel table-wrap"><table class="catalog"><thead><tr><th>Supplier</th><th>Contact</th><th class="num">Listed</th><th class="num">In feed</th></tr></thead><tbody>
-      ${list.map((s) => `<tr data-id="${h(s.id)}"><td><strong>${h(s.name)}</strong><br><span class="muted">${h(s.leadTimeText)}</span><br><span class="muted">${s.deliveryMode === 'flat' ? `Courier ${rand(s.deliveryFeeCents)}${s.freeOverCostCents != null ? `, free from ${rand(s.freeOverCostCents)} cost` : ''}` : 'Store-wide shipping'}${s.collectionEnabled ? ' · collection' : ''}</span></td><td>${h(s.contactName)}<br><span class="muted">${h(s.email)} ${h(s.phone)}</span>${s.website ? `<br><a class="muted" href="${h(s.website)}" target="_blank" rel="noopener noreferrer">${h(s.website.replace(/^https?:\/\//, ''))}</a>` : ''}${s.portalUsername || s.hasPortalPassword ? ' <span class="badge neutral">portal login saved</span>' : ''}</td><td class="num">${s.productCount}</td><td class="num">${s.feedCount}</td></tr>`).join('')}
+      ${list.map((s) => `<tr data-id="${h(s.id)}"><td><strong>${h(s.name)}</strong><br><span class="muted">${h(s.leadTimeText)}</span><br><span class="muted">${s.deliveryMode === 'flat' ? `Courier ${rand(s.deliveryFeeCents)}${s.freeOverCostCents != null ? `, free from ${rand(s.freeOverCostCents)} cost` : ''}` : 'Store-wide shipping'}${s.collectionEnabled ? ' · collection' : ''}</span></td><td>${h(s.contactName)}<br><span class="muted">${h(s.email)} ${h(s.phone)}</span>${s.website ? `<br><a class="muted" href="${h(s.website)}" target="_blank" rel="noopener noreferrer">${h(s.website.replace(/^https?:\/\//, ''))}</a>` : ''}${s.portalUsername || s.hasPortalPassword ? ' <span class="badge neutral">portal login saved</span>' : ''}${s.hasApiToken && s.hasApiKey ? ' <span class="badge neutral">API access saved</span>' : ''}</td><td class="num">${s.productCount}</td><td class="num">${s.feedCount}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="panel" id="sup-editor"><p class="muted">Select a supplier to edit. The lead-time text is what customers see as the delivery estimate on dropshipped products.</p></div>
   </div>`);
@@ -1183,6 +1234,11 @@ routes.suppliers = async () => {
       <label class="field"><span>Password ${s?.hasPortalPassword ? '(saved — leave blank to keep)' : ''}</span><input name="portalPassword" type="password" autocomplete="new-password" placeholder="${s?.hasPortalPassword ? '••••••••' : ''}"></label></div>
       ${s?.hasPortalPassword ? `<div class="toolbar" style="margin:0"><button type="button" class="btn small" id="s-reveal">Reveal password</button><button type="button" class="btn small" id="s-copy">Copy password</button><label class="field checkbox"><input type="checkbox" name="clearPortalPassword"><span>Remove saved password</span></label><span class="mini-help" id="s-pw"></span></div>` : ''}
       <p class="mini-help">The password is stored encrypted and only shown when you click Reveal or Copy (each time is written to the audit log). For <strong>Esquire</strong> this login is also what the live feed sync uses.</p>
+      <div class="section-head" style="margin-top:0.5rem"><h3>Supplier API access</h3></div>
+      <p class="mini-help">For suppliers with a product API (SMD: the <strong>Bearer token</strong> and <strong>ClientAccessKey</strong> from their email). Stored encrypted; leave blank to keep what is saved.</p>
+      <div class="grid-2"><label class="field"><span>API token ${s?.hasApiToken ? '(saved)' : ''}</span><input name="apiToken" type="password" autocomplete="new-password" placeholder="${s?.hasApiToken ? '••••••••' : ''}"></label>
+      <label class="field"><span>Client access key ${s?.hasApiKey ? '(saved)' : ''}</span><input name="apiKey" type="password" autocomplete="new-password" placeholder="${s?.hasApiKey ? '••••••••' : ''}"></label></div>
+      ${s?.hasApiToken || s?.hasApiKey ? '<label class="field checkbox"><input type="checkbox" name="clearApiAccess"><span>Remove saved API access</span></label>' : ''}
       <label class="field"><span>Customer-facing lead time</span><input name="leadTimeText" value="${h(s?.leadTimeText || 'Ships from our warehouse in 2-5 business days')}"></label>
       <label class="field"><span>Notes (account no., terms…)</span><textarea name="notes" rows="3">${h(s?.notes)}</textarea></label>
       <div class="section-head" style="margin-top:0.5rem"><h3>Delivery</h3></div>
@@ -1202,7 +1258,7 @@ routes.suppliers = async () => {
     $('#sform', root).addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await api(s ? `/suppliers/${s.id}` : '/suppliers', { method: s ? 'PUT' : 'POST', body: { ...Object.fromEntries(new FormData(e.target)), collectionEnabled: e.target.collectionEnabled.checked, ownCourierEnabled: e.target.ownCourierEnabled.checked, clearPortalPassword: Boolean(e.target.clearPortalPassword?.checked) } });
+        await api(s ? `/suppliers/${s.id}` : '/suppliers', { method: s ? 'PUT' : 'POST', body: { ...Object.fromEntries(new FormData(e.target)), collectionEnabled: e.target.collectionEnabled.checked, ownCourierEnabled: e.target.ownCourierEnabled.checked, clearPortalPassword: Boolean(e.target.clearPortalPassword?.checked), clearApiAccess: Boolean(e.target.clearApiAccess?.checked) } });
         toast('Supplier saved');
         routes.suppliers();
       } catch (err) { fail(err); }

@@ -15,6 +15,7 @@ const catalog = await import('./catalog.js');
 const feed = await import('./feed.js');
 const smdAutolist = await import('./smd-autolist.js');
 const esquire = await import('./esquire.js');
+const smdApi = await import('./smd-api.js');
 const shipping = await import('./shipping.js');
 const orders = await import('./orders.js');
 const settings = await import('./settings.js');
@@ -284,6 +285,17 @@ admin.post('/feed/esquire/sync', wrap(() => {
   esquire.syncEsquire({ trigger: 'manual' });
   return { started: true };
 }));
+// SMD API: status, read-only connection check, sync now, schedule switch.
+admin.get('/feed/smd-api', wrap(() => smdApi.smdStatus()));
+admin.post('/feed/smd-api/run', wrap((req) => {
+  if (!smdApi.smdConfigured()) throw new Error(smdApi.NO_ACCESS);
+  smdApi.syncSmd({ trigger: 'manual', check: req.body?.check !== false });
+  return { started: true };
+}));
+admin.put('/feed/smd-api/schedule', wrap((req) => {
+  settings.updateSettings({ smdApiSync: req.body?.on === true });
+  return smdApi.smdStatus();
+}));
 admin.put('/feed/esquire/autolist', wrap((req) => {
   settings.updateSettings({ esquireAutoList: req.body?.on === true });
   return esquire.esquireStatus();
@@ -360,4 +372,6 @@ app.use((err, _req, res, _next) => {
 startBackupSchedule();
 resumePendingDownloads();
 esquire.startEsquireSchedule();
+smdApi.startSmdSchedule();
+smdApi.resumeMediaDownloads();
 app.listen(PORT, HOST, () => console.log(`Procom API on http://${HOST}:${PORT} (admin: /admin/, Payfast ${payfastMode()})`));

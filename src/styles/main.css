@@ -552,6 +552,8 @@ select option { background-color: #fffdf8; color: #1a1612; }
 .pill-warn { color: var(--color-terracotta); background: color-mix(in srgb, var(--color-terracotta) 12%, transparent); }
 .pill-sale { color: #1a1612; background: var(--color-lime); }
 [data-theme="dark"] .pill-ok { color: #7fd39c; background: rgb(127 211 156 / 0.12); }
+.pill-low { color: #8a5a00; background: rgb(214 150 20 / 0.16); }
+[data-theme="dark"] .pill-low { color: #f0c064; background: rgb(240 192 100 / 0.14); }
 /* Warehouse that ships the item (cards.js shipsFromIcon); one colour per warehouse. */
 .ship-from { display: inline-flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem; border-radius: 9999px; cursor: help; }
 .ship-from.tone-0 { color: #1f5f8b; background: rgb(31 95 139 / 0.12); }

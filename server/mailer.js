@@ -195,6 +195,51 @@ export function sendEsquireReport(report) {
   return sendMail({ to: s.ownerNotifyEmail, subject, html: layout('Esquire feed sync', body) });
 }
 
+// After every SMD API run (smd-api.js). A connection check says so: nothing changed.
+export function sendSmdReport(report) {
+  const s = getSettings();
+  const st = report.stats || {};
+  const row = (label, value) => `<tr><td style="padding:4px 0">${escapeHtml(label)}</td><td style="padding:4px 0;text-align:right;font-weight:700">${escapeHtml(String(value ?? '—'))}</td></tr>`;
+  const table = (rows) => `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0 16px">${rows.join('')}</table>`;
+  const list = (items) => `<ul style="font-size:13px;margin:4px 0 16px;padding-left:18px">${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
+  const when = new Date(report.startedAt).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
+  const verb = report.check ? 'would be' : 'were';
+  let body = `<p>${escapeHtml(when)} · ${report.check ? '<strong>connection check — nothing in the shop was changed</strong>' : report.trigger === 'scheduled' ? 'scheduled run' : 'run started from admin'} · ${report.seconds ?? 0}s</p>`;
+  if (!report.ok) {
+    body += `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>The SMD sync did not complete.</strong><br>${escapeHtml(report.error)}</p><p>Nothing was changed in the shop by this run.</p>`;
+  } else {
+    body += `<h3 style="font-size:15px;margin:12px 0 0">What SMD sent</h3>${table([
+      row('Products', report.api.products),
+      row('Prices', report.api.prices),
+      row('Stock levels', report.api.stock),
+      row('Products with photos', report.api.photoSkus),
+    ])}<h3 style="font-size:15px;margin:12px 0 0">Your SMD products (${st.listed})</h3>${table([
+      row('Found in the API', `${st.matched} (${st.listed ? Math.round((st.matched / st.listed) * 100) : 0}%)`),
+      row('Not in the API', st.notInApi),
+      row(`Costs that ${verb} raised / lowered`, `${st.costUp} / ${st.costDown}`),
+      row('On SMD special now (shown as Sale)', st.specials),
+      row(`Specials that ${verb} ended`, st.specialsEnded),
+      row(`Marked out of stock`, st.markedOut),
+      row(`Back in stock`, st.backInStock),
+      row('Low stock (5 or fewer)', st.lowStock),
+      row(`Descriptions that ${verb} filled`, st.descriptions),
+      row(`Products that ${verb} get full-size photos`, st.photoSets),
+      ...(report.check ? [] : [row('Shop prices updated', report.repriced)]),
+    ])}`;
+    if (st.missingNotMarked) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>${st.notInApi} of your SMD products are not in the API</strong> — too many to be real sell-outs, so they were left as they are (probably a range the API doesn't cover). Examples:</p>${list(st.missingSample || [])}`;
+    else if (st.missingSample?.length) body += `<p style="margin:0">Not in the API (${verb} marked out of stock):</p>${list(st.missingSample)}`;
+    if (report.stats?.biggestChanges?.length) body += `<p style="margin:0">Biggest cost changes:</p>${list(report.stats.biggestChanges.map((c) => `${c.name} (${c.sku}): ${formatRand(c.from)} → ${formatRand(c.to)} excl VAT`))}`;
+    if (st.newSkus) body += `<p style="margin:0"><strong>${st.newSkus} SMD products you don't sell yet</strong> ${report.check ? 'would appear' : 'are now'} in Admin → Warehouse feed (supplier SMD), by SMD category:</p>${list(Object.entries(st.newSkuCategories).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([c, n]) => `${n} · ${c}`))}`;
+    if (report.check) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px">If this looks right, switch the SMD sync on in Admin → Warehouse feed → SMD live API. It then runs at 06:30, 12:30 and 18:30.</p>`;
+  }
+  const subject = !report.ok
+    ? `SMD sync FAILED${report.check ? ' (connection check)' : ''}`
+    : report.check
+      ? `SMD connection check — ${st.matched} of ${st.listed} products found, nothing changed`
+      : `SMD sync — ${st.costUp + st.costDown} cost changes, ${st.markedOut} out of stock, ${st.backInStock} back`;
+  return sendMail({ to: s.ownerNotifyEmail, subject, html: layout('SMD live API', body) });
+}
+
 export function sendContactNotice({ name, email, phone, message }) {
   const s = getSettings();
   return sendMail({

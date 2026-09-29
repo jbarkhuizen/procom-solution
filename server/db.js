@@ -88,6 +88,18 @@ const COLUMN_MIGRATIONS = [
   // % of the item price charged as courier insurance (e.g. Esquire: 3% on
   // TVs shipped by courier). NULL = inherit from the parent category.
   ['categories', 'courier_insurance_pct', 'REAL'],
+  // Supplier API access (SMD): token + client key, encrypted like portal passwords.
+  ['suppliers', 'api_token_enc', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'api_key_enc', "TEXT NOT NULL DEFAULT ''"],
+  // Live supplier stock (SMD API "SOH"); NULL = unknown (no stock feed).
+  ['products', 'supplier_stock_qty', 'INTEGER'],
+  // Set while a supplier special (SMD API) drives compare_at_cents, so it can be cleared when the special ends.
+  ['products', 'special_by_feed', 'INTEGER NOT NULL DEFAULT 0'],
+  // 1 = photos came from a supplier feed and may be replaced by better ones;
+  // 0 = the admin changed them (never touched); NULL = unknown (only tiny
+  // spreadsheet thumbnails are replaced).
+  ['products', 'images_from_feed', 'INTEGER'],
+  ['products', 'media_sig', "TEXT NOT NULL DEFAULT ''"], // which supplier photo set is showing
 ];
 
 export function migrate(conn) {
@@ -193,6 +205,16 @@ export function ensureSchema(conn) {
       in_latest_import INTEGER NOT NULL DEFAULT 1,
       imported_at TEXT NOT NULL,
       UNIQUE (supplier_id, code)
+    );
+
+    -- Supplier photo sets waiting to be downloaded onto a product (smd-api.js).
+    CREATE TABLE IF NOT EXISTS product_media_queue (
+      product_id TEXT PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+      urls TEXT NOT NULL,                 -- JSON ["https://...", ...] in display order
+      sig TEXT NOT NULL,                  -- becomes products.media_sig when applied
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | downloading | failed
+      tries INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS feed_imports (
@@ -308,6 +330,8 @@ export const DEFAULT_SETTINGS = {
   legalEntity: 'Lapanza (trading as Procom Solutions)',
   // Esquire API sync lists new items by itself only when this is on.
   esquireAutoList: false,
+  // SMD API sync runs on its schedule only when this is on (after a connection check).
+  smdApiSync: false,
 };
 
 // SMD's delivery terms (owner, 2026-09-28): courier R150 incl VAT per order,

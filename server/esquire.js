@@ -189,13 +189,15 @@ export function syncHours() {
 }
 
 // Next run time after `now` for the given SAST hours.
-export function nextRunAt(now = new Date(), hours = syncHours()) {
+// Slots: SAST hours (6) or { h, m } (SMD runs at 06:30...).
+export function nextRunAt(now = new Date(), slots = syncHours()) {
   const candidates = [];
   for (let day = 0; day <= 2; day++) {
-    for (const h of hours) {
+    for (const slot of slots) {
+      const { h, m } = typeof slot === 'number' ? { h: slot, m: 0 } : slot;
       const t = new Date(now);
       t.setUTCDate(t.getUTCDate() + day);
-      t.setUTCHours(h - SAST_OFFSET_H, 0, 0, 0); // negative hours roll back a day
+      t.setUTCHours(h - SAST_OFFSET_H, m, 0, 0); // negative hours roll back a day
       if (t > now) candidates.push(t);
     }
   }
