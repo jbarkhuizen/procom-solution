@@ -305,6 +305,11 @@ const SORTS = {
   name: 'p.name COLLATE NOCASE ASC',
 };
 
+// Search helpers: lower-case, drop spaces and common punctuation ("K1-C" -> "k1c").
+const COMPACT_CHARS = [' ', '-', '_', '/', '.'];
+const COMPACT_SQL = (col) => COMPACT_CHARS.reduce((sql, ch) => `REPLACE(${sql}, '${ch}', '')`, `LOWER(${col})`);
+export const compactSearch = (s) => String(s).toLowerCase().replace(/[\s\-_/.]+/g, '');
+
 // Shared by storefront listing and admin product table.
 export function queryProducts(opts = {}, db = getDb()) {
   const { admin = false } = opts;
@@ -326,8 +331,13 @@ export function queryProducts(opts = {}, db = getDb()) {
   if (opts.q) {
     const terms = String(opts.q).trim().split(/\s+/).slice(0, 6);
     terms.forEach((t, i) => {
-      where.push(`(p.name LIKE @q${i} OR p.brand LIKE @q${i} OR p.sku LIKE @q${i} OR p.supplier_code LIKE @q${i})`);
+      // Model numbers are written many ways ("K1-C", "K1 C", "K1C"): also match the
+      // name/SKU with spaces and punctuation removed, for terms of 3+ letters/digits.
+      const compact = compactSearch(t);
+      const loose = compact.length >= 3 ? ` OR ${COMPACT_SQL('p.name')} LIKE @qc${i} OR ${COMPACT_SQL('p.sku')} LIKE @qc${i}` : '';
+      where.push(`(p.name LIKE @q${i} OR p.brand LIKE @q${i} OR p.sku LIKE @q${i} OR p.supplier_code LIKE @q${i}${loose})`);
       params[`q${i}`] = `%${t}%`;
+      if (loose) params[`qc${i}`] = `%${compact}%`;
     });
   }
   if (opts.fulfilment) {
