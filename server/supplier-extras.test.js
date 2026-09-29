@@ -124,3 +124,18 @@ test('courier insurance is inherited by sub-categories; blank means "same as par
   catalog.saveCategory({ name: 'TV & Video' }, tv.id, db);
   assert.equal(catalog.courierInsuranceByCategory(db).get(tv.id), 3);
 });
+
+test('storefront products say which warehouse ships them -- public label only, never the supplier name', () => {
+  const { cable } = setup();
+  const pub = catalog.getPublicProductBySlug(cable.slug, db).product;
+  assert.equal(pub.shipsFrom, 'Samrand warehouse');
+  assert.ok(!JSON.stringify(pub).includes('Esquire'), 'supplier name not in public data');
+  const listed = catalog.queryProducts({ q: 'HDMI' }, db).items[0];
+  assert.equal(listed.shipsFrom, 'Samrand warehouse');
+  assert.ok(!JSON.stringify(listed).includes('Esquire'));
+  // A second warehouse gets a different icon colour.
+  const other = catalog.saveSupplier({ name: 'SMD', publicLabel: 'Edenvale warehouse' }, null, db);
+  const p2 = catalog.saveProduct({ name: 'Mouse', supplierId: other.id, priceMode: 'manual', priceCents: 5000 }, null, db);
+  const tones = catalog.queryProducts({}, db).items.map((p) => [p.id, p.shipsFromTone]);
+  assert.notEqual(new Map(tones).get(p2.id), new Map(tones).get(cable.id));
+});

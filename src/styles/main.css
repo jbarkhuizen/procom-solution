@@ -552,6 +552,19 @@ select option { background-color: #fffdf8; color: #1a1612; }
 .pill-warn { color: var(--color-terracotta); background: color-mix(in srgb, var(--color-terracotta) 12%, transparent); }
 .pill-sale { color: #1a1612; background: var(--color-lime); }
 [data-theme="dark"] .pill-ok { color: #7fd39c; background: rgb(127 211 156 / 0.12); }
+/* Warehouse that ships the item (cards.js shipsFromIcon); one colour per warehouse. */
+.ship-from { display: inline-flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem; border-radius: 9999px; cursor: help; }
+.ship-from.tone-0 { color: #1f5f8b; background: rgb(31 95 139 / 0.12); }
+.ship-from.tone-1 { color: #8a4b12; background: rgb(138 75 18 / 0.12); }
+.ship-from.tone-2 { color: #5b3f8c; background: rgb(91 63 140 / 0.12); }
+.ship-from.tone-3 { color: #2f6b64; background: rgb(47 107 100 / 0.12); }
+[data-theme="dark"] .ship-from { filter: brightness(1.6); }
+
+/* "Load more" under product grids (load-more.js). */
+.load-more { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; margin-top: 2rem; }
+.load-more button { font-size: 0.85rem; font-weight: 600; border: 2px solid var(--color-charcoal); border-radius: 9999px; padding: 0.55rem 1.4rem; }
+.load-more button:hover:not(:disabled) { background: var(--color-charcoal); color: var(--color-cream); }
+.load-more button:disabled { opacity: 0.5; cursor: wait; }
 
 .cart-drawer { position: fixed; inset: 0 0 0 auto; width: min(420px, 100vw); z-index: 90; background: var(--surface); border-left: 2px solid var(--color-charcoal); transform: translateX(100%); transition: transform 0.3s ease; display: flex; flex-direction: column; }
 .cart-drawer.open { transform: none; }
@@ -575,9 +588,6 @@ select option { background-color: #fffdf8; color: #1a1612; }
 .ship-option:has(input:checked) { border-color: var(--color-terracotta); background: color-mix(in srgb, var(--color-terracotta) 6%, transparent); }
 .ship-option input { margin-top: 0.2rem; accent-color: var(--color-terracotta); }
 
-.pager a, .pager span { min-width: 2.25rem; height: 2.25rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; border: 2px solid transparent; }
-.pager a:hover { border-color: var(--color-charcoal); }
-.pager .current { background: var(--color-charcoal); color: var(--color-cream); }
 
 .skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--color-charcoal) 6%, transparent) 25%, color-mix(in srgb, var(--color-charcoal) 11%, transparent) 50%, color-mix(in srgb, var(--color-charcoal) 6%, transparent) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 0.25rem; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }

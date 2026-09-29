@@ -19,9 +19,17 @@ function priceLine(p, sale) {
   return `<p class="leading-none"><span class="text-terracotta font-semibold text-sm">${formatRand(p.priceCents)}</span>${sale ? ` <s class="text-[0.65rem] text-espresso/45">${formatRand(p.compareAtCents)}</s>` : ''}</p>`;
 }
 
+// Small warehouse icon: tells a customer which warehouse ships the item (a
+// mixed cart ships from two). Public name only -- never the supplier's.
+export function shipsFromIcon(p) {
+  if (!p.shipsFrom) return '';
+  const text = `Ships from our ${p.shipsFrom}`;
+  return `<span class="ship-from tone-${Number(p.shipsFromTone) || 0}" title="${esc(text)}" role="img" aria-label="${esc(text)}"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M1.5 6.2 8 2.5l6.5 3.7v7.3h-13z"/><path d="M4.5 13.5V8.5h7v5M4.5 10.8h7"/></svg></span>`;
+}
+
 export function availabilityPill(p) {
   if (!p.inStock) return '<span class="pill pill-warn">Out of stock</span>';
-  return '<span class="pill pill-ok">In stock</span>';
+  return `<span class="inline-flex items-center gap-1"><span class="pill pill-ok">In stock</span>${shipsFromIcon(p)}</span>`;
 }
 
 // Compact card. Supplier photos are ~113px, so the image is shown near its
