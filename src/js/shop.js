@@ -16,7 +16,8 @@ function state() {
     q: q.get('q') || '',
     brand: q.get('brand') || '',
     sort: q.get('sort') || 'featured',
-    inStock: q.get('inStock') === '1',
+    // "In stock only" is on by default; unticking it is kept in the URL as inStock=0.
+    inStock: q.get('inStock') !== '0',
   };
 }
 
@@ -25,6 +26,10 @@ function go(patch) {
   const next = { ...state(), ...patch };
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(next)) {
+    if (k === 'inStock') {
+      if (!v) q.set('inStock', '0');
+      continue;
+    }
     if (v === '' || v === false || v == null || (k === 'sort' && v === 'featured')) continue;
     q.set(k, v === true ? '1' : String(v));
   }

@@ -429,6 +429,7 @@ const SUITE_DESCRIPTIONS = {
   'server/server.test.js': 'Core shop rules: pricing and markup, rounding, orders re-priced on the server, stock, shipping options, delivery per supplier, Payfast signatures, admin logins.',
   'server/feed.test.js': 'Warehouse price lists: reading Excel/CSV/PDF files, matching columns, importing, cost updates and out-of-stock handling.',
   'server/esquire.test.js': 'Esquire API sync: VAT stripped, stock out/back in, glitch guard, schedule, category rules.',
+  'server/catalog-search.test.js': 'Shop search: model numbers match however they are typed (K1-C, K1 C, K1C).',
   'server/supplier-extras.test.js': 'Supplier details: encrypted portal password, own-courier delivery, courier insurance line (Esquire TVs).',
   'server/smd-api.test.js': 'SMD live API: headers and paging, check mode, costs and specials, stock, descriptions, new SKUs, photos, schedule.',
   'server/smd-autolist.test.js': 'SMD auto-list: which store category each SMD row goes into, skipped rows, heavy items marked "delivery quoted".',

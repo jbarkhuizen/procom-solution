@@ -53,6 +53,7 @@ export function productCard(p) {
     <div class="p-2.5 flex flex-col flex-1">
       ${p.brand ? `<p class="text-[0.58rem] uppercase tracking-[0.14em] text-espresso/50 font-bold leading-none mb-1">${esc(p.brand)}</p>` : ''}
       <h3 class="text-[0.8rem] font-medium leading-snug mb-1.5 line-clamp-2"><a href="${productUrl(p)}" class="hover:text-terracotta">${esc(p.name)}</a></h3>
+      ${p.sku ? `<p class="text-[0.6rem] font-mono text-espresso/50 leading-none mb-1.5 truncate" title="Stock code">${esc(p.sku)}</p>` : ''}
       <div class="mt-auto">
         <div class="flex items-center justify-between gap-1.5 flex-wrap">
           ${priceLine(p, sale)}
