@@ -16,6 +16,10 @@ const r = (parent, sub, test = {}, extra = {}) => ({ parent, sub, ...test, ...ex
 const skip = (reason, test) => ({ skip: reason, ...test });
 
 const RULES = [
+  // --- categories Esquire added after the table was approved (2026-09-29)
+  r('Luggage & Travel', 'Travel Bags & Accessories', { cat: /^travel pillow/i }),
+  r('Home & Kitchen', 'Braai, Camping & Garden', { cat: /^cooler box/i }),
+
   // --- tech items whose Esquire category looks like a skipped group below
   r('Computers & Peripherals', 'Computer Accessories', { cat: /^multi-function stylus pen$/i }),
   r('Computers & Peripherals', 'Keyboards & Mice', { cat: /^wrist support$/i }),

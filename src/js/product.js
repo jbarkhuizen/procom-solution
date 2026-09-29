@@ -79,7 +79,8 @@ async function load() {
       <div class="md:sticky md:top-24">${gallery(p)}</div>
       <div>
         ${p.brand ? `<p class="eyebrow mb-3">${esc(p.brand)}</p>` : ''}
-        <h1 class="font-serif text-2xl md:text-[1.75rem] leading-tight tracking-tight mb-2">${esc(p.name)}</h1>
+        <h1 class="font-serif text-2xl md:text-[1.75rem] leading-tight tracking-tight mb-1">${esc(p.name)}</h1>
+        <p class="text-xs text-espresso/55 mb-2">SKU: <span class="font-mono select-all">${esc(p.sku)}</span></p>
         ${(() => {
           const pack = packLabel(p);
           return pack
@@ -89,7 +90,7 @@ async function load() {
         <div class="flex flex-wrap items-center gap-2 mb-3">${availabilityPill(p)}<span class="text-xs text-espresso/60">${esc(p.availability)}</span>${p.quoteDelivery ? '<span class="pill pill-warn">Delivery quoted</span>' : ''}</div>
         ${p.shortDescription ? `<p class="text-sm text-espresso/80 leading-relaxed mb-3">${esc(p.shortDescription)}</p>` : ''}
         ${p.inStock ? `<div class="flex flex-wrap items-center gap-3 mb-3">
-          <div class="qty"><button type="button" data-step="-1" aria-label="Decrease">−</button><input id="qty" type="number" value="${min}" min="${min}" ${p.stockQty != null ? `max="${Number(p.stockQty)}"` : ''} aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase">+</button></div>
+          <div class="qty"><button type="button" data-step="-1" aria-label="Decrease">−</button><input id="qty" type="number" value="${min}" min="${min}" ${p.stockQty != null ? `max="${Number(p.stockQty)}"` : p.stockMax != null ? `max="${Number(p.stockMax)}"` : ''} aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase">+</button></div>
           <button type="button" id="add-btn" class="magnetic-btn flex-1 sm:flex-none sm:w-60 bg-charcoal text-cream rounded-full px-6 py-2.5 text-sm font-semibold brutal hover:bg-terracotta">Add to cart</button>
         </div>
         ${min > 1 ? `<p class="text-xs text-espresso/60 mb-3">Sold in packs of ${min} — the quantity starts at ${min}.</p>` : ''}` : `<p class="text-sm text-espresso/70 mb-4">This item is currently unavailable. WhatsApp us and we'll let you know when it's back or suggest an alternative.</p>`}

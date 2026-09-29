@@ -239,8 +239,14 @@ function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set(
     shipsFrom: r.fulfilment === 'dropship' ? r.supplier_label || '' : '',
     // Icon colour: warehouses in the order they were added, so they always differ (4 colours).
     shipsFromTone: r.fulfilment === 'dropship' && r.supplier_label ? (r.supplier_tone || 0) % 4 : 0,
-    // "Only 3 left": live supplier stock (SMD API), shown when low. Pack items count packs.
-    stockLeft: inStock && r.fulfilment === 'dropship' && r.supplier_stock_qty != null && Math.floor(r.supplier_stock_qty / Math.max(1, r.min_order_qty)) <= 5 ? Math.floor(r.supplier_stock_qty / Math.max(1, r.min_order_qty)) : null,
+    // Live supplier stock (SMD API "SOH"), shown to customers when known:
+    // stockOnHand in selling units (packs for pack items), stockMax in single
+    // units for the quantity box; stockLeft only when low ("Only 3 left").
+    ...(() => {
+      const known = inStock && r.fulfilment === 'dropship' && r.supplier_stock_qty != null;
+      const onHand = known ? Math.floor(r.supplier_stock_qty / Math.max(1, r.min_order_qty)) : null;
+      return { stockOnHand: onHand, stockMax: known ? r.supplier_stock_qty : null, stockLeft: onHand != null && onHand <= 5 ? onHand : null };
+    })(),
   };
   if (!admin) return base;
   return {
