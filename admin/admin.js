@@ -1475,11 +1475,49 @@ await Promise.all(
   ),
 );
 
+// ============================================================== new version
+
+// An admin tab left open across a deploy keeps running the old code. The
+// server reports a fingerprint of the admin files; when it changes, offer a
+// reload (checked every 5 minutes and whenever the tab comes back into view).
+let loadedVersion = null;
+function showUpdateBanner() {
+  if ($('#update-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'update-banner';
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:1000;display:flex;gap:12px;align-items:center;background:var(--brand,#c24b28);color:#fff;padding:10px 16px;border-radius:999px;box-shadow:0 6px 20px rgb(0 0 0 / .25);font-size:14px;max-width:calc(100vw - 32px)';
+  const text = document.createElement('span');
+  text.textContent = 'A new version of the admin is available.';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = 'Reload';
+  btn.style.cssText = 'background:#fff;color:#1a1612;border:0;border-radius:999px;padding:6px 14px;font-weight:700;cursor:pointer';
+  btn.addEventListener('click', () => location.reload());
+  bar.append(text, btn);
+  document.body.append(bar);
+}
+async function checkVersion() {
+  try {
+    const s = await (await fetch('/api/admin/session', { cache: 'no-store' })).json();
+    if (loadedVersion && s.adminVersion && s.adminVersion !== loadedVersion) showUpdateBanner();
+  } catch { /* offline or restarting: try again later */ }
+}
+function watchVersion(version) {
+  loadedVersion = version || null;
+  if (!loadedVersion) return;
+  setInterval(checkVersion, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkVersion();
+  });
+}
+
 // ============================================================== boot
 
 (async function boot() {
   try {
     const s = await (await fetch('/api/admin/session')).json();
+    watchVersion(s.adminVersion);
     needsSetup = s.needsSetup;
     if (!s.authenticated) return showLogin();
     showShell();
