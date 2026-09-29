@@ -45,9 +45,11 @@ The *Delivery* column is the category's quote flag. It only takes effect for non
 - SMD Infant Essential September 2026 (286 rows, 6 brand tabs): all 286 listed by the auto-list on 2026-09-28
 - SMD Cash Wholesale September 2026 (3,315 rows, 34 brand tabs): 2,481 listed by the auto-list on 2026-09-28 (44 marked delivery quoted); 647 already listed (Creality + hand-listed); 23 skipped (display stands, junk rows, refurbished/consumables, 2 mispriced TOSLINK cables). Backup before the run: `data/backups/pre-autolist-1790577475658.db`
 
-## Esquire (API feed) -- built 2026-09-29, not live yet
+## Esquire (API feed) -- live since 2026-09-29 (waiting for the login)
 
-`server/esquire.js` pulls Esquire's DataFeed API at 06:00, 12:00, 18:00 SAST (login in the server `.env` only), imports it as a complete list, auto-lists new items (switch in Admin -> Warehouse feed -> Esquire live feed, off until switched on) and emails a report after every run. Rules: `server/esquire-rules.js`. Runbook: DEPLOY.md "Secrets".
+`server/esquire.js` pulls Esquire's DataFeed API at 06:00, 12:00, 18:00 SAST (login from Admin → Suppliers → Esquire → Supplier portal login; runs are skipped quietly until it is saved), imports it as a complete list, auto-lists new items (switch in Admin -> Warehouse feed -> Esquire live feed, off until switched on) and emails a report after every run. Rules: `server/esquire-rules.js`. Runbook: DEPLOY.md "Secrets".
+
+Deployed: PR #36 (feed, delivery, vendor details, `233b7f2`) and PR #37 (login + password key from admin, `54cc283`), both green (tests + health + lapanza3d 200). No `.env` changes are needed; the password key file `.vault-key` is created by the server on first save.
 
 ## Decisions made
 
@@ -63,7 +65,7 @@ The *Delivery* column is the category's quote flag. It only takes effect for non
 | 2026-09-27 | Infant Essential: 13 Baby & Toddler sub-categories; Lifree and Loop & Co listed too; default markup; colour variants listed as separate products |
 | 2026-09-27 | Cash Wholesale: category structure approved (4 new top-level categories); items already listed by hand keep their category; Creality tab skipped (listed from the Creality list); SA Filament listed under 3D Printing › Filament; laptops and phones listed; Gaming Chairs & Desks listed with delivery quoted |
 | 2026-09-27 | Phones and Laptops & Tablets: markup pinned at 10% on the category (same as today's default, but stays 10% if the default changes). Heavy Cash Wholesale items (49: soundbars/subwoofers, big party speakers, 24"/27" monitors, projector screens, large TV mounts, racing cockpit, electric scooter) listed with delivery quoted |
-| 2026-09-29 | Esquire delivery: collection in Samrand + customer's own courier (waybill + collection date emailed to us); TVs by courier carry Esquire's 3% insurance as a separate line (3% of the TV price). Supplier portal logins kept in Admin → Suppliers, password encrypted with `VAULT_KEY`, every reveal audited. |
+| 2026-09-29 | Esquire delivery: collection in Samrand + customer's own courier (waybill + collection date emailed to us); TVs by courier carry Esquire's 3% insurance as a separate line (3% of the TV price). Supplier portal logins kept in Admin → Suppliers, password encrypted (key file `.vault-key` created by the server, never backed up), every reveal audited. The Esquire sync uses the Esquire supplier's portal login -- owner preferred admin over `.env`. |
 | 2026-09-28 | Legal pages reuse Lapanza3d's reviewed wording, adapted to Procom. Site name stays Procom Solutions, contact procompretoria@gmail.com; procompretoria.co.za not registered. Bubble Buddy duplicate left as is |
 | 2026-09-28 | SMD dispatches every SMD item straight to the customer, **courier only** (no PUDO, no local delivery). Site texts and legal pages say courier only; owner to switch off the PUDO Locker + Local Delivery options in Admin → Shipping options and add a courier bracket above 5 kg. The PUDO checkout code stays (dormant while no PUDO option is active). |
 | 2026-09-28 | Courier-only shipping live (checked): auto by weight — Courier Small 0–3 kg R150, Medium 3.001–10 kg R220, Large 10.001–25 kg R300; carts over 25 kg are asked to WhatsApp. Prices are placeholders until SMD's courier charges are known. PUDO + local delivery options switched off. |
