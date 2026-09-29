@@ -2,6 +2,7 @@ import { addWithFeedback } from './site.js';
 import { api, esc, getCategories } from './api.js';
 import { productCard, skeletonCards, bindAddButtons } from './cards.js';
 import { setHtml } from './dom.js';
+import { createLoadMore } from './load-more.js';
 
 const grid = document.getElementById('grid');
 const form = document.getElementById('filters');
@@ -16,15 +17,15 @@ function state() {
     brand: q.get('brand') || '',
     sort: q.get('sort') || 'featured',
     inStock: q.get('inStock') === '1',
-    page: Number(q.get('page')) || 1,
   };
 }
 
-function go(patch, { resetPage = true } = {}) {
-  const next = { ...state(), ...(resetPage ? { page: 1 } : {}), ...patch };
+// A filter change starts a fresh list (the new history entry has no batches).
+function go(patch) {
+  const next = { ...state(), ...patch };
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(next)) {
-    if (v === '' || v === false || v == null || (k === 'page' && v === 1) || (k === 'sort' && v === 'featured')) continue;
+    if (v === '' || v === false || v == null || (k === 'sort' && v === 'featured')) continue;
     q.set(k, v === true ? '1' : String(v));
   }
   history.pushState(null, '', `/shop.html${q.toString() ? `?${q}` : ''}`);
@@ -67,19 +68,34 @@ async function renderHeader(s) {
   );
 }
 
-function renderPager(page, pages) {
-  const el = document.getElementById('pager');
-  if (pages <= 1) return setHtml(el, '');
-  const nums = new Set([1, pages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= pages));
-  const sorted = [...nums].sort((a, b) => a - b);
-  let html = page > 1 ? `<a href="#" data-page="${page - 1}" aria-label="Previous page">‹</a>` : '';
-  sorted.forEach((n, i) => {
-    if (i && n - sorted[i - 1] > 1) html += '<span>…</span>';
-    html += n === page ? `<span class="current" aria-current="page">${n}</span>` : `<a href="#" data-page="${n}">${n}</a>`;
-  });
-  if (page < pages) html += `<a href="#" data-page="${page + 1}" aria-label="Next page">›</a>`;
-  setHtml(el, html);
-}
+const EMPTY = `<div class="col-span-full text-center py-20"><p class="font-serif text-2xl mb-2">Nothing found</p><p class="text-sm text-espresso/60 mb-6">Try a different search — or ask us, we can source most tech items.</p><a href="/contact.html" class="inline-flex bg-charcoal text-cream rounded-full px-5 py-2.5 text-sm font-semibold hover:bg-terracotta">Ask us to find it</a></div>`;
+
+const list = createLoadMore({
+  grid,
+  bar: document.getElementById('load-more'),
+  emptyHtml: EMPTY,
+  fetchPage: (page) => {
+    const s = state();
+    const params = new URLSearchParams({ page, sort: s.sort, pageSize: 30 });
+    if (s.category) params.set('category', s.category);
+    if (s.q) params.set('q', s.q);
+    if (s.brand) params.set('brand', s.brand);
+    if (s.inStock) params.set('inStock', '1');
+    return api(`/api/products?${params}`);
+  },
+  renderItems: (items) => {
+    items.forEach((p) => known.set(p.id, p));
+    return items.map(productCard).join('');
+  },
+  onFirst: (res) => {
+    const s = state();
+    document.getElementById('result-count').textContent = `${res.total} product${res.total === 1 ? '' : 's'}`;
+    setHtml(
+      form.brand,
+      `<option value="">All brands</option>` + res.brands.map((b) => `<option value="${esc(b.name)}" ${b.name === s.brand ? 'selected' : ''}>${esc(b.name)} (${Number(b.count)})</option>`).join(''),
+    );
+  },
+});
 
 async function load() {
   const s = state();
@@ -88,26 +104,8 @@ async function load() {
   form.inStock.checked = s.inStock;
   renderHeader(s);
   setHtml(grid, skeletonCards(10));
-  const params = new URLSearchParams({ page: s.page, sort: s.sort, pageSize: 30 });
-  if (s.category) params.set('category', s.category);
-  if (s.q) params.set('q', s.q);
-  if (s.brand) params.set('brand', s.brand);
-  if (s.inStock) params.set('inStock', '1');
   try {
-    const res = await api(`/api/products?${params}`);
-    res.items.forEach((p) => known.set(p.id, p));
-    document.getElementById('result-count').textContent = `${res.total} product${res.total === 1 ? '' : 's'}`;
-    setHtml(
-      form.brand,
-      `<option value="">All brands</option>` + res.brands.map((b) => `<option value="${esc(b.name)}" ${b.name === s.brand ? 'selected' : ''}>${esc(b.name)} (${Number(b.count)})</option>`).join(''),
-    );
-    setHtml(
-      grid,
-      res.items.length
-        ? res.items.map(productCard).join('')
-        : `<div class="col-span-full text-center py-20"><p class="font-serif text-2xl mb-2">Nothing found</p><p class="text-sm text-espresso/60 mb-6">Try a different search — or ask us, we can source most tech items.</p><a href="/contact.html" class="inline-flex bg-charcoal text-cream rounded-full px-5 py-2.5 text-sm font-semibold hover:bg-terracotta">Ask us to find it</a></div>`,
-    );
-    renderPager(res.page, res.pages);
+    await list.reset();
   } catch (err) {
     setHtml(grid, `<p class="col-span-full text-terracotta">${esc(err.message)}</p>`);
   }
@@ -120,12 +118,5 @@ form.addEventListener('submit', (e) => {
 form.brand.addEventListener('change', () => go({ brand: form.brand.value }));
 form.sort.addEventListener('change', () => go({ sort: form.sort.value }));
 form.inStock.addEventListener('change', () => go({ inStock: form.inStock.checked }));
-document.getElementById('pager').addEventListener('click', (e) => {
-  const a = e.target.closest('[data-page]');
-  if (!a) return;
-  e.preventDefault();
-  go({ page: Number(a.dataset.page) }, { resetPage: false });
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-});
 window.addEventListener('popstate', load);
 load();

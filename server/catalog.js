@@ -234,6 +234,11 @@ function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set(
     availability: !inStock ? 'Out of stock' : r.fulfilment === 'stock' ? 'In stock — ships in 1-2 business days' : supplierLead || r.lead_time_text || 'Ships from our warehouse in 2-5 business days',
     featured: Boolean(r.featured),
     quoteDelivery,
+    // Which warehouse ships it, by its public name only ("Samrand warehouse");
+    // the supplier's real name never reaches the storefront.
+    shipsFrom: r.fulfilment === 'dropship' ? r.supplier_label || '' : '',
+    // Icon colour: warehouses in the order they were added, so they always differ (4 colours).
+    shipsFromTone: r.fulfilment === 'dropship' && r.supplier_label ? (r.supplier_tone || 0) % 4 : 0,
   };
   if (!admin) return base;
   return {
@@ -254,7 +259,8 @@ function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set(
 }
 
 const PRODUCT_SELECT = `
-  SELECT p.*, c.name AS category_name, c.slug AS category_slug, s.name AS supplier_name, s.lead_time_text, s.delivery_mode AS supplier_delivery_mode
+  SELECT p.*, c.name AS category_name, c.slug AS category_slug, s.name AS supplier_name, s.lead_time_text, s.delivery_mode AS supplier_delivery_mode, s.public_label AS supplier_label,
+    (SELECT COUNT(*) FROM suppliers s2 WHERE s2.public_label != '' AND (s2.created_at < s.created_at OR (s2.created_at = s.created_at AND s2.id < s.id))) AS supplier_tone
   FROM products p
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN suppliers s ON s.id = p.supplier_id`;
