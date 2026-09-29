@@ -280,7 +280,7 @@ admin.post('/feed/smd-autolist', wrap((req) => smdAutolist.autoList({ list: req.
 // thousands of items, longer than nginx waits), auto-list switch.
 admin.get('/feed/esquire', wrap(() => esquire.esquireStatus()));
 admin.post('/feed/esquire/sync', wrap(() => {
-  if (!esquire.esquireConfigured()) throw new Error('Esquire login is not set on the server (ESQUIRE_USER / ESQUIRE_PASS in .env)');
+  if (!esquire.esquireConfigured()) throw new Error(esquire.NO_LOGIN);
   esquire.syncEsquire({ trigger: 'manual' });
   return { started: true };
 }));

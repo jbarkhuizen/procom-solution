@@ -589,8 +589,8 @@ function esquirePanel(esq) {
       ? `Last sync ${h(fmtDate(lr.at))}: ${lr.sellableRows} products · ${lr.import.rowsNew} new · ${lr.import.priceChanges} cost changes · ${lr.import.productsMarkedOut} out of stock · ${lr.import.productsBackInStock} back in stock · ${esq.autoList ? `${lr.listed} listed` : `${lr.wouldList} would be listed`}`
       : `<span class="money-up">Last sync ${h(fmtDate(lr.at))} failed: ${h(lr.error)}</span>`;
   return `<div class="panel stack gap-3" style="margin-bottom:1rem">
-    <div class="section-head"><h3>Esquire live feed</h3>${esq.configured ? `<span class="badge published">Syncs daily at ${h(hours)}</span>` : '<span class="badge bad">Login not set on server</span>'}</div>
-    <p class="mini-help">${esq.configured ? last : 'Add ESQUIRE_USER and ESQUIRE_PASS to the server’s .env and restart the service.'}${esq.running ? ' <span class="badge info">Sync running…</span>' : ''}</p>
+    <div class="section-head"><h3>Esquire live feed</h3>${esq.configured ? `<span class="badge published">Syncs daily at ${h(hours)}</span>` : '<span class="badge bad">Esquire login not set</span>'}</div>
+    <p class="mini-help">${esq.configured ? last : 'Enter Esquire’s portal username and password in <a href="#/suppliers">Suppliers → Esquire</a> (Supplier portal login). Syncing starts at the next scheduled time, or click Sync now.'}${esq.running ? ' <span class="badge info">Sync running…</span>' : ''}</p>
     <p class="mini-help">Each sync imports the whole feed (prices include VAT, so they are stored excl VAT), updates costs and shop prices, marks listed items that left the feed out of stock and puts them back when they return, then emails a report to the order notification address.
       Auto-list is <strong>${esq.autoList ? 'ON' : 'OFF'}</strong>${esq.autoList ? ': new matching items are listed live after each sync.' : ': the report shows what would be listed.'}</p>
     <div class="toolbar" style="margin:0">
@@ -1182,7 +1182,7 @@ routes.suppliers = async () => {
       <div class="grid-2"><label class="field"><span>Username</span><input name="portalUsername" autocomplete="off" value="${h(s?.portalUsername)}"></label>
       <label class="field"><span>Password ${s?.hasPortalPassword ? '(saved — leave blank to keep)' : ''}</span><input name="portalPassword" type="password" autocomplete="new-password" placeholder="${s?.hasPortalPassword ? '••••••••' : ''}"></label></div>
       ${s?.hasPortalPassword ? `<div class="toolbar" style="margin:0"><button type="button" class="btn small" id="s-reveal">Reveal password</button><button type="button" class="btn small" id="s-copy">Copy password</button><label class="field checkbox"><input type="checkbox" name="clearPortalPassword"><span>Remove saved password</span></label><span class="mini-help" id="s-pw"></span></div>` : ''}
-      <p class="mini-help">The password is stored encrypted and only shown when you click Reveal or Copy (each time is written to the audit log).</p>
+      <p class="mini-help">The password is stored encrypted and only shown when you click Reveal or Copy (each time is written to the audit log). For <strong>Esquire</strong> this login is also what the live feed sync uses.</p>
       <label class="field"><span>Customer-facing lead time</span><input name="leadTimeText" value="${h(s?.leadTimeText || 'Ships from our warehouse in 2-5 business days')}"></label>
       <label class="field"><span>Notes (account no., terms…)</span><textarea name="notes" rows="3">${h(s?.notes)}</textarea></label>
       <div class="section-head" style="margin-top:0.5rem"><h3>Delivery</h3></div>
