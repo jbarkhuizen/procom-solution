@@ -172,6 +172,8 @@ export function createOrder(input, db = getDb()) {
     const available = p.fulfilment === 'stock' ? p.stock_qty > 0 : p.supplier_in_stock;
     if (!available) throw new Error(`"${p.name}" is out of stock. Please remove it from your cart.`);
     if (p.fulfilment === 'stock' && quantity > p.stock_qty) throw new Error(`Only ${p.stock_qty} of "${p.name}" in stock.`);
+    // Live supplier stock (SMD API): never sell more than the warehouse holds.
+    if (p.fulfilment === 'dropship' && p.supplier_stock_qty != null && quantity > p.supplier_stock_qty) throw new Error(`Only ${p.supplier_stock_qty} of "${p.name}" available right now.`);
     if (quantity < p.min_order_qty) throw new Error(`"${p.name}" has a minimum order quantity of ${p.min_order_qty}.`);
     const unitCents = specialPriceCents(p, db) ?? p.price_cents; // a running special wins
     items.push({ p, quantity, unitCents, line: unitCents * quantity });

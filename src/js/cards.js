@@ -29,7 +29,9 @@ export function shipsFromIcon(p) {
 
 export function availabilityPill(p) {
   if (!p.inStock) return '<span class="pill pill-warn">Out of stock</span>';
-  return `<span class="inline-flex items-center gap-1"><span class="pill pill-ok">In stock</span>${shipsFromIcon(p)}</span>`;
+  // Live supplier stock (SMD): "Only 3 left" when low (packs for pack items).
+  const label = p.stockLeft != null ? `Only ${Number(p.stockLeft)} left` : 'In stock';
+  return `<span class="inline-flex items-center gap-1"><span class="pill ${p.stockLeft != null ? 'pill-low' : 'pill-ok'}">${label}</span>${shipsFromIcon(p)}</span>`;
 }
 
 // Compact card. Supplier photos are ~113px, so the image is shown near its

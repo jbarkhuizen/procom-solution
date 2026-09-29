@@ -122,6 +122,12 @@ sudo systemctl restart procomsolutions-admin
   `ESQUIRE_SYNC_HOURS=6,12,18`) and emails a report after each run; runs are
   skipped quietly while no login is saved. Optional override:
   `ESQUIRE_USER` / `ESQUIRE_PASS` here win over the admin values.
+- **SMD API:** nothing here either -- enter SMD's API token and Client
+  access key in Admin → Suppliers → SMD (Supplier API access). Then Admin →
+  Warehouse feed → SMD live API → **Check connection** (read-only report by
+  email), and **Switch automatic sync on**: 06:30, 12:30, 18:30 SAST (change
+  with `SMD_SYNC_TIMES=06:30,12:30,18:30`). Optional override:
+  `SMD_API_TOKEN` / `SMD_API_KEY` here.
 - **Supplier portal passwords** are encrypted with a key the server creates
   on first use in `/opt/procomsolutions/app/.vault-key` (owner-only, git-ignored,
   not in `data/`, so never in backups or the Drive copy). Keep a copy of that

@@ -25,6 +25,8 @@ server/            API (index.js), schema+migrations (db.js), catalog, pricing, 
                    products off parent categories into the matching sub-category, same parent only)
   esquire.js       Esquire live API: 3x/day pull (login from Admin -> Suppliers -> Esquire), import, auto-list, report email
   esquire-rules.js Esquire category -> store sub-category rules (same shape as smd-rules.js)
+  smd-api.js       SMD live API (products/prices/stock/media): check run, 3x/day sync of listed SMD products
+                   (cost + specials, stock SOH, blank descriptions, full-size photos), new SKUs -> Warehouse feed
   vault.js         AES-GCM for supplier portal passwords (key: VAULT_KEY or auto-created .vault-key); reveal is audited
   remote-images.js background photo-URL downloader (SSRF-guarded)
   *.test.js        node --test suites (npm test)

@@ -239,6 +239,8 @@ function rowToProduct(r, { admin = false, supplierLead = '', quoteSet = new Set(
     shipsFrom: r.fulfilment === 'dropship' ? r.supplier_label || '' : '',
     // Icon colour: warehouses in the order they were added, so they always differ (4 colours).
     shipsFromTone: r.fulfilment === 'dropship' && r.supplier_label ? (r.supplier_tone || 0) % 4 : 0,
+    // "Only 3 left": live supplier stock (SMD API), shown when low. Pack items count packs.
+    stockLeft: inStock && r.fulfilment === 'dropship' && r.supplier_stock_qty != null && Math.floor(r.supplier_stock_qty / Math.max(1, r.min_order_qty)) <= 5 ? Math.floor(r.supplier_stock_qty / Math.max(1, r.min_order_qty)) : null,
   };
   if (!admin) return base;
   return {
@@ -364,6 +366,12 @@ export function queryProducts(opts = {}, db = getDb()) {
   return { items, total, page, pages, pageSize, brands };
 }
 
+// Auto price this product would have at `costCents` (e.g. the "was" price
+// while a supplier special lowers the cost).
+export function retailForCost(productRow, costCents, db = getDb()) {
+  return priceFor({ ...productRow, cost_cents: costCents }, db);
+}
+
 function priceFor(fields, db) {
   const settings = getSettings(db);
   const markup = effectiveMarkupPct({
@@ -451,6 +459,8 @@ export function saveProduct(data, id = null, db = getDb()) {
   };
   // Kept only while the admin leaves the stock flag as the feed set it.
   fields.out_by_feed = existing && fields.supplier_in_stock === existing.supplier_in_stock ? existing.out_by_feed : 0;
+  // Photos the admin changes are theirs: supplier feeds never replace them.
+  if (existing && Array.isArray(data.images) && fields.images !== existing.images) fields.images_from_feed = 0;
   if (fields.price_mode === 'auto') fields.price_cents = priceFor(fields, db);
   if (fields.active && fields.price_cents <= 0) throw new Error('An active product needs a price above R0 (set a supplier cost or a manual price)');
 
@@ -564,6 +574,8 @@ function rowToSupplier(s) {
     orderProcess: s.order_process || '',
     portalUsername: s.portal_username || '',
     hasPortalPassword: Boolean(s.portal_password_enc),
+    hasApiToken: Boolean(s.api_token_enc),
+    hasApiKey: Boolean(s.api_key_enc),
   };
 }
 
@@ -606,6 +618,9 @@ export function saveSupplier(data, id = null, db = getDb()) {
     // Blank = keep the saved password; clearPortalPassword removes it.
     portal_password_enc: data.clearPortalPassword ? '' : data.portalPassword ? encryptSecret(String(data.portalPassword)) : cur ? cur.portal_password_enc : '',
     own_courier_enabled: pick('ownCourierEnabled', 'own_courier_enabled', bool),
+    // Supplier API access (SMD): blank = keep; clearApiAccess removes both.
+    api_token_enc: data.clearApiAccess ? '' : data.apiToken ? encryptSecret(String(data.apiToken).trim()) : cur ? cur.api_token_enc : '',
+    api_key_enc: data.clearApiAccess ? '' : data.apiKey ? encryptSecret(String(data.apiKey).trim()) : cur ? cur.api_key_enc : '',
     delivery_mode: pick('deliveryMode', 'delivery_mode', (v) => (v === 'flat' ? 'flat' : 'store')),
     delivery_fee_cents: pick('deliveryFee', 'delivery_fee_cents', (v) => Math.max(0, randToCents(v) || 0)),
     free_over_cost_cents: pick('freeOverCost', 'free_over_cost_cents', (v) => (randToCents(v) == null ? null : Math.max(0, randToCents(v)))),
