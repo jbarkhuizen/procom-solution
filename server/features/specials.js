@@ -220,24 +220,31 @@ export function listSpecials(db = getDb()) {
     });
 }
 
-// Storefront: products on special, biggest saving first.
+// Storefront: products on special, biggest saving first. Two kinds:
+//  - specials set up in Admin -> Specials (this module), and
+//  - products showing a struck-through "was" price: supplier specials from
+//    the SMD API (products.special_by_feed) or a was-price set on the product.
+// A product in both counts once, with the admin special (the lower price).
 export function productsOnSpecial({ page = 1, pageSize = 24 } = {}, db = getDb()) {
   const idx = loadIndex(db);
-  const empty = { items: [], total: 0, page: 1, pages: 1, pageSize };
-  if (!idx.count) return { ...empty, rows: [] };
-  const ids = [...idx.byProduct.keys()];
-  const cats = [...idx.byCategory.keys()];
-  const brands = [...idx.byBrand.keys()];
-  const where = [];
-  if (ids.length) where.push(`id IN (${ids.map(() => '?').join(',')})`);
-  if (cats.length) where.push(`category_id IN (${cats.map(() => '?').join(',')})`);
-  if (brands.length) where.push(`lower(trim(brand)) IN (${brands.map(() => '?').join(',')})`);
-  const rows = db
-    .prepare(`SELECT id, name, brand, category_id, price_cents, cost_cents FROM products WHERE active = 1 AND (${where.join(' OR ')})`)
-    .all(...ids, ...cats, ...brands)
-    .map((r) => ({ r, sp: specialPriceCents(r, db) }))
-    .filter((x) => x.sp != null)
-    .sort((a, b) => (b.r.price_cents - b.sp) / b.r.price_cents - (a.r.price_cents - a.sp) / a.r.price_cents || a.r.name.localeCompare(b.r.name));
+  const saving = new Map(); // id -> { name, pct }
+  if (idx.count) {
+    const ids = [...idx.byProduct.keys()];
+    const cats = [...idx.byCategory.keys()];
+    const brands = [...idx.byBrand.keys()];
+    const where = [];
+    if (ids.length) where.push(`id IN (${ids.map(() => '?').join(',')})`);
+    if (cats.length) where.push(`category_id IN (${cats.map(() => '?').join(',')})`);
+    if (brands.length) where.push(`lower(trim(brand)) IN (${brands.map(() => '?').join(',')})`);
+    for (const r of db.prepare(`SELECT id, name, brand, category_id, price_cents, cost_cents FROM products WHERE active = 1 AND (${where.join(' OR ')})`).all(...ids, ...cats, ...brands)) {
+      const sp = specialPriceCents(r, db);
+      if (sp != null && r.price_cents > 0) saving.set(r.id, { name: r.name, pct: (r.price_cents - sp) / r.price_cents });
+    }
+  }
+  for (const r of db.prepare('SELECT id, name, price_cents, compare_at_cents FROM products WHERE active = 1 AND compare_at_cents > price_cents AND price_cents > 0').all()) {
+    if (!saving.has(r.id)) saving.set(r.id, { name: r.name, pct: (r.compare_at_cents - r.price_cents) / r.compare_at_cents });
+  }
+  const rows = [...saving.entries()].sort((a, b) => b[1].pct - a[1].pct || a[1].name.localeCompare(b[1].name)).map(([id]) => ({ r: { id } }));
   const size = clampInt(pageSize, 1, 96, 24);
   const pages = Math.max(1, Math.ceil(rows.length / size));
   const p = clampInt(page, 1, pages, 1);
