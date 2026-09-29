@@ -206,9 +206,11 @@ with rclone's connection-string form; no rclone config change or SSH needed:
 (A separate `[gdrive-procom]` section in `~/.config/rclone/rclone.conf` with
 its own `root_folder_id` works too; use `gdrive-procom:` then.)
 
-Note for Lapanza3d (separate project): because it `sync`s onto the root, its
-own `gdrive:uploads` photo copy is deleted and re-uploaded on every run. Moving
-its DB backups to `gdrive:backups` would fix that.
+Note for Lapanza3d (separate project): it copies its photos to `<remote>uploads`,
+inside its own sync destination, so every nightly sync deleted that copy and
+re-uploaded it. Changing its remote (e.g. `gdrive:backups`) would not help (the
+photos move along to `backups/uploads`); the fix is `--exclude /uploads/**` on
+its sync (Lapanza-3d-Creations PR #2, 2026-09-29).
 
 ### Switch it on
 
