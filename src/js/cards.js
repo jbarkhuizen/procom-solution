@@ -27,11 +27,15 @@ export function shipsFromIcon(p) {
   return `<span class="ship-from tone-${Number(p.shipsFromTone) || 0}" title="${esc(text)}" role="img" aria-label="${esc(text)}"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M1.5 6.2 8 2.5l6.5 3.7v7.3h-13z"/><path d="M4.5 13.5V8.5h7v5M4.5 10.8h7"/></svg></span>`;
 }
 
+// Stock pill + the warehouse it ships from (shown even when out of stock).
+// Live supplier stock (SMD) shows as a number: "107 in stock" / "Only 3 left"
+// (packs for pack items); suppliers without stock numbers say "In stock".
 export function availabilityPill(p) {
-  if (!p.inStock) return '<span class="pill pill-warn">Out of stock</span>';
-  // Live supplier stock (SMD): "Only 3 left" when low (packs for pack items).
-  const label = p.stockLeft != null ? `Only ${Number(p.stockLeft)} left` : 'In stock';
-  return `<span class="inline-flex items-center gap-1"><span class="pill ${p.stockLeft != null ? 'pill-low' : 'pill-ok'}">${label}</span>${shipsFromIcon(p)}</span>`;
+  if (!p.inStock) return `<span class="inline-flex items-center gap-1"><span class="pill pill-warn">Out of stock</span>${shipsFromIcon(p)}</span>`;
+  const n = p.stockOnHand != null ? Number(p.stockOnHand) : null;
+  const low = n != null && n <= 5;
+  const label = n == null ? 'In stock' : low ? `Only ${n} left` : `${n} in stock`;
+  return `<span class="inline-flex items-center gap-1"><span class="pill ${low ? 'pill-low' : 'pill-ok'}">${label}</span>${shipsFromIcon(p)}</span>`;
 }
 
 // Compact card. Supplier photos are ~113px, so the image is shown near its

@@ -107,6 +107,9 @@ test('stock: out at 0 or below the pack size, back when restocked, admin choice 
   const pub = catalog.queryProducts({ q: 'Item A' }, db).items.find((x) => x.name === 'Item A');
   assert.equal(pub.stockLeft, 3);
   assert.equal(catalog.queryProducts({ q: 'PACK' }, db).items[0].stockLeft, null, '10 packs: plenty');
+  assert.equal(catalog.queryProducts({ q: 'PACK' }, db).items[0].stockOnHand, 10, 'stock on hand in packs (60 units / 6)');
+  assert.equal(catalog.queryProducts({ q: 'PACK' }, db).items[0].stockMax, 60, 'quantity box limit in units');
+  assert.equal(pub.stockOnHand, 3);
   const customer = { firstName: 'Ann', lastName: 'Lee', email: 'ann@example.com', phone: '0821234567', addressLine1: '1 Main Rd', city: 'Pretoria', postalCode: '0081' };
   assert.throws(() => orders.createOrder({ customer, delivery: { [smdId]: 'courier' }, items: [{ productId: row('A').id, quantity: 4 }] }, db), /Only 3/);
 });
