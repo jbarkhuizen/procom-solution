@@ -157,7 +157,7 @@ function saveLastRun(db, report) {
     error: report.error,
     seconds: report.seconds,
     sellableRows: report.sellableRows ?? null,
-    import: report.import ? { rowsNew: report.import.rowsNew, priceChanges: report.import.priceChanges, productsMarkedOut: report.import.productsMarkedOut, productsBackInStock: report.import.productsBackInStock } : null,
+    import: report.import ? { rowsNew: report.import.rowsNew, priceChanges: report.import.priceChanges, productsMarkedOut: report.import.productsMarkedOut, productsBackInStock: report.import.productsBackInStock, productsHidden: report.import.productsHidden, productsUnhidden: report.import.productsUnhidden } : null,
     listed: al ? (report.autoListOn ? al.created : 0) : 0,
     wouldList: al && !report.autoListOn ? al.summary.reduce((n, g) => n + g.newListings, 0) : 0,
   };

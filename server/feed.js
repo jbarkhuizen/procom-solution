@@ -190,7 +190,7 @@ export async function importFeed({ supplierId, token, mapping, pricesIncludeVat 
   }
 
   const ts = new Date().toISOString();
-  const stats = { format, rowsTotal: items.length, rowsNew: 0, rowsUpdated: 0, priceChanges: 0, productsRepriced: 0, productsMarkedOut: 0, productsBackInStock: 0, imagesQueued: 0, skipped: problems };
+  const stats = { format, rowsTotal: items.length, rowsNew: 0, rowsUpdated: 0, priceChanges: 0, productsRepriced: 0, productsMarkedOut: 0, productsBackInStock: 0, productsHidden: 0, productsUnhidden: 0, imagesQueued: 0, skipped: problems };
   const changedCosts = new Map();
   const getFeed = db.prepare('SELECT id, cost_cents FROM feed_items WHERE supplier_id = ? AND code = ?');
   const insFeed = db.prepare(`INSERT INTO feed_items (id, supplier_id, code, name, brand, category, cost_cents, min_order_qty, details, image, image_url, image_status, source_file, source_sheet, in_latest_import, imported_at)
@@ -255,6 +255,17 @@ export async function importFeed({ supplierId, token, mapping, pricesIncludeVat 
     const updProduct = db.prepare('UPDATE products SET cost_cents = ?, updated_at = ? WHERE supplier_id = ? AND supplier_code = ?');
     for (const [code, cost] of changedCosts) updProduct.run(cost, ts, supplierId, code);
 
+    if (completeList && restoreStock) {
+      // Live API feed (Esquire). Owner rule: not in the API feed = not listed, so
+      // vanished items are hidden, and shown again when they return. Products an
+      // admin hid (hidden_by_feed = 0) are never shown again by a feed.
+      stats.productsHidden = db.prepare(`UPDATE products SET active = 0, hidden_by_feed = 1, updated_at = @ts
+        WHERE fulfilment = 'dropship' AND active = 1 AND supplier_id = @s AND supplier_code IN
+        (SELECT code FROM feed_items WHERE supplier_id = @s AND in_latest_import = 0)`).run({ ts, s: supplierId }).changes;
+      stats.productsUnhidden = db.prepare(`UPDATE products SET active = 1, hidden_by_feed = 0, updated_at = @ts
+        WHERE fulfilment = 'dropship' AND active = 0 AND hidden_by_feed = 1 AND price_cents > 0 AND supplier_id = @s AND supplier_code IN
+        (SELECT code FROM feed_items WHERE supplier_id = @s AND in_latest_import = 1)`).run({ ts, s: supplierId }).changes;
+    }
     if (completeList) {
       // Listed items that vanished from the supplier's list can't be fulfilled --
       // stop selling them. Only restoreStock feeds flip them back, and only the

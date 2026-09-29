@@ -76,6 +76,10 @@ const COLUMN_MIGRATIONS = [
   // Set when an import (not an admin) marked the product out of stock, so a
   // feed that restores stock (Esquire) never overrides an admin's choice.
   ['products', 'out_by_feed', 'INTEGER NOT NULL DEFAULT 0'],
+  // Set when a live supplier API (SMD, Esquire) hid the product because it is no
+  // longer in that API (owner rule: not in the API feed = not listed). The sync
+  // shows it again when it returns; products an admin hid are never touched.
+  ['products', 'hidden_by_feed', 'INTEGER NOT NULL DEFAULT 0'],
   // Customer may send their own courier to the supplier's collection address.
   ['suppliers', 'own_courier_enabled', 'INTEGER NOT NULL DEFAULT 0'],
   // Vendor details (Admin -> Suppliers). The portal password is stored
