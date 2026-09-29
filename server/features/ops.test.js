@@ -50,6 +50,15 @@ test('off-site remote: only "name:path" remotes are accepted, never flags or loc
   assert.throws(() => ops.normaliseRemote('gdrive,root_folder_id=../x:'), /Enter an rclone remote/);
   assert.equal(ops.normaliseRemote('gdrive-procom:Backups/Procom Solutions'), 'gdrive-procom:Backups/Procom Solutions');
   assert.equal(ops.normaliseRemote(''), '');
+  // A pasted Drive folder link becomes the shared login rooted in that folder.
+  const id = '1Mh6s9JJQXDCHfyBWaUM8A3bY1ShG9AOm';
+  for (const link of [`https://drive.google.com/drive/folders/${id}`, `https://drive.google.com/drive/u/0/folders/${id}?usp=sharing`, ` https://drive.google.com/drive/folders/${id}/ `]) {
+    assert.equal(ops.normaliseRemote(link), `gdrive,root_folder_id=${id}:`, link);
+  }
+  // Any other web address is not an rclone remote ("https" would be read as a remote name).
+  for (const bad of ['https://example.com/folders/x', 'http://drive.google.com/', 'file:x']) {
+    assert.throws(() => ops.normaliseRemote(bad), /web address/, bad);
+  }
   for (const bad of ['-vv:x', '--config=/etc/x:y', '/opt/procomsolutions/app/data', 'procomdrive:../lapanza', 'procomdrive:a/../b', 'procomdrive:x;rm -rf', 'no-colon']) {
     assert.throws(() => ops.normaliseRemote(bad), /rclone remote/, bad);
   }
@@ -67,6 +76,13 @@ test('off-site remote: stored in the ops table, env BACKUP_RCLONE_REMOTE overrid
   assert.equal(ops.getOffsiteConfig(db).remote, '');
   assert.match(ops.getOffsiteConfig(db).error, /not a valid remote/);
   delete process.env.BACKUP_RCLONE_REMOTE;
+  // A Drive link saved before links were converted is used as its folder id.
+  const put = db.prepare('UPDATE ops_settings SET value = ? WHERE key = ?');
+  put.run('https://drive.google.com/drive/folders/1Mh6s9JJQXDCHfyBWaUM8A3bY1ShG9AOm', 'offsite_remote');
+  assert.equal(ops.getOffsiteConfig(db).remote, 'gdrive,root_folder_id=1Mh6s9JJQXDCHfyBWaUM8A3bY1ShG9AOm:');
+  put.run('https://example.com/x', 'offsite_remote');
+  assert.equal(ops.getOffsiteConfig(db).remote, '');
+  assert.match(ops.getOffsiteConfig(db).error, /saved remote is not valid/);
   ops.setOffsiteRemote('', db);
   assert.equal(ops.getOffsiteConfig(db).remote, '');
 });
