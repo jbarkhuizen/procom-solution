@@ -41,12 +41,11 @@ test('only active rows with a code and a price are imported', () => {
   assert.deepEqual(esquire.sellableRecords(rows).map((r) => r.productCode), ['A']);
 });
 
-test('groups we never sell are left out of the import; optional ones are kept', async () => {
+test('groups we never sell are left out of the import', async () => {
   const r = await sync([rec('A', 115), rec('K', 50, { category: 'Scented Candles' }), rec('F', 500, { category: 'Air Fryers' })]);
   assert.equal(feedItem('K'), undefined);
   assert.ok(feedItem('F'));
   assert.deepEqual(r.leftOut, [{ reason: 'Candles, balloons and party', n: 1 }]);
-  assert.match(r.autoList.skipped[0].reason, /^Optional: small kitchen/);
 });
 
 test('prices are stored excl VAT and the summary becomes the description when listed', async () => {
@@ -147,5 +146,8 @@ test('Esquire categories map onto the store tree', () => {
   assert.equal(where('Samsung S4 Covers'), 'skip: Old phone, iPad and iPod covers');
   assert.equal(where('Scented Candles'), 'skip: Candles, balloons and party');
   assert.equal(where('Ballpoint Pens'), 'skip: Stationery and art');
-  assert.match(where('Air Fryers'), /^skip: Optional/);
+  assert.equal(where('Air Fryers'), 'Home & Kitchen › Kitchen Appliances');
+  assert.deepEqual(c('Washing Machines'), { parent: 'Home & Kitchen', sub: 'Large Appliances', quote: true });
+  assert.equal(where('Hair Dryers'), 'Health & Beauty › Hair Care');
+  assert.equal(where('Chair Bags'), 'Home & Kitchen › Home & Living');
 });

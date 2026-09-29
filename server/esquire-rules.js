@@ -6,10 +6,8 @@
 // rules match on the category alone.
 //
 // Agreed range (2026-09-29): IT and electronics. Old phone covers, candles,
-// balloons, licensed character goods and stationery are skipped. Groups the
-// owner has not decided on yet are skipped with an "Optional:" reason, so the
-// preview and the run email show their size -- turn one into a real rule to
-// list it.
+// balloons, licensed character goods and stationery are never imported.
+// Home & kitchen, appliances and personal care were added on the same day.
 //
 // Parents are matched by name to the live category tree -- keep them spelled
 // exactly as in Admin -> Categories, or a duplicate gets created.
@@ -36,13 +34,25 @@ const RULES = [
   }),
   skip('Old media and legacy parts', { cat: /^(disks:|media \(cd|cd \/ dvd cases|cd\/dvd wallet|storage boxes\/disk boxes|cable: (ide|scsi)|controller \(firewire\)|wireless adaptors - pcmcia|modem \(adsl\))/i }),
 
-  // --- Optional: owner to decide (not in the agreed first range)
-  skip('Optional: large appliances', { cat: /^(fridges|chest freezers|washing machines|clothing dryers|airconditioning|water dispensers)/i }),
-  skip('Optional: small kitchen appliances', { cat: /air fryer|kettle|toaster|sandwich|blender|juicer|food (mixers|processors)|multi food|microwave|coffee|milk frother|waffle|grills|deep fryer|frying pan|pressure cooker|induction|ice cream|beverage carbonator|biltong|urns|can opener|vacuum sealer|bag sealer|chafing|gas stoves|gas accessories/i }),
-  skip('Optional: heating and cooling', { cat: /^(fans|heaters|humidifiers|air purifiers|foot warmers|heatpad|electric blankets|hot water bottles)/i }),
-  skip('Optional: home, kitchen and cleaning', { cat: /pots & pans|cutlery|knife|utensil|kitchen|bread bins|dish racks|salt & pepper|water jugs|vacuum flask|water bottles|coffee mugs|aprons|breakfast pack|clean|mops|wipes|microfibre|vacuum cleaner|pressure washer|steam iron|ironing|garment steamer|lint|waste bins|bathroom|shoe rack|door mats|pillows|washing lines|pest control|hosepipe|grass trimmer|braai|camping|^rope$|table accessories|tables & chairs|chair bags|clocks|luggage scale|home safe|padlock|latches|filtration|liquid dispensers|utility lighters/i }),
-  skip('Optional: personal care and health', { cat: /hair|shaver|clipper|cosmetic|facial|massager|nail clippers|thermometer|oximeter|oxygen|health patches|compression|ankle support|knee|elbow|waist belt|sanitizer|gloves|protective|baby/i }),
-  skip('Optional: bike and car tools', { cat: /^(bike|outdoor accessories|booster cables)/i }),
+  // --- Home, kitchen, appliances, personal care (owner: list them, 2026-09-29).
+  // Existing live sub-categories where one fits.
+  r('Home & Kitchen', 'Large Appliances', { cat: /^(fridges|chest freezers|washing machines|clothing dryers|airconditioning|water dispensers)/i }, { quote: true }),
+  r('Home & Kitchen', 'Kitchen Appliances', { cat: /air fryer|kettle|toaster|sandwich|blender|juicer|food (mixers|processors)|multi food|microwave|coffee (makers|grinders)|milk frother|waffle|grills|deep fryer|frying pan|pressure cooker|induction|ice cream|beverage carbonator|biltong|urns|can opener|vacuum sealer|bag sealer|chafing|gas stoves|gas accessories/i }),
+  r('Home & Kitchen', 'Heating & Cooling', { cat: /^(fans|heaters|humidifiers|air purifiers|foot warmers|heatpad|electric blankets|hot water bottles)/i }),
+  r('Home & Kitchen', 'Cookware & Pans', { cat: /pots & pans|cutlery|knife sets/i }),
+  r('Home & Kitchen', 'Food Storage & Drinkware', { cat: /water jugs|vacuum flask|water bottles|coffee mugs|breakfast pack/i }),
+  r('Home & Kitchen', 'Utensils & Gadgets', { cat: /utensil|kitchen scale|bread bins|dish racks|salt & pepper|aprons/i }),
+  r('Home & Kitchen', 'Irons & Floor Care', { cat: /steam iron|ironing|garment steamer|vacuum cleaner|carpet|floor|pressure washer|mops/i }),
+  r('Home & Kitchen', 'Cleaning', { cat: /clean|wipes|microfibre|lint|waste bins|pest control/i }),
+  r('Home & Kitchen', 'Braai, Camping & Garden', { cat: /braai|camping|hosepipe|grass trimmer|^rope$|^bike|outdoor accessories/i }),
+  r('Furniture', 'Tables', { cat: /^tables & chairs/i }),
+  r('Mobile & Wearables', 'Car Accessories', { cat: /^booster cables/i }),
+  r('Baby & Toddler', 'Bath & Skin Care', { cat: /^baby bathing/i }),
+  r('Baby & Toddler', 'Nappy & Changing Bags', { cat: /^baby maternity handbags/i }),
+  r('Health & Beauty', 'Hair Care', { cat: /\bhair/i }),
+  r('Health & Beauty', 'Health & Protection', { cat: /thermometer|oximeter|oxygen|health patches|compression|ankle support|knee|elbow|waist belt|sanitizer|gloves|protective/i }),
+  r('Health & Beauty', 'Personal Care & Wellness', { cat: /shaver|clipper|cosmetic|facial|massager|nail clippers/i }),
+  r('Home & Kitchen', 'Home & Living', { cat: /bathroom|shoe rack|door mats|pillows|washing lines|table accessories|chair bags|clocks|luggage scale|home safe|padlock|latches|filtration|liquid dispensers|utility lighters/i }),
 
   // --- Computers & Peripherals
   r('Computers & Peripherals', 'Laptops & Tablets', { cat: /notebooks?$|^pcs: tablet pc$/i }, { markup: 10 }),
@@ -122,9 +132,10 @@ const RULES = [
 ];
 
 // Too big for the default 1 kg courier bracket: projector screens, solar
-// panels, inverters, big batteries, power stations, large UPSs, 24"+ monitors.
+// panels, inverters, big batteries, power stations, large UPSs, 24"+ monitors,
+// microwaves, pressure washers, oil heaters.
 // (Televisions and server cabinets are quoted as a whole category above.)
-const HEAVY = /^(?!.*(fuse|cable|connector|bracket|switch\b|mount|flood|lamp|light|lantern|charger)).*(projector screen|solar panel|\binverter\b|powerboard|\d{2,3}\s*ah\b|power station|\bups\b.*\d\s*(k?va)|\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch|in\b).*monitor|monitor.*\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch))/i;
+const HEAVY = /^(?!.*(fuse|cable|connector|bracket|switch\b|mount|flood|lamp|light|lantern|charger)).*(projector screen|microwave|pressure washer|oil (filled )?heater|solar panel|\binverter\b|powerboard|\d{2,3}\s*ah\b|power station|\bups\b.*\d\s*(k?va)|\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch|in\b).*monitor|monitor.*\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch))/i;
 
 export const ESQUIRE_LIST = {
   label: 'Esquire (API feed)',
