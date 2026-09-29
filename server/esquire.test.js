@@ -76,12 +76,21 @@ test('items leaving the feed go out of stock and come back; an admin choice is k
   assert.equal(r.import.productsMarkedOut, 2);
   assert.equal(product('A').supplier_in_stock, 0);
   assert.equal(product('B').supplier_in_stock, 0);
+  assert.equal(r.import.productsHidden, 2, 'not in the API feed = not listed (owner rule)');
+  assert.equal(product('A').active, 0);
+  assert.equal(product('B').active, 0);
+  assert.equal(product('C').active, 1, 'still in the feed');
+  catalog.saveProduct({ active: false }, product('D').id, db); // admin hides D by hand
 
   // An unrelated admin edit keeps the feed's claim on A.
   catalog.saveProduct({ name: 'Renamed A' }, product('A').id, db);
 
   const back = await sync([rec('A', 115), rec('B', 115), rec('C', 115), ...others]);
   assert.equal(back.import.productsBackInStock, 2);
+  assert.equal(back.import.productsUnhidden, 2);
+  assert.equal(product('A').active, 1);
+  assert.equal(product('B').active, 1);
+  assert.equal(product('D').active, 0, 'admin hid D -- stays hidden');
   assert.equal(product('A').supplier_in_stock, 1);
   assert.equal(product('B').supplier_in_stock, 1);
   assert.equal(product('C').supplier_in_stock, 0, 'admin marked C out of stock -- stays out');

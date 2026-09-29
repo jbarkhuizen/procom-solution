@@ -128,17 +128,27 @@ test('descriptions fill blanks only; unknown SKUs go to Warehouse feed; categori
   assert.equal(f.cost_cents, 2000);
 });
 
-test('products missing from the API: a few go out of stock; very many are left alone (range not covered)', async () => {
-  for (const c of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']) listed(c);
-  const some = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map((c) => price(c, '100.00'));
-  let r = await run({ products: [], prices: some, stock: [], media: [] });
-  assert.equal(r.stats.markedOut, 1);
-  assert.equal(row('J').supplier_in_stock, 0);
-  for (const c of ['C', 'D', 'E']) catalog.saveProduct({ supplierInStock: true }, row(c).id, db);
+test('products missing from the API are hidden (owner rule), shown again when back; very many missing are left alone', async () => {
+  for (const c of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']) listed(c);
+  catalog.saveProduct({ active: false }, row('K').id, db); // admin hid K by hand
+  const nine = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map((c) => price(c, '100.00'));
+  let r = await run({ products: [], prices: nine, stock: [], media: [] });
+  assert.equal(r.stats.hidden, 1, 'J not in the API: hidden (K was already hidden by the admin)');
+  assert.equal(row('J').active, 0);
+  assert.equal(row('J').hidden_by_feed, 1);
+  assert.equal(catalog.queryProducts({ q: 'Item J' }, db).total, 0, 'not on the shop');
+  catalog.saveProduct({ name: 'Item J renamed' }, row('J').id, db);
+  assert.equal(row('J').hidden_by_feed, 1, 'an unrelated admin edit keeps the feed hiding it');
+
+  r = await run({ products: [], prices: [...nine, price('J', '100.00'), price('K', '100.00')], stock: [], media: [] });
+  assert.equal(r.stats.unhidden, 1);
+  assert.equal(row('J').active, 1, 'back in the API: shown again');
+  assert.equal(row('K').active, 0, 'hidden by the admin: stays hidden');
+
   r = await run({ products: [], prices: ['A', 'B', 'C', 'D', 'E', 'F'].map((c) => price(c, '100.00')), stock: [], media: [] });
-  assert.equal(r.stats.missingNotMarked, true, '4 of 10 missing: too many to be sell-outs');
-  assert.equal(r.stats.markedOut, 0);
-  assert.equal(row('G').supplier_in_stock, 1, 'left alone');
+  assert.equal(r.stats.missingNotMarked, true, 'many more missing at once: API response looks incomplete');
+  assert.equal(r.stats.hidden, 0);
+  assert.equal(row('G').active, 1, 'left alone');
   r = await run({ products: [], prices: [price('A', '100.00')], stock: [], media: [] });
   assert.equal(r.ok, false, 'far fewer prices than last run: skipped');
 });

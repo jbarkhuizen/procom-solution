@@ -170,6 +170,8 @@ export function sendEsquireReport(report) {
       row('Shop prices updated', im.productsRepriced),
       row('Listed products now out of stock', im.productsMarkedOut),
       row('Listed products back in stock', im.productsBackInStock),
+      row('Hidden from the shop (left the feed)', im.productsHidden || 0),
+      row('Shown again (back in the feed)', im.productsUnhidden || 0),
       row('Photos queued for download', im.imagesQueued),
     ])}`;
     if (report.autoListOn) {
@@ -221,13 +223,15 @@ export function sendSmdReport(report) {
       row(`Specials that ${verb} ended`, st.specialsEnded),
       row(`Marked out of stock`, st.markedOut),
       row(`Back in stock`, st.backInStock),
+      row(`Hidden from the shop (not in the API)`, st.hidden),
+      row(`Shown again (back in the API)`, st.unhidden),
       row('Low stock (5 or fewer)', st.lowStock),
       row(`Descriptions that ${verb} filled`, st.descriptions),
       row(`Products that ${verb} get full-size photos`, st.photoSets),
       ...(report.check ? [] : [row('Shop prices updated', report.repriced)]),
     ])}`;
-    if (st.missingNotMarked) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>${st.notInApi} of your SMD products are not in the API</strong> — too many to be real sell-outs, so they were left as they are (probably a range the API doesn't cover). Examples:</p>${list(st.missingSample || [])}`;
-    else if (st.missingSample?.length) body += `<p style="margin:0">Not in the API (${verb} marked out of stock):</p>${list(st.missingSample)}`;
+    if (st.missingNotMarked) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>${st.notInApi} of your SMD products are not in the API</strong> — too many to be real sell-outs, so they were left as they are (probably an incomplete API response). Examples:</p>${list(st.missingSample || [])}`;
+    else if (st.missingSample?.length) body += `<p style="margin:0">Not in the API (${verb} hidden from the shop):</p>${list(st.missingSample)}`;
     if (report.stats?.biggestChanges?.length) body += `<p style="margin:0">Biggest cost changes:</p>${list(report.stats.biggestChanges.map((c) => `${c.name} (${c.sku}): ${formatRand(c.from)} → ${formatRand(c.to)} excl VAT`))}`;
     if (st.newSkus) body += `<p style="margin:0"><strong>${st.newSkus} SMD products you don't sell yet</strong> ${report.check ? 'would appear' : 'are now'} in Admin → Warehouse feed (supplier SMD), by SMD category:</p>${list(Object.entries(st.newSkuCategories).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([c, n]) => `${n} · ${c}`))}`;
     const al = report.autoList;

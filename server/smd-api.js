@@ -168,7 +168,7 @@ export function planSmdChanges(cat, db = getDb()) {
   const supplier = findSmdSupplier(db);
   const products = db.prepare("SELECT * FROM products WHERE supplier_id = ? AND fulfilment = 'dropship'").all(supplier.id);
   const plan = { updates: [], media: [], newFeed: [], feedCost: [], pricedSkus: new Set(cat.prices.keys()) };
-  const stats = { listed: products.length, matched: 0, notInApi: 0, costUp: 0, costDown: 0, specials: 0, specialsEnded: 0, markedOut: 0, backInStock: 0, lowStock: 0, descriptions: 0, photoSets: 0, newSkus: 0, newSkuCategories: {}, biggestChanges: [] };
+  const stats = { listed: products.length, matched: 0, notInApi: 0, costUp: 0, costDown: 0, specials: 0, specialsEnded: 0, markedOut: 0, backInStock: 0, hidden: 0, unhidden: 0, lowStock: 0, descriptions: 0, photoSets: 0, newSkus: 0, newSkuCategories: {}, biggestChanges: [] };
   const listed = new Set();
   const missing = [];
   for (const p of products) {
@@ -179,12 +179,17 @@ export function planSmdChanges(cat, db = getDb()) {
     const info = cat.products.get(sku);
     const u = { id: p.id, set: {} };
     if (!price && soh == null) {
-      // Gone from SMD's API: can't be ordered (decided after the loop).
+      // Not in SMD's API: owner rule -- not in the API feed = not listed. Hidden
+      // after the loop (unless the admin already hid it).
       stats.notInApi++;
-      if (p.supplier_in_stock) missing.push(p);
+      if (p.active) missing.push(p);
       continue;
     }
     stats.matched++;
+    if (!p.active && p.hidden_by_feed && p.price_cents > 0) {
+      Object.assign(u.set, { active: 1, hidden_by_feed: 0 });
+      stats.unhidden++;
+    }
     if (price) {
       const cost = price.specialCents ?? price.costCents;
       if (cost !== p.cost_cents) {
@@ -232,13 +237,13 @@ export function planSmdChanges(cat, db = getDb()) {
     if (Object.keys(u.set).length) plan.updates.push(u);
   }
 
-  // Many listed SKUs missing at once means the API doesn't cover that part of
-  // the range (e.g. another SMD list) -- report it, never mass-disable.
+  // Many listed SKUs missing at once means the API response is incomplete --
+  // report it, never mass-hide.
   stats.missingNotMarked = products.length > 0 && stats.notInApi > products.length * 0.2;
   if (!stats.missingNotMarked) {
     for (const p of missing) {
-      plan.updates.push({ id: p.id, set: { supplier_in_stock: 0, out_by_feed: 1 } });
-      stats.markedOut++;
+      plan.updates.push({ id: p.id, set: { active: 0, hidden_by_feed: 1 } });
+      stats.hidden++;
     }
   }
   stats.missingSample = missing.slice(0, 15).map((p) => `${p.supplier_code} — ${p.name}`);

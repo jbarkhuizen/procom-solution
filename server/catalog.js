@@ -475,6 +475,7 @@ export function saveProduct(data, id = null, db = getDb()) {
   };
   // Kept only while the admin leaves the stock flag as the feed set it.
   fields.out_by_feed = existing && fields.supplier_in_stock === existing.supplier_in_stock ? existing.out_by_feed : 0;
+  fields.hidden_by_feed = existing && fields.active === existing.active ? existing.hidden_by_feed : 0;
   // Photos the admin changes are theirs: supplier feeds never replace them.
   if (existing && Array.isArray(data.images) && fields.images !== existing.images) fields.images_from_feed = 0;
   if (fields.price_mode === 'auto') fields.price_cents = priceFor(fields, db);
@@ -525,10 +526,10 @@ export function bulkUpdateProducts({ ids, action, value }, db = getDb()) {
   const tx = db.transaction(() => {
     switch (action) {
       case 'activate':
-        changes = db.prepare(`UPDATE products SET active = 1, updated_at = ? WHERE id IN (${ph}) AND price_cents > 0`).run(ts, ...ids).changes;
+        changes = db.prepare(`UPDATE products SET active = 1, hidden_by_feed = 0, updated_at = ? WHERE id IN (${ph}) AND price_cents > 0`).run(ts, ...ids).changes;
         break;
       case 'deactivate':
-        changes = db.prepare(`UPDATE products SET active = 0, updated_at = ? WHERE id IN (${ph})`).run(ts, ...ids).changes;
+        changes = db.prepare(`UPDATE products SET active = 0, hidden_by_feed = 0, updated_at = ? WHERE id IN (${ph})`).run(ts, ...ids).changes;
         break;
       case 'feature':
       case 'unfeature':
