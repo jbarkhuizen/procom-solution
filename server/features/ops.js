@@ -418,6 +418,7 @@ const SUITE_DESCRIPTIONS = {
   'server/features/finance.test.js': 'Dashboard and Financial overview: income, cost of goods, delivery, Payfast fees and expenses per month.',
   'server/features/invoices.test.js': 'Invoices: gap-free numbering when payment is confirmed, printable invoice, invoice history.',
   'server/features/marketing.test.js': 'Marketing: potential-market leads, adverts, calendar and platform rules (incl. copying from Lapanza3d).',
+  'server/features/governance.test.js': 'Governance: audit log of admin changes (with secrets redacted), todo/backlog, and its one-time seed.',
   'server/features/newsletters.test.js': 'Newsletters: opt-in only, double opt-in, unsubscribe, daily sending limit.',
   'server/features/phase1.test.js': 'Accounts, invoices, promos and specials working together in one order.',
   'server/features/promos.test.js': 'Promo codes: validity, usage limits, discount never takes a sale below cost incl VAT.',
