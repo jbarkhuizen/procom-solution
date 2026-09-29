@@ -23,6 +23,9 @@ server/            API (index.js), schema+migrations (db.js), catalog, pricing, 
   smd-autolist.js  applies those rules: preview, create missing categories, list
   smd-autolist-cli.js  same from the server shell (dry run; --apply backs up the DB first; --tidy moves
                    products off parent categories into the matching sub-category, same parent only)
+  esquire.js       Esquire live API: 3x/day pull (ESQUIRE_USER/PASS in .env), import, auto-list, report email
+  esquire-rules.js Esquire category -> store sub-category rules (same shape as smd-rules.js)
+  vault.js         AES-GCM for supplier portal passwords (VAULT_KEY in .env); reveal is audited
   remote-images.js background photo-URL downloader (SSRF-guarded)
   *.test.js        node --test suites (npm test)
 admin/             admin SPA served at /admin (no build step); dom.js = only HTML sink

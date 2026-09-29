@@ -165,7 +165,8 @@ function parseShipments(row) {
 // What delivery cost us for this order, by the documented rule.
 export function deliveryCostCents(row) {
   if (row.override_cost_cents != null) return row.override_cost_cents;
-  return parseShipments(row).reduce((t, sh) => t + (sh.method === 'courier' || sh.method === 'store' ? Math.max(0, Number(sh.feeCents) || 0) : 0), 0);
+  // Courier insurance (Esquire TVs) is paid on to the supplier as charged.
+  return parseShipments(row).reduce((t, sh) => t + (sh.method === 'courier' || sh.method === 'store' ? Math.max(0, Number(sh.feeCents) || 0) : 0) + Math.max(0, Number(sh.insuranceCents) || 0), 0);
 }
 
 export function estimatePayfastFee(totalCents, paymentMethod, fees, vatRatePct = 15) {

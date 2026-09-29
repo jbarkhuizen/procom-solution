@@ -428,6 +428,8 @@ export async function recordStartupVersion({ run = defaultRun, db = getDb(), roo
 const SUITE_DESCRIPTIONS = {
   'server/server.test.js': 'Core shop rules: pricing and markup, rounding, orders re-priced on the server, stock, shipping options, delivery per supplier, Payfast signatures, admin logins.',
   'server/feed.test.js': 'Warehouse price lists: reading Excel/CSV/PDF files, matching columns, importing, cost updates and out-of-stock handling.',
+  'server/esquire.test.js': 'Esquire API sync: VAT stripped, stock out/back in, glitch guard, schedule, category rules.',
+  'server/supplier-extras.test.js': 'Supplier details: encrypted portal password, own-courier delivery, courier insurance line (Esquire TVs).',
   'server/smd-autolist.test.js': 'SMD auto-list: which store category each SMD row goes into, skipped rows, heavy items marked "delivery quoted".',
   'server/features/accounts.test.js': 'Customer accounts: register, email verification, login, password reset, saved details, linking orders.',
   'server/features/analytics.test.js': 'Own visitor statistics: what is stored (no IPs), bots and Do Not Track ignored, funnel and totals.',

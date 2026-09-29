@@ -27,18 +27,21 @@ function chosen(g) {
 }
 
 const optionHtml = (g, o, prev) => {
-  const price = o.method === 'quote' ? 'Quoted separately' : o.priceCents ? formatRand(o.priceCents) : 'Free';
-  const note =
-    o.method === 'quote' ? "Pay for the products now; we'll send you the courier cost to your address within 1 business day, before anything ships."
-    : o.method === 'courier' && o.priceCents ? 'Free delivery on larger orders from this warehouse.'
-    : '';
+  const base = o.method === 'quote' ? 'Quoted separately' : o.priceCents ? formatRand(o.priceCents) : 'Free';
+  const price = o.insuranceCents ? `${base} + ${formatRand(o.insuranceCents)} courier insurance` : base;
+  const note = [
+    o.method === 'quote' ? "Pay for the products now; we'll send you the courier cost to your address within 1 business day, before anything ships." : '',
+    o.method === 'courier' && o.priceCents ? 'Free delivery on larger orders from this warehouse.' : '',
+    o.method === 'own_courier' ? 'After ordering, email us your courier’s waybill and collection date.' : '',
+    o.insuranceCents ? `${o.insuranceName}. Not charged if you collect or send your own courier.` : '',
+  ].filter(Boolean).join(' ');
   return `<label class="ship-option"><input type="radio" name="ship-${esc(g.key)}" value="${esc(o.id)}" ${o.id === prev ? 'checked' : ''} required>
   <span class="flex-1"><span class="block text-sm font-semibold leading-snug">${esc(o.name)}</span><span class="block text-sm text-terracotta font-semibold mt-0.5">${esc(price)}</span>${note ? `<span class="block text-xs text-espresso/65 mt-1 leading-relaxed">${esc(note)}</span>` : ''}</span></label>`;
 };
 
-// Where and how to collect -- only rendered once Collect is chosen for that shipment.
-const collectHtml = (c) => `<div class="mt-3 rounded-sm border-2 border-charcoal bg-linen/60 p-4 text-sm leading-relaxed">
-  <p class="text-espresso/75 mb-3">We'll email you a <strong>collection notice</strong> when your order is ready — ${esc(c.leadText)}. Please wait for it before you go.</p>
+// Where and how to collect -- only rendered once Collect (or own courier) is chosen for that shipment.
+const collectHtml = (c, ownCourier = false) => `<div class="mt-3 rounded-sm border-2 border-charcoal bg-linen/60 p-4 text-sm leading-relaxed">
+  <p class="text-espresso/75 mb-3">${ownCourier ? `Your courier collects from the address below — book it for ${esc(c.leadText)}. After ordering, email us the <strong>waybill</strong> and <strong>collection date</strong>.` : `We'll email you a <strong>collection notice</strong> when your order is ready — ${esc(c.leadText)}. Please wait for it before you go.`}</p>
   <p><span class="font-semibold">Address:</span> ${esc(c.address)}</p>
   ${c.hours ? `<p><span class="font-semibold">Hours:</span> ${esc(c.hours)}</p>` : ''}
   ${c.requirements ? `<p class="mt-1"><span class="font-semibold">Bring:</span> ${esc(c.requirements)}</p>` : ''}
@@ -88,8 +91,12 @@ function syncDeliveryFields() {
   for (const g of plan) {
     const o = chosen(g);
     const slot = document.querySelector(`[data-group="${CSS.escape(g.key)}"] .collect-slot`);
-    const isCollect = o?.method === 'collect';
-    if (slot && isCollect !== Boolean(slot.firstChild)) setHtml(slot, isCollect ? collectHtml(o.collection) : '');
+    const isCollect = o?.method === 'collect' || o?.method === 'own_courier';
+    const want = isCollect ? `${o.method}` : '';
+    if (slot && slot.dataset.shown !== want) {
+      slot.dataset.shown = want;
+      setHtml(slot, isCollect ? collectHtml(o.collection, o.method === 'own_courier') : '');
+    }
     if (!o || o.method === 'courier' || o.method === 'quote') needsAddress = true;
     if (o?.method === 'store') {
       const isPudo = /pudo/i.test(o.category || '');
@@ -118,12 +125,12 @@ function renderSummary() {
   );
   const sub = cartSubtotal();
   const picks = plan.map(chosen);
-  const fee = picks.reduce((t, o) => t + (o?.priceCents || 0), 0);
+  const fee = picks.reduce((t, o) => t + (o?.priceCents || 0) + (o?.insuranceCents || 0), 0);
   const quote = picks.some((o) => o?.method === 'quote');
-  const allCollect = picks.length && picks.every((o) => o?.method === 'collect');
+  const allCollect = picks.length && picks.every((o) => o?.method === 'collect' || o?.method === 'own_courier');
   document.getElementById('sum-subtotal').textContent = formatRand(sub);
   document.getElementById('sum-shipping').textContent =
-    !plan.length || picks.some((o) => !o) ? 'Choose an option' : allCollect ? 'Free — collect' : quote ? `${fee ? `${formatRand(fee)} + ` : ''}quoted after order` : fee ? formatRand(fee) : 'Free';
+    !plan.length || picks.some((o) => !o) ? 'Choose an option' : allCollect ? (picks.some((o) => o.method === 'own_courier') ? 'Free — your own courier' : 'Free — collect') : quote ? `${fee ? `${formatRand(fee)} + ` : ''}quoted after order` : fee ? formatRand(fee) : 'Free';
   const discount = Math.min(sub, promoDiscountCents());
   document.getElementById('sum-discount-row').classList.toggle('hidden', !discount);
   document.getElementById('sum-discount').textContent = `−${formatRand(discount)}`;

@@ -14,6 +14,7 @@ const auth = await import('./auth.js');
 const catalog = await import('./catalog.js');
 const feed = await import('./feed.js');
 const smdAutolist = await import('./smd-autolist.js');
+const esquire = await import('./esquire.js');
 const shipping = await import('./shipping.js');
 const orders = await import('./orders.js');
 const settings = await import('./settings.js');
@@ -243,6 +244,13 @@ admin.post('/uploads/images', imageUpload.array('images', 10), wrap(async (req) 
 }));
 
 admin.get('/suppliers', wrap(() => catalog.listSuppliers()));
+// Supplier portal password: decrypted only on request, and every look is audited.
+admin.get('/suppliers/:id/portal-password', wrap((req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const r = orNotFound(catalog.supplierPortalPassword(req.params.id));
+  governance.recordAudit({ action: `Viewed portal password: ${r.name}`, actor: req.admin.username, req });
+  return { password: r.password };
+}));
 admin.post('/suppliers', wrap((req) => catalog.saveSupplier(req.body || {})));
 admin.put('/suppliers/:id', wrap((req) => orNotFound(catalog.saveSupplier(req.body || {}, req.params.id))));
 admin.delete('/suppliers/:id', wrap((req) => ({ ok: orNotFound(catalog.deleteSupplier(req.params.id)) })));
@@ -268,6 +276,18 @@ admin.get('/feed/facets', wrap((req) => feed.feedFacets(req.query.supplierId)));
 admin.post('/feed/list', wrap((req) => feed.listFeedItems(req.body || {})));
 // SMD pricelists: sort each row into a store sub-category and list it. dryRun (default) previews.
 admin.post('/feed/smd-autolist', wrap((req) => smdAutolist.autoList({ list: req.body?.list, supplierId: req.body?.supplierId, dryRun: req.body?.dryRun !== false })));
+// Esquire API: status, run now (in the background -- a first run lists
+// thousands of items, longer than nginx waits), auto-list switch.
+admin.get('/feed/esquire', wrap(() => esquire.esquireStatus()));
+admin.post('/feed/esquire/sync', wrap(() => {
+  if (!esquire.esquireConfigured()) throw new Error('Esquire login is not set on the server (ESQUIRE_USER / ESQUIRE_PASS in .env)');
+  esquire.syncEsquire({ trigger: 'manual' });
+  return { started: true };
+}));
+admin.put('/feed/esquire/autolist', wrap((req) => {
+  settings.updateSettings({ esquireAutoList: req.body?.on === true });
+  return esquire.esquireStatus();
+}));
 
 admin.get('/orders', wrap((req) => orders.listOrders({ ...req.query, includeUnpaid: req.query.includeUnpaid === '1' })));
 admin.get('/orders/:id', wrap((req) => {
@@ -339,4 +359,5 @@ app.use((err, _req, res, _next) => {
 
 startBackupSchedule();
 resumePendingDownloads();
+esquire.startEsquireSchedule();
 app.listen(PORT, HOST, () => console.log(`Procom API on http://${HOST}:${PORT} (admin: /admin/, Payfast ${payfastMode()})`));

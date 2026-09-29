@@ -66,6 +66,8 @@ function rowToOrder(r, items = [], events = []) {
     collection: Boolean(r.collection),
     collectionReadyAt: r.collection_ready_at || '',
     shipments: parseShipments(r),
+    // Part of shippingCents, listed as its own line (Esquire TVs by courier).
+    insuranceCents: parseShipments(r).reduce((t, sh) => t + (sh.insuranceCents || 0), 0),
     discountCents: r.discount_cents || 0,
     promoCode: r.promo_code || '',
     clientId: r.client_id || null,
@@ -126,7 +128,8 @@ export function deliveryPlanForCart(lines, db = getDb()) {
   const getP = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1');
   const items = (Array.isArray(lines) ? lines.slice(0, 100) : [])
     .map((l) => ({ p: getP.get(String(l.productId || '')), quantity: clampInt(l.quantity, 1, 999, 0) }))
-    .filter((it) => it.p && it.quantity);
+    .filter((it) => it.p && it.quantity)
+    .map((it) => ({ ...it, unitCents: specialPriceCents(it.p, db) ?? it.p.price_cents })); // same price basis as createOrder (insurance %)
   return items.length ? publicPlan(planDelivery(items, db)) : [];
 }
 
@@ -197,7 +200,9 @@ export function createOrder(input, db = getDb()) {
   const ship = {
     id: shipments.length === 1 ? shipments[0].optionId : null,
     name: shipments.map((sh) => (shipments.length > 1 ? `${sh.label}: ${sh.name}` : sh.name)).join(' + '),
-    priceCents: shipments.reduce((t, sh) => t + sh.feeCents, 0),
+    // Courier insurance is part of what the customer pays for delivery; it is
+    // listed separately from shipments[].insuranceCents wherever delivery is shown.
+    priceCents: shipments.reduce((t, sh) => t + sh.feeCents + (sh.insuranceCents || 0), 0),
   };
 
   const paymentMethod = input.paymentMethod === 'payfast_eft' ? 'payfast_eft' : 'payfast_card';
@@ -237,6 +242,8 @@ export function createOrder(input, db = getDb()) {
     logOrderEvent(id, `Order placed (${paymentMethod === 'payfast_eft' ? 'Instant EFT' : 'Card'})`, 'customer', db);
     if (deliveryQuote) logOrderEvent(id, 'Contains large items — delivery must be quoted to the customer', 'system', db);
     for (const sh of shipments) if (sh.method === 'collect') logOrderEvent(id, `Customer will collect from the ${sh.label}`, 'system', db);
+    for (const sh of shipments) if (sh.method === 'own_courier') logOrderEvent(id, `Customer sends their own courier to the ${sh.label} -- waiting for their waybill and collection date`, 'system', db);
+    for (const sh of shipments) if (sh.insuranceCents) logOrderEvent(id, `${sh.insuranceName}: ${(sh.insuranceCents / 100).toFixed(2)}`, 'system', db);
   });
   tx();
   const order = getOrder(id, db);
@@ -284,10 +291,14 @@ export function listOrders(opts = {}, db = getDb()) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = clampInt(opts.page, 1, pages, 1);
   const rows = db
-    .prepare(`SELECT o.*, (SELECT SUM(quantity) FROM order_items WHERE order_id = o.id) AS item_count FROM orders o ${w} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`)
+    .prepare(`SELECT o.*, (SELECT SUM(quantity) FROM order_items WHERE order_id = o.id) AS item_count,
+      (SELECT GROUP_CONCAT(DISTINCT CASE WHEN oi.fulfilment = 'stock' THEN 'Own stock' ELSE COALESCE(s.name, 'Supplier') END)
+        FROM order_items oi LEFT JOIN suppliers s ON s.id = oi.supplier_id WHERE oi.order_id = o.id) AS supplier_names
+      FROM orders o ${w} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`)
     .all(params);
   return {
-    items: rows.map((r) => ({ ...rowToOrder(r), itemCount: r.item_count || 0 })),
+    // suppliers: which warehouse(s) each order must be placed with.
+    items: rows.map((r) => ({ ...rowToOrder(r), itemCount: r.item_count || 0, suppliers: r.supplier_names ? r.supplier_names.split(',') : [] })),
     total,
     page,
     pages,
@@ -363,9 +374,11 @@ export function supplierOrderSheet(order) {
     const how =
       sh?.method === 'collect'
         ? ['CUSTOMER WILL COLLECT from your office — please pack and hold under this reference:', `${order.firstName} ${order.lastName} · ${order.phone}`, 'Please let us know when it is ready for collection.']
+        : sh?.method === 'own_courier'
+          ? ["CUSTOMER'S OWN COURIER will collect from your office — please pack and hold under this reference:", `${order.firstName} ${order.lastName} · ${order.phone}`, 'Waybill and collection date to follow.']
         : sh?.method === 'quote'
-          ? ['Delivery to be arranged (quote pending) — please confirm dimensions/weight for:', `${order.firstName} ${order.lastName} · ${order.phone}`, deliver]
-          : ['Please deliver directly to:', `${order.firstName} ${order.lastName} · ${order.phone}`, deliver, `Delivery method: ${sh?.name || order.shippingName}`];
+          ? ['Delivery to be arranged (quote pending) — please confirm dimensions/weight for:', `${order.firstName} ${order.lastName} · ${order.phone}`, deliver, ...(sh.insuranceCents ? ['Courier insurance requested (TV / insured items).'] : [])]
+          : ['Please deliver directly to:', `${order.firstName} ${order.lastName} · ${order.phone}`, deliver, `Delivery method: ${sh?.name || order.shippingName}`, ...(sh?.insuranceCents ? ['Courier insurance requested (TV / insured items).'] : [])];
     return {
       supplier,
       text: [`Order request — Procom Solutions ref ${order.orderNumber}`, '', ...items.map((i) => `${i.quantity} x ${i.supplierCode || i.sku} — ${i.name}`), '', ...how].join('\n'),
