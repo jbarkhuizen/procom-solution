@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { createHash } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
@@ -170,9 +171,34 @@ function setSessionCookie(req, res, token) {
   res.cookie(auth.SESSION_COOKIE, token, { httpOnly: true, sameSite: 'strict', secure: req.secure, maxAge: auth.SESSION_TTL_MS, path: '/' });
 }
 
+// Fingerprint of the admin files, taken at startup (a deploy restarts the
+// service). An open admin tab compares it with the one it loaded and offers a
+// reload when the admin code changed underneath it.
+function adminFingerprint(dir = path.join(ROOT, 'admin')) {
+  const h = createHash('sha1');
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else {
+        const st = fs.statSync(full);
+        h.update(`${path.relative(dir, full)}:${st.size}:${Math.round(st.mtimeMs)}\n`);
+      }
+    }
+  };
+  try {
+    walk(dir);
+  } catch {
+    return 'unknown';
+  }
+  return h.digest('hex').slice(0, 12);
+}
+const ADMIN_VERSION = adminFingerprint();
+
 app.get('/api/admin/session', (req, res) => {
   const s = auth.getSession(req.cookies[auth.SESSION_COOKIE]);
-  res.json({ needsSetup: !auth.hasAnyAdmin(), authenticated: Boolean(s), username: s?.username || null });
+  res.set('Cache-Control', 'no-store');
+  res.json({ needsSetup: !auth.hasAnyAdmin(), authenticated: Boolean(s), username: s?.username || null, adminVersion: ADMIN_VERSION });
 });
 app.post('/api/admin/setup', loginLimiter, wrap((req, res) => {
   // Only possible while no admin exists -- same first-run flow as lapanza3d.
