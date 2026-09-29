@@ -84,6 +84,9 @@ export function autoList({ list: listKey, supplierId, dryRun = false } = {}, db 
   for (const r of rows) {
     if (r.product_id && r.category_id) {
       alreadyCategorised++; // an admin's category choice wins
+      // ...but a heavy-list change still reaches products already listed
+      // (only those whose delivery choice nobody set -- see setQuote below).
+      if (list.heavy?.test(r.name)) heavy.push({ code: r.code, name: r.name });
       continue;
     }
     let c = classifyItem(listKey, { name: r.name, category: r.category, sheet: r.source_sheet });

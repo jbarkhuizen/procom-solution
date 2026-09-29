@@ -143,6 +143,30 @@ test('without a login a run says where to enter it', async () => {
   assert.match(r.error, /Admin → Suppliers → Esquire/);
 });
 
+test('soundbars are heavy (delivery quoted), also once already listed -- unless set by hand', async () => {
+  const { ESQUIRE_LIST } = await import('./esquire-rules.js');
+  const heavy = (n) => ESQUIRE_LIST.heavy.test(n);
+  assert.ok(heavy('Hisense HS5100 540w 5.1ch Soundbar'));
+  assert.ok(heavy('LG S40T 2.1ch 300w Soundbar with Wireless Subwoofer'));
+  assert.ok(heavy('Hisense HT Saturn 4.1.2 Channel Home Theatre System'));
+  assert.ok(!heavy('OBlanc SHELL Subwoofer Headphones with USB Charging'));
+  assert.ok(!heavy('HTPNEO H80 4K FHD Smart Home Theatre Projector'));
+  assert.ok(!heavy('Soundbar wall mount bracket'));
+
+  updateSettings({ esquireAutoList: true }, db);
+  const bars = ['S1', 'S2', 'S3'].map((c) => rec(c, 1150, { category: 'Bluetooth SoundBars', productName: `Brand ${c} 2.1 Channel Soundbar` }));
+  await sync(bars);
+  assert.equal(product('S1').quote_delivery, 1, 'new listing marked');
+  // Listed before the rule existed (NULL) vs an admin's explicit "never quote" (0).
+  db.prepare("UPDATE products SET quote_delivery = NULL WHERE supplier_code IN ('S1', 'S2')").run();
+  db.prepare("UPDATE products SET quote_delivery = 0 WHERE supplier_code = 'S3'").run();
+  const r = await sync(bars);
+  assert.equal(r.autoList.quoted, 2);
+  assert.equal(product('S1').quote_delivery, 1);
+  assert.equal(product('S2').quote_delivery, 1);
+  assert.equal(product('S3').quote_delivery, 0, 'admin choice kept');
+});
+
 test('next run is the earliest SAST slot after now', () => {
   const at = (iso) => esquire.nextRunAt(new Date(iso), [6, 12, 18]).toISOString();
   assert.equal(at('2026-09-29T03:00:00Z'), '2026-09-29T04:00:00.000Z'); // 05:00 SAST -> 06:00
