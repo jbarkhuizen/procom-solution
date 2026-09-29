@@ -134,9 +134,10 @@ const RULES = [
 
 // Too big for the default 1 kg courier bracket: projector screens, solar
 // panels, inverters, big batteries, power stations, large UPSs, 24"+ monitors,
-// microwaves, pressure washers, oil heaters.
+// microwaves, pressure washers, oil heaters, soundbars / subwoofers / home
+// theatre and hi-fi systems (owner, 2026-09-29 -- same as SMD's heavy list).
 // (Televisions and server cabinets are quoted as a whole category above.)
-const HEAVY = /^(?!.*(fuse|cable|connector|bracket|switch\b|mount|flood|lamp|light|lantern|charger)).*(projector screen|microwave|pressure washer|oil (filled )?heater|solar panel|\binverter\b|powerboard|\d{2,3}\s*ah\b|power station|\bups\b.*\d\s*(k?va)|\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch|in\b).*monitor|monitor.*\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch))/i;
+const HEAVY = /^(?!.*(fuse|cable|connector|bracket|switch\b|mount|flood|lamp|light|lantern|charger|mini soundbar|remote|headphone|theat(er|re) projector)).*(soundbar|sound bar|subwoofer|home theat(er|re)|hi-?fi system|projector screen|microwave|pressure washer|oil (filled )?heater|solar panel|\binverter\b|powerboard|\d{2,3}\s*ah\b|power station|\bups\b.*\d\s*(k?va)|\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch|in\b).*monitor|monitor.*\b(2[4-9]|3\d|4\d)(\.\d)?\s*("|”|-inch| inch))/i;
 
 export const ESQUIRE_LIST = {
   label: 'Esquire (API feed)',
