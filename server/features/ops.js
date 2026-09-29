@@ -60,9 +60,19 @@ const REMOTE_RE = /^([A-Za-z0-9_][A-Za-z0-9_.-]{0,63})(,root_folder_id=[A-Za-z0-
 // Procom put anywhere under plain "gdrive:" would be wiped every night.
 export const SHARED_REMOTE = 'gdrive';
 
+// A pasted Drive folder link (https://drive.google.com/drive/folders/<id>, also
+// the /u/0/ and ?usp=sharing forms) means "the shared Google login, rooted in
+// that folder".
+const DRIVE_URL_RE = /^https?:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]{10,100})\/?(?:[?#].*)?$/i;
+
 export function normaliseRemote(value) {
   let v = String(value ?? '').trim();
   if (!v) return '';
+  const url = DRIVE_URL_RE.exec(v);
+  if (url) return `${SHARED_REMOTE},root_folder_id=${url[1]}:`;
+  if (/^(https?|ftp|file)[,:]/i.test(v)) {
+    throw httpError('That is a web address, not an rclone remote. Paste the Google Drive folder link (https://drive.google.com/drive/folders/...) or enter gdrive,root_folder_id=<folder id>:');
+  }
   const m = REMOTE_RE.exec(v);
   if (!m || v.split(/[:/]/).some((seg) => seg === '..')) {
     throw httpError('Enter an rclone remote such as gdrive,root_folder_id=<folder id>: (remote name, optional folder id, a colon, then an optional folder).');
@@ -89,7 +99,13 @@ export function getOffsiteConfig(db = getDb()) {
       return { remote: '', source: 'env', stored, error: `BACKUP_RCLONE_REMOTE is not a valid remote: ${err.message}` };
     }
   }
-  return { remote: stored, source: stored ? 'settings' : 'off', stored, error: '' };
+  if (!stored) return { remote: '', source: 'off', stored, error: '' };
+  // Re-check what was saved earlier (e.g. a Drive link saved before links were converted).
+  try {
+    return { remote: normaliseRemote(stored), source: 'settings', stored, error: '' };
+  } catch (err) {
+    return { remote: '', source: 'settings', stored, error: `The saved remote is not valid: ${err.message}` };
+  }
 }
 
 export function setOffsiteRemote(value, db = getDb()) {
