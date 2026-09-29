@@ -225,7 +225,9 @@ export function listSpecials(db = getDb()) {
 //  - products showing a struck-through "was" price: supplier specials from
 //    the SMD API (products.special_by_feed) or a was-price set on the product.
 // A product in both counts once, with the admin special (the lower price).
-export function productsOnSpecial({ page = 1, pageSize = 24 } = {}, db = getDb()) {
+// `category` (slug) narrows the list to that category and everything under
+// it; `categories` counts the specials per top-level shop category (quick filter).
+export function productsOnSpecial({ page = 1, pageSize = 24, category = '' } = {}, db = getDb()) {
   const idx = loadIndex(db);
   const saving = new Map(); // id -> { name, pct }
   if (idx.count) {
@@ -244,11 +246,51 @@ export function productsOnSpecial({ page = 1, pageSize = 24 } = {}, db = getDb()
   for (const r of db.prepare('SELECT id, name, price_cents, compare_at_cents FROM products WHERE active = 1 AND compare_at_cents > price_cents AND price_cents > 0').all()) {
     if (!saving.has(r.id)) saving.set(r.id, { name: r.name, pct: (r.compare_at_cents - r.price_cents) / r.compare_at_cents });
   }
-  const rows = [...saving.entries()].sort((a, b) => b[1].pct - a[1].pct || a[1].name.localeCompare(b[1].name)).map(([id]) => ({ r: { id } }));
+  // Category of each product on special, and its top-level shop category.
+  const cats = new Map(db.prepare('SELECT id, parent_id, name, slug, sort_order FROM categories WHERE active = 1').all().map((c) => [c.id, c]));
+  const topOf = (id) => {
+    const seen = new Set();
+    let c = cats.get(id);
+    while (c && c.parent_id && cats.has(c.parent_id) && !seen.has(c.id)) {
+      seen.add(c.id);
+      c = cats.get(c.parent_id);
+    }
+    return c || null;
+  };
+  const catOf = new Map();
+  const idList = [...saving.keys()];
+  for (let i = 0; i < idList.length; i += 500) {
+    const chunk = idList.slice(i, i + 500);
+    for (const r of db.prepare(`SELECT id, category_id FROM products WHERE id IN (${chunk.map(() => '?').join(',')})`).all(...chunk)) catOf.set(r.id, r.category_id);
+  }
+  const counts = new Map();
+  for (const id of idList) {
+    const top = topOf(catOf.get(id));
+    if (top) counts.set(top.id, (counts.get(top.id) || 0) + 1);
+  }
+  const categories = [...counts.entries()]
+    .map(([id, count]) => ({ slug: cats.get(id).slug, name: cats.get(id).name, count, sort: cats.get(id).sort_order }))
+    .sort((a, b) => b.count - a.count || a.sort - b.sort)
+    .map(({ sort, ...c }) => c);
+
+  // Optional filter: a category and all its descendants.
+  let keep = null;
+  const chosen = category ? [...cats.values()].find((c) => c.slug === String(category)) : null;
+  if (chosen) {
+    keep = new Set([chosen.id]);
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const c of cats.values()) if (c.parent_id && keep.has(c.parent_id) && !keep.has(c.id)) keep.add(c.id), (grew = true);
+    }
+  }
+  const rows = [...saving.entries()]
+    .filter(([id]) => !keep || keep.has(catOf.get(id)))
+    .sort((a, b) => b[1].pct - a[1].pct || a[1].name.localeCompare(b[1].name))
+    .map(([id]) => ({ r: { id } }));
   const size = clampInt(pageSize, 1, 96, 24);
   const pages = Math.max(1, Math.ceil(rows.length / size));
   const p = clampInt(page, 1, pages, 1);
-  return { rows: rows.slice((p - 1) * size, p * size).map((x) => x.r.id), total: rows.length, page: p, pages, pageSize: size };
+  return { rows: rows.slice((p - 1) * size, p * size).map((x) => x.r.id), total: rows.length, page: p, pages, pageSize: size, categories, allTotal: saving.size, category: chosen ? { slug: chosen.slug, name: chosen.name } : null };
 }
 
 // ------------------------------------------------------------------ routes
@@ -258,7 +300,7 @@ export function register({ app, admin, wrap }) {
     '/api/specials',
     wrap(async (req) => {
       const { getProduct } = await import('../catalog.js'); // catalog imports this module; load lazily
-      const { rows, ...rest } = productsOnSpecial({ page: req.query.page, pageSize: req.query.pageSize });
+      const { rows, ...rest } = productsOnSpecial({ page: req.query.page, pageSize: req.query.pageSize, category: req.query.category });
       return { ...rest, items: rows.map((id) => getProduct(id, { admin: false })).filter(Boolean) };
     }),
   );

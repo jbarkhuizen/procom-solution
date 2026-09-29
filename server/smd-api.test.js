@@ -227,3 +227,22 @@ test('SMD specials appear on the Specials page, and leave it when the special en
   sp = productsOnSpecial({}, db);
   assert.equal(sp.total, 0);
 });
+
+test('Specials page quick filter: counts per top-level category, filter includes sub-categories', async () => {
+  const { productsOnSpecial } = await import('./features/specials.js');
+  const audio = catalog.saveCategory({ name: 'Audio Top' }, null, db);
+  const buds = catalog.saveCategory({ name: 'Buds', parentId: audio.id }, null, db);
+  const home = catalog.saveCategory({ name: 'Home Top' }, null, db);
+  listed('A', { categoryId: buds.id });
+  listed('B', { categoryId: buds.id });
+  listed('C', { categoryId: home.id });
+  await run({ products: [], prices: ['A', 'B', 'C'].map((c) => price(c, '100.00', '50.00')), stock: [], media: [] });
+  const all = productsOnSpecial({}, db);
+  assert.equal(all.total, 3);
+  assert.deepEqual(all.categories.map((c) => [c.name, c.count]), [['Audio Top', 2], ['Home Top', 1]]);
+  const onlyAudio = productsOnSpecial({ category: audio.slug }, db);
+  assert.equal(onlyAudio.total, 2, 'parent includes its sub-categories');
+  assert.equal(onlyAudio.allTotal, 3);
+  assert.equal(onlyAudio.category.name, 'Audio Top');
+  assert.equal(productsOnSpecial({ category: buds.slug }, db).total, 2);
+});
