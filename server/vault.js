@@ -1,17 +1,40 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Encrypts small secrets kept in the database (supplier portal passwords).
-// AES-256-GCM with a key that lives only in the server .env (VAULT_KEY), so
-// a copied database or an off-site backup (Google Drive) never exposes them.
-// Losing VAULT_KEY makes stored passwords unreadable -- they must be re-entered.
+// AES-256-GCM. The key is VAULT_KEY from .env if set, otherwise a random key
+// the server creates once in `.vault-key` next to the app (git-ignored, never
+// in data/ -- so neither a copied database nor the off-site Google Drive
+// backup ever holds the key next to the passwords). Losing the key makes
+// stored passwords unreadable: they must be entered again in admin.
 
 const PREFIX = 'v1';
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const keyFile = () => process.env.VAULT_KEY_FILE || path.join(ROOT, '.vault-key');
 
-export const vaultReady = () => Boolean(process.env.VAULT_KEY && process.env.VAULT_KEY.length >= 16);
+let cached = null; // { source, key }
 
 function key() {
-  if (!vaultReady()) throw new Error('Passwords cannot be stored yet: VAULT_KEY is not set in the server .env (at least 16 characters)');
-  return crypto.createHash('sha256').update(process.env.VAULT_KEY).digest();
+  const source = process.env.VAULT_KEY || keyFile();
+  if (cached?.source === source) return cached.key;
+  let material = process.env.VAULT_KEY;
+  if (!material) {
+    const file = keyFile();
+    if (!fs.existsSync(file)) {
+      // 'wx': never overwrite a key that appeared meanwhile; 0600: owner only.
+      try {
+        fs.writeFileSync(file, `${crypto.randomBytes(32).toString('base64')}\n`, { flag: 'wx', mode: 0o600 });
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw new Error(`Could not create the password key file (${err.message})`);
+      }
+    }
+    material = fs.readFileSync(file, 'utf8').trim();
+  }
+  if (material.length < 16) throw new Error('The password key is too short (VAULT_KEY / .vault-key)');
+  cached = { source, key: crypto.createHash('sha256').update(material).digest() };
+  return cached.key;
 }
 
 export function encryptSecret(plain) {
@@ -30,6 +53,6 @@ export function decryptSecret(stored) {
     d.setAuthTag(Buffer.from(tag, 'base64'));
     return Buffer.concat([d.update(Buffer.from(data, 'base64')), d.final()]).toString('utf8');
   } catch {
-    throw new Error('Stored password cannot be read with the current VAULT_KEY -- enter it again');
+    throw new Error('Stored password cannot be read with the current key -- enter it again in Admin -> Suppliers');
   }
 }

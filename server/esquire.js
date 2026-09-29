@@ -4,13 +4,15 @@ import { importFile } from './feed.js';
 import { autoList, classifyItem } from './smd-autolist.js';
 import { ESQUIRE_LIST } from './esquire-rules.js';
 import { sendEsquireReport } from './mailer.js';
+import { decryptSecret } from './vault.js';
 
 // Esquire's live product API, pulled on a schedule (3x a day) instead of an
 // uploaded pricelist. Each run: fetch -> import as a complete list -> auto-list
 // new items (when switched on) -> email the owner a status report.
 //
-// Credentials live only in the server's .env (ESQUIRE_USER / ESQUIRE_PASS):
-// the API takes them in the query string and this repo is public.
+// Login: the Esquire portal username + password saved on the Esquire supplier
+// (Admin -> Suppliers; password encrypted, see vault.js). ESQUIRE_USER /
+// ESQUIRE_PASS in .env, if set, win. Never in the repo -- it is public.
 //
 // Feed facts (checked 2026-09-29): prices INCLUDE 15% VAT (every price / 1.15
 // is an exact 4-decimal number); `m` is Esquire's own markup % (kept at 0 --
@@ -24,18 +26,33 @@ const TIMEOUT_MS = 120_000;
 // as thousands of products going out of stock at once.
 const MIN_SHARE_OF_PREVIOUS = 0.5;
 
-export const esquireConfigured = () => Boolean(process.env.ESQUIRE_USER && process.env.ESQUIRE_PASS);
+export const NO_LOGIN = 'Esquire login not set: enter the portal username and password in Admin → Suppliers → Esquire';
 
 export function findEsquireSupplier(db = getDb()) {
   return db.prepare("SELECT id, name FROM suppliers WHERE name LIKE '%esquire%' ORDER BY created_at LIMIT 1").get() || null;
 }
 
-export async function fetchEsquireRecords({ fetchImpl = fetch } = {}) {
-  if (!esquireConfigured()) throw new Error('Esquire login is not set on the server (ESQUIRE_USER / ESQUIRE_PASS in .env)');
+// -> { user, pass, source } or null. Throws only if a saved password can't be decrypted.
+export function esquireLogin(db = getDb()) {
+  if (process.env.ESQUIRE_USER && process.env.ESQUIRE_PASS) return { user: process.env.ESQUIRE_USER, pass: process.env.ESQUIRE_PASS, source: 'env' };
+  const row = db.prepare("SELECT portal_username, portal_password_enc FROM suppliers WHERE name LIKE '%esquire%' ORDER BY created_at LIMIT 1").get();
+  if (!row?.portal_username || !row.portal_password_enc) return null;
+  return { user: row.portal_username, pass: decryptSecret(row.portal_password_enc), source: 'admin' };
+}
+
+export function esquireConfigured(db = getDb()) {
+  if (process.env.ESQUIRE_USER && process.env.ESQUIRE_PASS) return true;
+  const row = db.prepare("SELECT portal_username, portal_password_enc FROM suppliers WHERE name LIKE '%esquire%' ORDER BY created_at LIMIT 1").get();
+  return Boolean(row?.portal_username && row.portal_password_enc);
+}
+
+export async function fetchEsquireRecords({ fetchImpl = fetch, db = getDb() } = {}) {
+  const login = esquireLogin(db);
+  if (!login) throw new Error(NO_LOGIN);
   const url = new URL(API_URL);
   url.search = new URLSearchParams({
-    u: process.env.ESQUIRE_USER,
-    p: process.env.ESQUIRE_PASS,
+    u: login.user,
+    p: login.pass,
     t: 'json',
     m: '0',
     o: 'ascending',
@@ -97,7 +114,7 @@ export function syncEsquire({ trigger = 'manual', records = null, email = true, 
     try {
       const supplier = findEsquireSupplier(db);
       if (!supplier) throw new Error('No supplier named "Esquire" in Admin -> Suppliers');
-      const all = records || (await fetchEsquireRecords({ fetchImpl }));
+      const all = records || (await fetchEsquireRecords({ fetchImpl, db }));
       const { keep: sellable, leftOut } = withoutAgreedSkips(sellableRecords(all));
       report.feedRows = all.length;
       report.sellableRows = sellable.length;
@@ -150,7 +167,7 @@ function saveLastRun(db, report) {
 export function esquireStatus(db = getDb()) {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'esquireLastRun'").get();
   return {
-    configured: esquireConfigured(),
+    configured: esquireConfigured(db),
     supplier: findEsquireSupplier(db),
     autoList: Boolean(getSettings(db).esquireAutoList),
     runHoursSast: syncHours(),
@@ -185,13 +202,21 @@ export function nextRunAt(now = new Date(), hours = syncHours()) {
   return candidates.length ? new Date(Math.min(...candidates)) : null;
 }
 
+// Always scheduled: the login can be entered in admin at any time. Until it
+// is, scheduled runs are skipped quietly (no failure email 3x a day).
 export function startEsquireSchedule() {
-  if (!esquireConfigured() || process.env.DISABLE_ESQUIRE_SYNC === '1') return;
+  if (process.env.DISABLE_ESQUIRE_SYNC === '1') return;
   const plan = () => {
     const at = nextRunAt();
     if (!at) return;
     setTimeout(() => {
-      syncEsquire({ trigger: 'scheduled' }).finally(plan);
+      let ready = false;
+      try {
+        ready = esquireConfigured() && Boolean(findEsquireSupplier());
+      } catch (err) {
+        console.error('Esquire sync check failed:', err.message);
+      }
+      (ready ? syncEsquire({ trigger: 'scheduled' }) : Promise.resolve()).finally(plan);
     }, at - Date.now()).unref();
   };
   plan();

@@ -116,6 +116,33 @@ test('a failed fetch is reported, never thrown, and hides the password', async (
   }
 });
 
+test('the login comes from Admin -> Suppliers -> Esquire (encrypted); .env wins when set', async () => {
+  process.env.VAULT_KEY = 'test-vault-key-0123456789';
+  assert.equal(esquire.esquireConfigured(db), false);
+  assert.equal(esquire.esquireLogin(db), null);
+  const pw = `t-${Math.random().toString(36).slice(2)}`;
+  catalog.saveSupplier({ name: 'Esquire', portalUsername: 'shop@example.com', portalPassword: pw }, supplierId, db);
+  assert.equal(esquire.esquireConfigured(db), true);
+  let url = '';
+  await esquire.syncEsquire({ email: false, fetchImpl: async (u) => { url = String(u); return { ok: false, status: 401 }; } }, db);
+  assert.equal(new URL(url).searchParams.get('u'), 'shop@example.com');
+  assert.equal(new URL(url).searchParams.get('p'), pw);
+  process.env.ESQUIRE_USER = 'env@example.com';
+  process.env.ESQUIRE_PASS = 'env-pass';
+  try {
+    assert.equal(esquire.esquireLogin(db).source, 'env');
+  } finally {
+    delete process.env.ESQUIRE_USER;
+    delete process.env.ESQUIRE_PASS;
+  }
+});
+
+test('without a login a run says where to enter it', async () => {
+  const r = await esquire.syncEsquire({ email: false }, db);
+  assert.equal(r.ok, false);
+  assert.match(r.error, /Admin → Suppliers → Esquire/);
+});
+
 test('next run is the earliest SAST slot after now', () => {
   const at = (iso) => esquire.nextRunAt(new Date(iso), [6, 12, 18]).toISOString();
   assert.equal(at('2026-09-29T03:00:00Z'), '2026-09-29T04:00:00.000Z'); // 05:00 SAST -> 06:00

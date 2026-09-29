@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 
 process.env.UPLOADS_DIR = path.join(os.tmpdir(), 'procom-test-uploads');
 process.env.DISABLE_BACKUPS = '1';
@@ -29,9 +30,25 @@ test('vault: round trip, random IV, and a clear error without or with a wrong ke
   assert.doesNotMatch(a, /Portal/);
   assert.equal(vault.decryptSecret(a), 'Portal#Pass1');
   process.env.VAULT_KEY = 'another-key-entirely-xyz';
-  assert.throws(() => vault.decryptSecret(a), /current VAULT_KEY/);
+  assert.throws(() => vault.decryptSecret(a), /current key/);
+});
+
+test('vault: without VAULT_KEY the server creates its own key file once (owner-only) and keeps using it', () => {
+  const file = path.join(os.tmpdir(), `procom-vault-${crypto.randomUUID()}`);
   delete process.env.VAULT_KEY;
-  assert.throws(() => vault.encryptSecret('x'), /VAULT_KEY is not set/);
+  process.env.VAULT_KEY_FILE = file;
+  try {
+    const enc = vault.encryptSecret('abc');
+    assert.ok(fs.existsSync(file));
+    if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    const keyText = fs.readFileSync(file, 'utf8');
+    assert.equal(vault.decryptSecret(enc), 'abc');
+    vault.encryptSecret('again');
+    assert.equal(fs.readFileSync(file, 'utf8'), keyText, 'never replaced');
+  } finally {
+    delete process.env.VAULT_KEY_FILE;
+    fs.rmSync(file, { force: true });
+  }
 });
 
 test('supplier portal password: stored encrypted, never listed, kept when left blank, removable', () => {

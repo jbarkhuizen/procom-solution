@@ -12,3 +12,4 @@ data/uploads/
 
 # Agent worktrees (local only)
 .claude/worktrees/
+.vault-key
