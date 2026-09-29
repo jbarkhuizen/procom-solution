@@ -73,12 +73,12 @@ The *Delivery* column is the category's quote flag. It only takes effect for non
 ## Open items / backlog
 
 **Needs the owner**
-- **After the Phase 3 deploy:** create a Google Drive folder used only for Procom backups, copy its id from the URL, Admin → Backups → off-site remote `gdrive,root_folder_id=<id>:` → Test connection → Sync now. Admin → Test cases → Run tests now once.
+- ~~After the Phase 3 deploy~~ done 2026-09-29: Drive backups to a Procom-only folder synced; tests run from admin.
 - **After the Phase 2 deploy:** Platform rules → "Copy platforms & rules from Lapanza3d" (check the preview, then apply). Financial overview → check the Payfast fee estimates against a Payfast statement.
-- **Margins:** at the 10% default markup the margin above cost incl VAT is ~9%, Payfast takes ~3–4% incl VAT, so a special or promo code of more than ~5% loses money once fees are counted (the discount cap only protects cost incl VAT, not fees).
+- **Margins:** at the 10% default markup a special or promo of more than ~5% loses money once Payfast fees (~3–4%) are counted. Owner decided (2026-09-29): the cap stays at cost incl VAT, fees not included -- keep discounts small.
 - **After the Phase 1 deploy:** Admin → Invoice history → **Issue missing invoices** once, so older paid orders (PC10002…) get invoice numbers before new ones.
-- **First real test order** — not done yet. Buy a cheap SMD item, choose Collect, click "Ready for collection — email notice" in admin, then refund in Payfast. Proves Payfast ITN → Paid → confirmation + owner emails → supplier order sheet → collection notice end to end.
-- **Legal pages — two open choices:** (a) risk in transit passes to the customer *on delivery* (so courier losses are ours) — keep? (b) are Procom's DB backups copied to Google Drive? If yes, the Privacy Policy must list it. (Address 23 Gladiator Rd confirmed.)
+- ~~First real test order~~ done: paid live, emails and collection notice arrived.
+- **Legal pages — one open choice:** risk in transit passes to the customer *on delivery* (so courier losses are ours) — keep? (Drive backups are now in the Privacy Policy; address 23 Gladiator Rd confirmed.)
 - **Esquire delivery terms** — fill in Admin → Suppliers → Esquire → Delivery when known (public label, flat fee or store-wide, free threshold, collection). Until then Esquire items use the store-wide brackets and quotes. Same for IDS, Huge PC, Dicspeed.
 - **Photos** (owner investigating): SMD's embedded photos are ~113px; upload better photos for key products first.
 - **Google Search Console** — check in 1–2 weeks: sitemap "Success", indexed pages rising. If product pages still aren't indexed after ~4 weeks, consider server-rendered product pages (their content is filled in by JavaScript).
@@ -87,5 +87,6 @@ The *Delivery* column is the category's quote flag. It only takes effect for non
 - **Monthly SMD update:** import the new Infant Essential / Cash Wholesale files, then on the server `node server/smd-autolist-cli.js` (dry run) and `--apply` (see DEPLOY.md) — the browser button can time out on the Cash list. Everfurn Theo boxes are skipped by rule (deleted 2026-09-28).
 
 **Low priority / known**
+- **Lapanza3d offsite photos:** fixed 2026-09-29 (Lapanza-3d-Creations PR #2, deployed). Check its Drive `uploads` folder keeps its photos after the next nightly run.
 - **Weights:** supplier lists have none (default 1 kg). No effect on SMD items (flat fee); matters only for store-mode suppliers.
 - **Bubble Buddy** (Avalanche DB0008 / DB0009, same name and price): owner — leave as is. The two Ellies TOSLINK cables (~R1.08m) stay skipped.
