@@ -48,16 +48,27 @@ function setSetting(key, value, db = getDb()) {
 
 // ------------------------------------------------------------------ off-site copy
 
-// "gdrive:", "gdrive:procomsolutions", "gdrive-procom:Backups/Procom".
+// "gdrive,root_folder_id=ID:", "gdrive-procom:", "gdrive-procom:Backups/Procom".
 // A name, a colon, then an optional path. No leading "-" (would be a flag),
 // no ".." segments, no local paths (those have no "name:" prefix).
-const REMOTE_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}:[A-Za-z0-9_.\-/ ]{0,200}$/;
+// Also rclone's connection-string form "gdrive,root_folder_id=<Drive folder id>:"
+// -- the same Google login, but rooted in a folder of our own.
+const REMOTE_RE = /^([A-Za-z0-9_][A-Za-z0-9_.-]{0,63})(,root_folder_id=[A-Za-z0-9_-]{10,100})?:[A-Za-z0-9_.\-/ ]{0,200}$/;
+
+// On this VPS Lapanza3d runs `rclone sync <its backups> gdrive:` nightly, which
+// deletes everything else under the "gdrive" remote's root folder -- so anything
+// Procom put anywhere under plain "gdrive:" would be wiped every night.
+export const SHARED_REMOTE = 'gdrive';
 
 export function normaliseRemote(value) {
   let v = String(value ?? '').trim();
   if (!v) return '';
-  if (!REMOTE_RE.test(v) || v.split(/[:/]/).some((seg) => seg === '..')) {
-    throw httpError('Enter an rclone remote such as gdrive:procomsolutions (remote name, a colon, then an optional folder).');
+  const m = REMOTE_RE.exec(v);
+  if (!m || v.split(/[:/]/).some((seg) => seg === '..')) {
+    throw httpError('Enter an rclone remote such as gdrive,root_folder_id=<folder id>: (remote name, optional folder id, a colon, then an optional folder).');
+  }
+  if (m[1] === SHARED_REMOTE && !m[2]) {
+    throw httpError('Plain "gdrive:" is Lapanza3d\'s backup folder — its nightly sync deletes anything else in it. Create a separate folder in Google Drive and enter gdrive,root_folder_id=<that folder\'s id>: (the id is the last part of the folder\'s web address).');
   }
   if (!v.endsWith(':')) v = v.replace(/\/+$/, '');
   return v;
@@ -140,7 +151,7 @@ export function recentOffsiteSyncs(limit = 10, db = getDb()) {
 export function syncOffsite({ trigger = 'manual', requestedBy = '', backupFile = '', run = defaultRun, db = getDb(), backups = backupsDir(), uploads = uploadsDir() } = {}) {
   if (syncInFlight) throw httpError('An off-site copy is already running — wait for it to finish.', 409);
   const { remote, error } = getOffsiteConfig(db);
-  if (!remote) throw httpError(error || 'Off-site copy is off. Enter the Google Drive remote (e.g. gdrive:procomsolutions) and save first.');
+  if (!remote) throw httpError(error || 'Off-site copy is off. Enter the Google Drive remote (e.g. gdrive,root_folder_id=FOLDER_ID:) and save first.');
 
   const started = Date.now();
   const id = db

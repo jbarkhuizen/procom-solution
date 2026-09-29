@@ -77,13 +77,13 @@ export default function register(routes, kit) {
           ${o.lastTest && !o.lastTest.ok ? `<p class="error-text" style="margin:0">Connection test: ${h(o.lastTest.message)}</p>` : o.lastTest ? `<p class="muted" style="margin:0">${h(o.lastTest.message)}</p>` : ''}
           <form id="bk-remote" class="toolbar" style="margin:0">
             <label class="field" style="flex:1;min-width:240px"><span>Google Drive remote (rclone)</span>
-              <input name="remote" value="${h(o.stored)}" placeholder="gdrive:procomsolutions" ${o.source === 'env' ? 'disabled' : ''} autocomplete="off" spellcheck="false"></label>
+              <input name="remote" value="${h(o.stored)}" placeholder="gdrive,root_folder_id=FOLDER_ID:" ${o.source === 'env' ? 'disabled' : ''} autocomplete="off" spellcheck="false"></label>
             <button class="btn" ${o.source === 'env' ? 'disabled' : ''}>Save</button>
           </form>
           <p class="mini-help" style="margin:0">${
             o.source === 'env'
               ? 'Set on the server by <code>BACKUP_RCLONE_REMOTE</code> in <code>.env</code>, which overrides this box.'
-              : 'Format: remote name, a colon, then a folder, e.g. <code>gdrive:procomsolutions</code>. Leave blank to switch the off-site copy off. The remote must already exist in rclone on the server (see deploy/DEPLOY.md, “Off-site backups”). Use a folder that no other site mirrors into.'
+              : '<strong>Use a Google Drive folder of Procom’s own.</strong> Plain <code>gdrive:</code> is Lapanza3d’s backup folder and its nightly sync deletes anything else in it. In Google Drive create a folder (e.g. “Procom backups”, not inside Lapanza’s folder), open it, copy the last part of its web address (the folder id) and enter <code>gdrive,root_folder_id=THAT_ID:</code>. Leave blank to switch the off-site copy off. See deploy/DEPLOY.md, “Off-site backups”.'
           }</p>
         </div>
 

@@ -42,21 +42,25 @@ const fail = (props) => Object.assign(new Error(props.message || 'Command failed
 // ------------------------------------------------------------------ off-site
 
 test('off-site remote: only "name:path" remotes are accepted, never flags or local paths', () => {
-  assert.equal(ops.normaliseRemote(' gdrive:procomsolutions/ '), 'gdrive:procomsolutions');
-  assert.equal(ops.normaliseRemote('gdrive:'), 'gdrive:');
+  assert.equal(ops.normaliseRemote(' gdrive,root_folder_id=1AbC_def-GhIjKlMnOp:procom/ '), 'gdrive,root_folder_id=1AbC_def-GhIjKlMnOp:procom');
+  assert.equal(ops.normaliseRemote('gdrive,root_folder_id=1AbC_def-GhIjKlMnOp:'), 'gdrive,root_folder_id=1AbC_def-GhIjKlMnOp:');
+  // Lapanza3d mirrors its backups onto plain gdrive: -- anything else there is deleted nightly.
+  assert.throws(() => ops.normaliseRemote('gdrive:'), /Lapanza3d/);
+  assert.throws(() => ops.normaliseRemote('gdrive:procomsolutions'), /Lapanza3d/);
+  assert.throws(() => ops.normaliseRemote('gdrive,root_folder_id=../x:'), /Enter an rclone remote/);
   assert.equal(ops.normaliseRemote('gdrive-procom:Backups/Procom Solutions'), 'gdrive-procom:Backups/Procom Solutions');
   assert.equal(ops.normaliseRemote(''), '');
-  for (const bad of ['-vv:x', '--config=/etc/x:y', '/opt/procomsolutions/app/data', 'gdrive:../lapanza', 'gdrive:a/../b', 'gdrive:x;rm -rf', 'no-colon']) {
+  for (const bad of ['-vv:x', '--config=/etc/x:y', '/opt/procomsolutions/app/data', 'procomdrive:../lapanza', 'procomdrive:a/../b', 'procomdrive:x;rm -rf', 'no-colon']) {
     assert.throws(() => ops.normaliseRemote(bad), /rclone remote/, bad);
   }
-  assert.equal(ops.remoteJoin('gdrive:', 'backups'), 'gdrive:backups');
-  assert.equal(ops.remoteJoin('gdrive:procomsolutions', 'uploads'), 'gdrive:procomsolutions/uploads');
+  assert.equal(ops.remoteJoin('procomdrive:', 'backups'), 'procomdrive:backups');
+  assert.equal(ops.remoteJoin('procomdrive:procomsolutions', 'uploads'), 'procomdrive:procomsolutions/uploads');
 });
 
 test('off-site remote: stored in the ops table, env BACKUP_RCLONE_REMOTE overrides, blank means off', () => {
   assert.equal(ops.getOffsiteConfig(db).source, 'off');
-  ops.setOffsiteRemote('gdrive:procomsolutions', db);
-  assert.deepEqual([ops.getOffsiteConfig(db).remote, ops.getOffsiteConfig(db).source], ['gdrive:procomsolutions', 'settings']);
+  ops.setOffsiteRemote('procomdrive:procomsolutions', db);
+  assert.deepEqual([ops.getOffsiteConfig(db).remote, ops.getOffsiteConfig(db).source], ['procomdrive:procomsolutions', 'settings']);
   process.env.BACKUP_RCLONE_REMOTE = 'gdrive-procom:';
   assert.deepEqual([ops.getOffsiteConfig(db).remote, ops.getOffsiteConfig(db).source], ['gdrive-procom:', 'env']);
   process.env.BACKUP_RCLONE_REMOTE = '-bad';
@@ -68,13 +72,13 @@ test('off-site remote: stored in the ops table, env BACKUP_RCLONE_REMOTE overrid
 });
 
 test('sync now: mirrors backups with rclone sync, copies uploads with rclone copy (never sync), records the result', async () => {
-  ops.setOffsiteRemote('gdrive:procomsolutions', db);
+  ops.setOffsiteRemote('procomdrive:procomsolutions', db);
   const { run, calls } = fakeRunner();
   const res = await ops.syncOffsite({ run, db, requestedBy: 'johan' });
   assert.equal(res.status, 'ok');
   assert.deepEqual(calls.map((c) => [c.file, ...c.args]), [
-    ['rclone', 'sync', process.env.BACKUPS_DIR, 'gdrive:procomsolutions/backups'],
-    ['rclone', 'copy', process.env.UPLOADS_DIR, 'gdrive:procomsolutions/uploads'],
+    ['rclone', 'sync', process.env.BACKUPS_DIR, 'procomdrive:procomsolutions/backups'],
+    ['rclone', 'copy', process.env.UPLOADS_DIR, 'procomdrive:procomsolutions/uploads'],
   ]);
   assert.ok(calls.every((c) => c.opts.timeout > 0), 'every rclone call has a timeout');
   const last = ops.lastOffsiteSync(db);
@@ -84,7 +88,7 @@ test('sync now: mirrors backups with rclone sync, copies uploads with rclone cop
 });
 
 test('sync now: missing rclone binary is reported plainly; failed uploads copy is "partial", not a failed backup', async () => {
-  ops.setOffsiteRemote('gdrive:procomsolutions', db);
+  ops.setOffsiteRemote('procomdrive:procomsolutions', db);
   const missing = fakeRunner(() => {
     throw fail({ code: 'ENOENT', message: 'spawn rclone ENOENT' });
   });
@@ -106,7 +110,7 @@ test('sync now: missing rclone binary is reported plainly; failed uploads copy i
 
 test('sync now: refused when off, and only one copy at a time', async () => {
   assert.throws(() => ops.syncOffsite({ run: fakeRunner().run, db }), /off/);
-  ops.setOffsiteRemote('gdrive:procomsolutions', db);
+  ops.setOffsiteRemote('procomdrive:procomsolutions', db);
   let release;
   const slow = fakeRunner(() => new Promise((r) => (release = () => r({ stdout: '' }))));
   const first = ops.syncOffsite({ run: slow.run, db });
@@ -120,7 +124,7 @@ test('sync now: refused when off, and only one copy at a time', async () => {
 });
 
 test('automatic copy: runs once after each automatic backup, ignores manual ones and brand-new files', async () => {
-  ops.setOffsiteRemote('gdrive:procomsolutions', db);
+  ops.setOffsiteRemote('procomdrive:procomsolutions', db);
   const dir = process.env.BACKUPS_DIR;
   const old = new Date(Date.now() - 10 * 60_000);
   fs.writeFileSync(path.join(dir, 'procom-2026-09-28-scheduled.db'), 'x');
@@ -149,10 +153,10 @@ test('automatic copy: runs once after each automatic backup, ignores manual ones
 });
 
 test('test connection: rclone lsd on the remote; a folder not created yet still counts as connected', async () => {
-  ops.setOffsiteRemote('gdrive:procomsolutions', db);
+  ops.setOffsiteRemote('procomdrive:procomsolutions', db);
   const ok = fakeRunner(() => ({ stdout: '          -1 2026-09-28 10:00:00        -1 backups\n          -1 2026-09-28 10:00:00        -1 uploads\n' }));
   const r1 = await ops.testOffsiteConnection({ run: ok.run, db });
-  assert.deepEqual(ok.calls[0].args, ['lsd', 'gdrive:procomsolutions']);
+  assert.deepEqual(ok.calls[0].args, ['lsd', 'procomdrive:procomsolutions']);
   assert.equal(r1.ok, true);
   assert.match(r1.message, /2 folders/);
 
@@ -250,7 +254,7 @@ test('test cases: every test("…") name in server/**/*.test.js is listed with a
 });
 
 test('test runs: child gets a temp data dir, backups off and no secrets from .env', () => {
-  const env = ops.testRunEnv('/tmp/x', { PATH: '/usr/bin', GMAIL_APP_PASSWORD: 'secret', PAYFAST_PASSPHRASE: 'p', BACKUP_RCLONE_REMOTE: 'gdrive:', DATA_DIR: '/opt/live' });
+  const env = ops.testRunEnv('/tmp/x', { PATH: '/usr/bin', GMAIL_APP_PASSWORD: 'secret', PAYFAST_PASSPHRASE: 'p', BACKUP_RCLONE_REMOTE: 'procomdrive:', DATA_DIR: '/opt/live' });
   assert.equal(env.PATH, '/usr/bin');
   assert.equal(env.DATA_DIR, '/tmp/x');
   assert.equal(env.DB_FILE, path.join('/tmp/x', 'test.db'));
@@ -356,10 +360,10 @@ test('routes: mounted on the admin router; bad remote rejected; unknown version 
   try {
     const bad = await fetch(`${base}/ops/backups/remote`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ remote: '--config=/etc/passwd:' }) });
     assert.equal(bad.status, 400);
-    const ok = await fetch(`${base}/ops/backups/remote`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ remote: 'gdrive:procomsolutions' }) });
-    assert.equal((await ok.json()).offsite.remote, 'gdrive:procomsolutions');
+    const ok = await fetch(`${base}/ops/backups/remote`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ remote: 'procomdrive:procomsolutions' }) });
+    assert.equal((await ok.json()).offsite.remote, 'procomdrive:procomsolutions');
     const overview = await (await fetch(`${base}/ops/backups`)).json();
-    assert.equal(overview.offsite.backupsTarget, 'gdrive:procomsolutions/backups');
+    assert.equal(overview.offsite.backupsTarget, 'procomdrive:procomsolutions/backups');
     assert.equal((await fetch(`${base}/ops/versions/nope`)).status, 404);
     const tests = await (await fetch(`${base}/ops/tests`)).json();
     assert.ok(tests.suites.length > 5);

@@ -193,37 +193,29 @@ anything else in it. Lapanza3d syncs its own backups folder into whatever its
 under the same root (`gdrive:procomsolutions`), and Procom's next copy would
 put it back, so the off-site copy would keep disappearing.
 
-Check before choosing (prints only the remote name, not secrets):
+Lapanza3d's own setup (its DEPLOY.md §9) is `BACKUP_RCLONE_REMOTE=gdrive:`, the
+root, so **Procom must never use any path under plain `gdrive:`**. The app
+refuses it. Instead, point the same Google login at a folder of Procom's own
+with rclone's connection-string form; no rclone config change or SSH needed:
 
-```bash
-grep '^BACKUP_RCLONE_REMOTE=' /opt/lapanza/app/.env
-rclone listremotes
-```
+1. In Google Drive create a folder, e.g. "Procom backups" (**not** inside
+   Lapanza's backup folder), open it and copy the last part of its web
+   address (`https://drive.google.com/drive/folders/<FOLDER_ID>`).
+2. Use `gdrive,root_folder_id=<FOLDER_ID>:` as Procom's remote.
 
-- Lapanza uses a **sub-folder** (e.g. `gdrive:lapanza`): use `gdrive:procomsolutions`.
-- Lapanza uses the **root** (`gdrive:`): give Procom its own remote pointing
-  at a different Drive folder. Create a folder in Google Drive (e.g. "Procom
-  Backups"), copy its ID from the URL, then as `deploy`:
+(A separate `[gdrive-procom]` section in `~/.config/rclone/rclone.conf` with
+its own `root_folder_id` works too; use `gdrive-procom:` then.)
 
-  ```text
-  nano ~/.config/rclone/rclone.conf
-  # add this section; copy the whole `token = {...}` line from [gdrive]:
-  [gdrive-procom]
-  type = drive
-  scope = drive
-  root_folder_id = <FOLDER_ID>
-  token = <same token line as in [gdrive]>
-  ```
-
-  Check with `rclone lsd gdrive-procom:` (lists the new folder's contents),
-  and use `gdrive-procom:` as Procom's remote.
+Note for Lapanza3d (separate project): because it `sync`s onto the root, its
+own `gdrive:uploads` photo copy is deleted and re-uploaded on every run. Moving
+its DB backups to `gdrive:backups` would fix that.
 
 ### Switch it on
 
 1. **Admin → Backups → Google Drive remote**: enter the remote (e.g.
-   `gdrive:procomsolutions`) and **Save**. It is stored in the database
+   `gdrive,root_folder_id=<FOLDER_ID>:`) and **Save**. It is stored in the database
    (`ops_settings`). Blank = off.
-   Alternatively set `BACKUP_RCLONE_REMOTE=gdrive:procomsolutions` in
+   Alternatively set `BACKUP_RCLONE_REMOTE=gdrive,root_folder_id=<FOLDER_ID>:` in
    `/opt/procomsolutions/app/.env` and restart the service; the env value
    overrides the admin box (which then shows it read-only).
 2. **Test connection** (runs `rclone lsd <remote>`). "Doesn't exist yet" is
@@ -232,7 +224,7 @@ rclone listremotes
    several minutes; the page refreshes by itself. Check in Google Drive that
    `backups/` and `uploads/` appeared.
 
-The remote must look like `name:` or `name:folder` (validated; it can never
+The remote must look like `name:`, `name:folder` or `name,root_folder_id=ID:` (validated; it can never
 be a local path or an rclone flag). If Google stops accepting the token (the
 `refresh_token` is revoked or rclone's shared client id is retired), both
 sites' copies fail at the same time: redo Lapanza's DEPLOY.md §9 step 3–4
