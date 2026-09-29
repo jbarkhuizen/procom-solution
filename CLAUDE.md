@@ -27,6 +27,7 @@ server/            API (index.js), schema+migrations (db.js), catalog, pricing, 
   esquire-rules.js Esquire category -> store sub-category rules (same shape as smd-rules.js)
   smd-api.js       SMD live API (products/prices/stock/media): check run, 3x/day sync of listed SMD products
                    (cost + specials, stock SOH, blank descriptions, full-size photos), new SKUs -> Warehouse feed
+  smd-api-rules.js category rules for NEW SMD API products (SMD category path -> shop sub-category), auto-list 'smdapi'
   vault.js         AES-GCM for supplier portal passwords (key: VAULT_KEY or auto-created .vault-key); reveal is audited
   remote-images.js background photo-URL downloader (SSRF-guarded)
   *.test.js        node --test suites (npm test)
@@ -54,6 +55,8 @@ Commands: `npm run dev` (API :8788 watch + Vite :5174), `npm test`, `npm run bui
 - **Supplier APIs** (live 2026-09-29, report email after every run, logins/keys in Admin → Suppliers, encrypted by `vault.js`):
   - **Esquire** (`esquire.js`, 06:00/12:00/18:00 SAST): whole feed imported as a complete list (prices incl VAT → stored excl VAT), auto-list via `esquire-rules.js`, items leaving the feed go out of stock and come back (`products.out_by_feed`).
   - **SMD** (`smd-api.js`, 06:30/12:30/18:30): updates listed SMD products only (cost/specials as Sale via `special_by_feed` + `compare_at_cents`, stock from SOH → `supplier_stock_qty`, blank descriptions, photo queue `product_media_queue`); never categories; new SKUs → Warehouse feed (`smd-api.json`). Owner decision: SMD SOH 0 = out of stock.
+  - SMD auto-list (`smd-api-rules.js`, switch `smdApiAutoList`) lists new SMD SKUs each sync; pack size parsed from the name.
+  - Storefront shows live supplier stock (`stockOnHand` / `stockLeft`), the SKU, and the warehouse icon (public label only, also when out of stock). The Specials page (`features/specials.js` `productsOnSpecial`) = admin specials + products with `compare_at_cents > price_cents`.
   - Both: an admin's manual out-of-stock is never undone; admin-changed photos never replaced (`images_from_feed = 0`); guards skip runs whose data looks truncated.
 - **Minimum order qty**: cards/product page show the pack total ("R576.00 per 24", unit price under); cart and checkout enforce the minimum.
 - **Delivery quoted** (`quote_delivery`, **store-mode suppliers only**): category flag inherited by sub-categories; product override (NULL inherit / 1 always / 0 never). If a store-mode shipment has an item needing a quote, the **server** offers only quote (or collect), charges R0 delivery, requires a street address and sets `orders.delivery_quote=1`; admin shows a banner with pre-written WhatsApp/email quote. On for: 3D Printers FDM/Resin, Laser Engravers, Furniture, Luggage & Travel, Gaming Chairs & Desks; per product for heavy Cash Wholesale items.
@@ -72,6 +75,7 @@ Commands: `npm run dev` (API :8788 watch + Vite :5174), `npm test`, `npm run bui
   - **Ops** (`ops.js`): Backups (local + optional off-site copy to Google Drive via rclone), Version history, Test cases ("Run tests now" from admin, results stored), About this site. The Drive remote **must** be `gdrive,root_folder_id=<Procom folder id>:` -- plain `gdrive:` is refused because Lapanza3d's nightly `rclone sync` to that root deletes anything else there.
   - **Governance** (`governance.js`): Audit log of admin changes (secrets redacted, CSV export), Todo/Backlog, sectioned Site settings (margin warning), collapsible admin nav with "Find a page...".
 - **Orders**: server re-prices from DB (client prices ignored); stock decremented on Payfast ITN (idempotent); each order gets a supplier order sheet (copy/email/WhatsApp).
+- **Admin version banner**: `/api/admin/session` returns `adminVersion` (fingerprint of `admin/` files at startup); an open admin tab offers a reload when it changes after a deploy.
 - **Admin auth**: sessions stored in SQLite (survive restarts); first visit to /admin with no admins shows "create account"; same-origin check on mutations.
 - **Payfast**: signing ported from lapanza3d (PHP-style urlencode, fixed field order). The shared public sandbox merchant (10000100) rejects all signatures, so it's sent **unsigned** only in that case; any real account is always signed.
 
