@@ -23,6 +23,7 @@ const { storeProductImage, isAllowedImage, MAX_IMAGE_BYTES } = await import('./i
 const { startBackupSchedule, createBackup, listBackups } = await import('./backups.js');
 const { escapeHtml } = await import('./util.js');
 const { startImageDownloads, resumePendingDownloads } = await import('./remote-images.js');
+const governance = await import('./features/governance.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -175,16 +176,22 @@ app.post('/api/admin/setup', loginLimiter, wrap((req, res) => {
   // Only possible while no admin exists -- same first-run flow as lapanza3d.
   if (auth.hasAnyAdmin()) throw Object.assign(new Error('Setup already completed'), { status: 403 });
   const admin = auth.createAdmin(req.body || {});
+  governance.recordAudit({ action: 'admin.setup', actor: admin.username, req });
   setSessionCookie(req, res, auth.createSession(admin.id));
   return { ok: true, username: admin.username };
 }));
 app.post('/api/admin/login', loginLimiter, wrap((req, res) => {
   const a = auth.verifyLogin(req.body?.username, req.body?.password);
-  if (!a) throw Object.assign(new Error('Incorrect username or password'), { status: 401 });
+  if (!a) {
+    governance.recordAudit({ action: 'admin.login_failed', actor: String(req.body?.username || '').slice(0, 60), req });
+    throw Object.assign(new Error('Incorrect username or password'), { status: 401 });
+  }
+  governance.recordAudit({ action: 'admin.login', actor: a.username, req });
   setSessionCookie(req, res, auth.createSession(a.id));
   return { ok: true, username: a.username };
 }));
 app.post('/api/admin/logout', (req, res) => {
+  governance.recordAudit({ action: 'admin.logout', actor: auth.getSession(req.cookies[auth.SESSION_COOKIE])?.username || '', req });
   auth.destroySession(req.cookies[auth.SESSION_COOKIE]);
   res.clearCookie(auth.SESSION_COOKIE, { path: '/' });
   res.json({ ok: true });
@@ -203,6 +210,8 @@ function requireAdmin(req, res, next) {
   next();
 }
 const admin = express.Router();
+// Audit trail of admin changes (governance feature); runs before every admin route.
+admin.use((req, res, next) => governance.auditAdminRequest(req, res, next));
 app.use('/api/admin', requireAdmin, admin);
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_BYTES, files: 10 } });
@@ -306,7 +315,7 @@ admin.get('/backups', wrap(() => listBackups()));
 admin.post('/backups', wrap(async () => createBackup('manual')));
 
 // Feature modules (server/features/README.md) add their own routes.
-for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing']) {
+for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing', 'ops', 'governance']) {
   (await import(`./features/${name}.js`)).register({ app, admin, wrap, rateLimit, express, siteUrl: SITE_URL });
 }
 

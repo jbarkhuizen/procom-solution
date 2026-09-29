@@ -22,3 +22,8 @@ Hooks called by the core (keep the signatures):
 - Paid orders, revenue, cost and discounts come from the `orders` / `order_items` tables (read them; don't add hooks to orders.js).
 - Admin pages may override an existing core route (e.g. `routes['dashboard']`): page modules load after admin.js defines its routes.
 - Customer newsletter opt-in lives on `clients.newsletter_opt_in` (accounts feature).
+
+## Phase 3 hooks
+
+- `governance.js` `auditAdminRequest(req, res, next)` runs before every `/api/admin` route (after login check; `req.admin.username` is set). Record mutations (non-GET) with the outcome (hook `res.on('finish')`); never log passwords, tokens or file contents. `recordAudit({ action, actor, req, details })` is called for admin login / failed login / logout / setup.
+- Pages `backups-page.js` and `settings-page.js` override the core `routes.backups` / `routes.settings`; `nav.js` may restructure the admin sidebar at load (collapsible groups).

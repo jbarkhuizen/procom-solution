@@ -160,12 +160,86 @@ Open https://www.procomsolutions.co.za/admin/. A fresh database shows
 
 - Automatic daily SQLite snapshot to `data/backups/` (30 kept) and **Admin →
   Backups → Back up now**.
-- Off-server (optional, reuses Lapanza's rclone Google Drive remote):
+- Off-server copy to Google Drive: see the next section (set up in the admin,
+  no cron job needed; remove any old `rclone` crontab line for Procom).
 
-  ```bash
-  crontab -e
-  30 2 * * * rclone sync /opt/procomsolutions/app/data/backups gdrive:procom-backups && rclone copy /opt/procomsolutions/app/data/uploads gdrive:procom-uploads
-  ```
+## Off-site backups (Google Drive)
+
+The daily backups sit on the same disk as the live database, so they do not
+survive the disk or the VPS failing. The app can copy them to Google Drive
+with `rclone`, using the Google Drive remote Lapanza3d already set up on this
+VPS (both apps run as the `deploy` user, so they share
+`~deploy/.config/rclone/rclone.conf`).
+
+What the app does (`server/features/ops.js`), after every **automatic** backup
+(checked every 10 minutes) and on **Admin → Backups → Sync now**:
+
+```text
+rclone sync /opt/procomsolutions/app/data/backups  <remote>/backups   # mirror: Drive keeps the same latest 30
+rclone copy /opt/procomsolutions/app/data/uploads  <remote>/uploads   # copy only: a photo deleted here stays on Drive
+```
+
+Each run is recorded (Admin → Backups → "Recent off-site copies", and "Last
+copy to Google Drive" on About this site). A failed photo copy shows as
+"Partly failed", never as a failed backup. If `rclone` is missing the page
+says so; nothing else breaks.
+
+### Choose a folder no other job mirrors into (important)
+
+`rclone sync` makes the destination **identical** to the source, deleting
+anything else in it. Lapanza3d syncs its own backups folder into whatever its
+`BACKUP_RCLONE_REMOTE` points at. If that is the **root** of the remote
+(e.g. `gdrive:`), Lapanza's nightly sync would delete a Procom folder placed
+under the same root (`gdrive:procomsolutions`), and Procom's next copy would
+put it back, so the off-site copy would keep disappearing.
+
+Lapanza3d's own setup (its DEPLOY.md §9) is `BACKUP_RCLONE_REMOTE=gdrive:`, the
+root, so **Procom must never use any path under plain `gdrive:`**. The app
+refuses it. Instead, point the same Google login at a folder of Procom's own
+with rclone's connection-string form; no rclone config change or SSH needed:
+
+1. In Google Drive create a folder, e.g. "Procom backups" (**not** inside
+   Lapanza's backup folder), open it and copy the last part of its web
+   address (`https://drive.google.com/drive/folders/<FOLDER_ID>`).
+2. Use `gdrive,root_folder_id=<FOLDER_ID>:` as Procom's remote.
+
+(A separate `[gdrive-procom]` section in `~/.config/rclone/rclone.conf` with
+its own `root_folder_id` works too; use `gdrive-procom:` then.)
+
+Note for Lapanza3d (separate project): because it `sync`s onto the root, its
+own `gdrive:uploads` photo copy is deleted and re-uploaded on every run. Moving
+its DB backups to `gdrive:backups` would fix that.
+
+### Switch it on
+
+1. **Admin → Backups → Google Drive remote**: enter the remote (e.g.
+   `gdrive,root_folder_id=<FOLDER_ID>:`) and **Save**. It is stored in the database
+   (`ops_settings`). Blank = off.
+   Alternatively set `BACKUP_RCLONE_REMOTE=gdrive,root_folder_id=<FOLDER_ID>:` in
+   `/opt/procomsolutions/app/.env` and restart the service; the env value
+   overrides the admin box (which then shows it read-only).
+2. **Test connection** (runs `rclone lsd <remote>`). "Doesn't exist yet" is
+   fine: the first sync creates the folder.
+3. **Sync now**. The first run copies every product photo and can take
+   several minutes; the page refreshes by itself. Check in Google Drive that
+   `backups/` and `uploads/` appeared.
+
+The remote must look like `name:`, `name:folder` or `name,root_folder_id=ID:` (validated; it can never
+be a local path or an rclone flag). If Google stops accepting the token (the
+`refresh_token` is revoked or rclone's shared client id is retired), both
+sites' copies fail at the same time: redo Lapanza's DEPLOY.md §9 step 3–4
+(`rclone authorize "drive"`) and press **Test connection**.
+
+### Restoring from Google Drive
+
+```bash
+rclone lsf <remote>/backups | sort | tail -5                  # newest last
+rclone copy <remote>/backups/<file>.db /tmp/                  # then follow "Restore" below with /tmp/<file>.db
+rclone copy <remote>/uploads /opt/procomsolutions/app/data/uploads   # photos, if lost
+```
+
+Privacy: `privacy.html` (section 5) tells customers the backups are also kept
+in Google Drive. Change it if this is ever switched off for good.
 
 ## Restore
 

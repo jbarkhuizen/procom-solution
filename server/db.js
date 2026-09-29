@@ -11,10 +11,12 @@ import * as analyticsSchema from './features/analytics.schema.js';
 import * as newslettersSchema from './features/newsletters.schema.js';
 import * as financeSchema from './features/finance.schema.js';
 import * as marketingSchema from './features/marketing.schema.js';
+import * as opsSchema from './features/ops.schema.js';
+import * as governanceSchema from './features/governance.schema.js';
 
 // Feature modules' tables (server/features/README.md). Run after migrate(),
 // so their indexes may use columns the migrations add.
-const FEATURE_SCHEMAS = [accountsSchema, invoicesSchema, promosSchema, specialsSchema, analyticsSchema, newslettersSchema, financeSchema, marketingSchema];
+const FEATURE_SCHEMAS = [accountsSchema, invoicesSchema, promosSchema, specialsSchema, analyticsSchema, newslettersSchema, financeSchema, marketingSchema, opsSchema, governanceSchema];
 
 let db = null;
 
