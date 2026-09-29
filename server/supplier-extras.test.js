@@ -2,6 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 
 process.env.UPLOADS_DIR = path.join(os.tmpdir(), 'procom-test-uploads');
 process.env.DISABLE_BACKUPS = '1';
@@ -34,19 +35,21 @@ test('vault: round trip, random IV, and a clear error without or with a wrong ke
 });
 
 test('supplier portal password: stored encrypted, never listed, kept when left blank, removable', () => {
-  const s = catalog.saveSupplier({ name: 'Esquire', address: '71 Landmarks Ave', orderProcess: 'Order on the portal', website: 'www.esquire.co.za', portalUsername: 'procom', portalPassword: 'Secret-1' }, null, db);
+  // Made up at run time: no credential-looking literal in the repo (secret scanners).
+  const pw = `t-${crypto.randomUUID()}`;
+  const s = catalog.saveSupplier({ name: 'Esquire', address: '71 Landmarks Ave', orderProcess: 'Order on the portal', website: 'www.esquire.co.za', portalUsername: 'someone', portalPassword: pw }, null, db);
   const raw = db.prepare('SELECT portal_password_enc FROM suppliers WHERE id = ?').get(s.id).portal_password_enc;
   assert.match(raw, /^v1:/);
-  assert.doesNotMatch(raw, /Secret-1/);
+  assert.ok(!raw.includes(pw));
   assert.equal(s.hasPortalPassword, true);
   assert.equal(s.website, 'https://www.esquire.co.za');
-  assert.ok(!JSON.stringify(catalog.listSuppliers(db)).includes('Secret-1'));
+  assert.ok(!JSON.stringify(catalog.listSuppliers(db)).includes(pw));
   assert.ok(!JSON.stringify(catalog.listSuppliers(db)).includes(raw), 'ciphertext not listed either');
-  assert.equal(catalog.supplierPortalPassword(s.id, db).password, 'Secret-1');
+  assert.equal(catalog.supplierPortalPassword(s.id, db).password, pw);
 
   // The admin form sends a blank password field when it is not being changed.
   const again = catalog.saveSupplier({ name: 'Esquire', portalPassword: '', phone: '011 000 0000' }, s.id, db);
-  assert.equal(catalog.supplierPortalPassword(s.id, db).password, 'Secret-1');
+  assert.equal(catalog.supplierPortalPassword(s.id, db).password, pw);
   assert.equal(again.address, '71 Landmarks Ave', 'fields left out are kept');
   catalog.saveSupplier({ name: 'Esquire', clearPortalPassword: true }, s.id, db);
   assert.equal(catalog.listSuppliers(db).find((x) => x.id === s.id).hasPortalPassword, false);
