@@ -933,7 +933,7 @@ routes.categories = async () => {
         ${flat.map((c) => `<div class="cat-row" style="padding-left:${0.7 + c.depth * 1.5}rem">
           <span class="name">${c.depth ? '↳ ' : ''}${h(c.name)}</span>
           ${c.markupPct != null ? `<span class="badge info">${c.markupPct}% markup</span>` : ''}
-          ${c.quoteDelivery ? '<span class="badge warn">Delivery quoted</span>' : ''}
+          ${c.quoteDelivery ? '<span class="badge warn">Delivery quoted</span>' : ''}${c.courierInsurancePct ? `<span class="badge info">${c.courierInsurancePct}% courier insurance</span>` : ''}
           ${c.active ? '' : '<span class="badge draft">Hidden</span>'}
           <span class="muted">${c.productCount} live</span>
           <a class="btn small" href="/shop.html?category=${h(c.slug)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">View</a>
@@ -959,6 +959,8 @@ routes.categories = async () => {
         </div>
         <label class="field checkbox"><input type="checkbox" name="active" ${!c || c.active ? 'checked' : ''}><span>Visible on the website</span></label>
         <label class="field checkbox"><input type="checkbox" name="quoteDelivery" ${c?.quoteDelivery ? 'checked' : ''}><span>Large items: <strong>delivery quoted after order</strong> (no shipping price at checkout; applies to sub-categories too)</span></label>
+        <label class="field"><span>Courier insurance % (e.g. 3 for TVs; blank = same as parent)</span><input name="courierInsurancePct" type="number" step="0.5" min="0" max="50" value="${c?.courierInsurancePct ?? ''}"></label>
+        <p class="mini-help">Charged as its own line at checkout when these items go by courier — not when collected or sent with the customer's own courier.</p>
         <div class="row-card-actions">${c ? '<button type="button" class="btn btn-danger" id="c-del">Delete</button>' : '<span></span>'}<button class="btn btn-primary">Save</button></div>
         ${c ? '<p class="mini-help">Deleting moves its products and sub-categories up to the parent.</p>' : ''}
       </form>`,
@@ -1061,6 +1063,7 @@ async function orderDetail(id) {
               </div>
             </div>`;
           })() : ''}
+          ${o.shipments.filter((sh) => sh.method === 'own_courier').map((sh) => `<div class="panel" style="border:2px solid var(--brand);margin-bottom:1rem"><strong>Customer's own courier</strong> collects from the ${h(sh.label)} (${h(sh.collection?.address || '')}). Wait for their waybill and collection date, then send them to the supplier with the order sheet; note them in the admin notes.</div>`).join('')}
           ${o.shipments.filter((sh) => sh.method === 'collect').map((sh) => `<div class="panel" style="border:2px solid var(--brand);margin-bottom:1rem">
               <div class="section-head"><h3>Customer collects from the ${h(sh.label)}</h3>${sh.readyAt ? `<span class="badge ok">Notice sent ${h(fmtDate(sh.readyAt))}</span>` : '<span class="badge warn">Not ready yet</span>'}</div>
               <p class="mini-help">Send the supplier order below (it asks them to pack and hold it). When they confirm it's ready, click the button: the customer gets the <strong>collection notice</strong> (order number, items, address, hours, what to bring). Set the status to Delivered once collected.</p>
@@ -1074,7 +1077,8 @@ async function orderDetail(id) {
           </tbody></table></div>
           <div class="meta-list" style="margin-top:1rem">
             <div><span>Subtotal</span><span>${rand(o.subtotalCents)}</span></div>
-            ${o.shipments.length > 1 ? o.shipments.map((sh) => `<div><span>Delivery · ${h(sh.label)}: ${h(sh.name)}</span><span>${rand(sh.feeCents)}</span></div>`).join('') : `<div><span>Delivery · ${h(o.shippingName)}</span><span>${rand(o.shippingCents)}</span></div>`}
+            ${o.shipments.length > 1 ? o.shipments.map((sh) => `<div><span>Delivery · ${h(sh.label)}: ${h(sh.name)}</span><span>${rand(sh.feeCents)}</span></div>`).join('') : `<div><span>Delivery · ${h(o.shippingName)}</span><span>${rand(o.shippingCents - (o.insuranceCents || 0))}</span></div>`}
+            ${o.shipments.filter((sh) => sh.insuranceCents).map((sh) => `<div><span>${h(sh.insuranceName || 'Courier insurance')}</span><span>${rand(sh.insuranceCents)}</span></div>`).join('')}
             <div><span><strong>Total paid</strong></span><strong>${rand(o.totalCents)}</strong></div>
             <div><span>Supplier cost (excl VAT)</span><span>${rand(cost)}</span></div>
             <div><span>Payment</span><span>${h(o.paymentMethod === 'payfast_eft' ? 'Instant EFT' : 'Card')} · ${h(o.paymentStatus)}${o.pfPaymentId ? ` · pf ${h(o.pfPaymentId)}` : ''}</span></div>
@@ -1115,7 +1119,7 @@ async function orderDetail(id) {
           <label class="field"><span>Status</span><select name="status">${options(Object.entries(STATUS).map(([value, [label]]) => ({ value, label })), o.status)}</select></label>
           <label class="field"><span>Supplier order reference</span><input name="supplierRef" value="${h(o.supplierRef)}"></label>
           <label class="field"><span>Tracking number</span><input name="trackingNumber" value="${h(o.trackingNumber)}"></label>
-          ${o.shipments.every((sh) => sh.method === 'collect') ? '' : '<label class="field checkbox"><input type="checkbox" name="notifyCustomer" checked><span>Email customer when marked Shipped</span></label>'}
+          ${o.shipments.every((sh) => sh.method === 'collect' || sh.method === 'own_courier') ? '' : '<label class="field checkbox"><input type="checkbox" name="notifyCustomer" checked><span>Email customer when marked Shipped</span></label>'}
           <label class="field"><span>Internal notes</span><textarea name="adminNotes" rows="3">${h(o.adminNotes)}</textarea></label>
           <button class="btn btn-primary">Save</button>
         </form>
@@ -1159,7 +1163,7 @@ routes.suppliers = async () => {
   const list = await api('/suppliers');
   const root = view(`<div class="editor-layout">
     <div class="panel table-wrap"><table class="catalog"><thead><tr><th>Supplier</th><th>Contact</th><th class="num">Listed</th><th class="num">In feed</th></tr></thead><tbody>
-      ${list.map((s) => `<tr data-id="${h(s.id)}"><td><strong>${h(s.name)}</strong><br><span class="muted">${h(s.leadTimeText)}</span><br><span class="muted">${s.deliveryMode === 'flat' ? `Courier ${rand(s.deliveryFeeCents)}${s.freeOverCostCents != null ? `, free from ${rand(s.freeOverCostCents)} cost` : ''}` : 'Store-wide shipping'}${s.collectionEnabled ? ' · collection' : ''}</span></td><td>${h(s.contactName)}<br><span class="muted">${h(s.email)} ${h(s.phone)}</span></td><td class="num">${s.productCount}</td><td class="num">${s.feedCount}</td></tr>`).join('')}
+      ${list.map((s) => `<tr data-id="${h(s.id)}"><td><strong>${h(s.name)}</strong><br><span class="muted">${h(s.leadTimeText)}</span><br><span class="muted">${s.deliveryMode === 'flat' ? `Courier ${rand(s.deliveryFeeCents)}${s.freeOverCostCents != null ? `, free from ${rand(s.freeOverCostCents)} cost` : ''}` : 'Store-wide shipping'}${s.collectionEnabled ? ' · collection' : ''}</span></td><td>${h(s.contactName)}<br><span class="muted">${h(s.email)} ${h(s.phone)}</span>${s.website ? `<br><a class="muted" href="${h(s.website)}" target="_blank" rel="noopener noreferrer">${h(s.website.replace(/^https?:\/\//, ''))}</a>` : ''}${s.portalUsername || s.hasPortalPassword ? ' <span class="badge neutral">portal login saved</span>' : ''}</td><td class="num">${s.productCount}</td><td class="num">${s.feedCount}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="panel" id="sup-editor"><p class="muted">Select a supplier to edit. The lead-time text is what customers see as the delivery estimate on dropshipped products.</p></div>
   </div>`);
@@ -1171,6 +1175,14 @@ routes.suppliers = async () => {
       <div class="grid-2"><label class="field"><span>Contact person</span><input name="contactName" value="${h(s?.contactName)}"></label>
       <label class="field"><span>Phone / WhatsApp</span><input name="phone" value="${h(s?.phone)}"></label></div>
       <label class="field"><span>Order email</span><input name="email" type="email" value="${h(s?.email)}"></label>
+      <label class="field"><span>Address</span><textarea name="address" rows="2">${h(s?.address)}</textarea></label>
+      <label class="field"><span>How we place orders (steps, cut-off times, account no.)</span><textarea name="orderProcess" rows="4">${h(s?.orderProcess)}</textarea></label>
+      <div class="section-head" style="margin-top:0.5rem"><h3>Supplier portal login</h3></div>
+      <label class="field"><span>Portal website</span><input name="website" value="${h(s?.website)}" placeholder="https://…"></label>
+      <div class="grid-2"><label class="field"><span>Username</span><input name="portalUsername" autocomplete="off" value="${h(s?.portalUsername)}"></label>
+      <label class="field"><span>Password ${s?.hasPortalPassword ? '(saved — leave blank to keep)' : ''}</span><input name="portalPassword" type="password" autocomplete="new-password" placeholder="${s?.hasPortalPassword ? '••••••••' : ''}"></label></div>
+      ${s?.hasPortalPassword ? `<div class="toolbar" style="margin:0"><button type="button" class="btn small" id="s-reveal">Reveal password</button><button type="button" class="btn small" id="s-copy">Copy password</button><label class="field checkbox"><input type="checkbox" name="clearPortalPassword"><span>Remove saved password</span></label><span class="mini-help" id="s-pw"></span></div>` : ''}
+      <p class="mini-help">The password is stored encrypted and only shown when you click Reveal or Copy (each time is written to the audit log).</p>
       <label class="field"><span>Customer-facing lead time</span><input name="leadTimeText" value="${h(s?.leadTimeText || 'Ships from our warehouse in 2-5 business days')}"></label>
       <label class="field"><span>Notes (account no., terms…)</span><textarea name="notes" rows="3">${h(s?.notes)}</textarea></label>
       <div class="section-head" style="margin-top:0.5rem"><h3>Delivery</h3></div>
@@ -1183,15 +1195,30 @@ routes.suppliers = async () => {
       <div class="grid-2"><label class="field"><span>Collection hours</span><input name="collectionHours" value="${h(s?.collectionHours)}" placeholder="Mon–Fri 09:00–16:00"></label>
       <label class="field"><span>Usually ready</span><input name="collectionLeadText" value="${h(s?.collectionLeadText)}" placeholder="typically 2–3 business days after payment"></label></div>
       <label class="field"><span>What the collector must bring</span><textarea name="collectionRequirements" rows="2">${h(s?.collectionRequirements)}</textarea></label>
+      <label class="field checkbox"><input type="checkbox" name="ownCourierEnabled" ${s?.ownCourierEnabled ? 'checked' : ''}><span>Customers may send <strong>their own courier</strong> to the collection address (free; they email us the waybill and collection date)</span></label>
       <p class="mini-help">A cart with items from several suppliers gets one delivery choice per supplier, and the fees add up. Products without a supplier use the store-wide shipping options.</p>
       <div class="row-card-actions">${s ? '<button type="button" class="btn btn-danger" id="s-del">Delete</button>' : '<span></span>'}<button class="btn btn-primary">Save</button></div></form>`,
     );
     $('#sform', root).addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await api(s ? `/suppliers/${s.id}` : '/suppliers', { method: s ? 'PUT' : 'POST', body: { ...Object.fromEntries(new FormData(e.target)), collectionEnabled: e.target.collectionEnabled.checked } });
+        await api(s ? `/suppliers/${s.id}` : '/suppliers', { method: s ? 'PUT' : 'POST', body: { ...Object.fromEntries(new FormData(e.target)), collectionEnabled: e.target.collectionEnabled.checked, ownCourierEnabled: e.target.ownCourierEnabled.checked, clearPortalPassword: Boolean(e.target.clearPortalPassword?.checked) } });
         toast('Supplier saved');
         routes.suppliers();
+      } catch (err) { fail(err); }
+    });
+    const portalPassword = async () => (await api(`/suppliers/${s.id}/portal-password`)).password;
+    $('#s-reveal', root)?.addEventListener('click', async () => {
+      try {
+        const pw = await portalPassword();
+        $('#s-pw', root).textContent = pw;
+        setTimeout(() => { const el = $('#s-pw', root); if (el) el.textContent = ''; }, 30000); // hide again after 30 s
+      } catch (err) { fail(err); }
+    });
+    $('#s-copy', root)?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(await portalPassword());
+        toast('Password copied');
       } catch (err) { fail(err); }
     });
     $('#s-del', root)?.addEventListener('click', async () => {

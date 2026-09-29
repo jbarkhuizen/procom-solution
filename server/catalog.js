@@ -4,6 +4,7 @@ import { getDb } from './db.js';
 import { getSettings } from './settings.js';
 import { effectiveMarkupPct, computeRetailCents, marginCents } from './pricing.js';
 import { uniqueSlug, parseJsonArray, clampInt, parseRandToCents } from './util.js';
+import { encryptSecret, decryptSecret } from './vault.js';
 
 const now = () => new Date().toISOString();
 
@@ -20,6 +21,7 @@ function rowToCategory(r) {
     sortOrder: r.sort_order,
     active: Boolean(r.active),
     quoteDelivery: Boolean(r.quote_delivery),
+    courierInsurancePct: r.courier_insurance_pct ?? null,
   };
 }
 
@@ -118,6 +120,32 @@ export function categoryTree({ activeOnly = true } = {}, db = getDb()) {
   return build(null);
 }
 
+function insurancePct(v, current) {
+  if (v === undefined) return current ?? null;
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 50) throw new Error('Courier insurance must be between 0 and 50%');
+  return n;
+}
+
+// Category id -> courier insurance % (own value, else the nearest parent's).
+export function courierInsuranceByCategory(db = getDb()) {
+  const rows = db.prepare('SELECT id, parent_id, courier_insurance_pct FROM categories').all();
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const out = new Map();
+  for (const r of rows) {
+    const seen = new Set();
+    for (let c = r; c && !seen.has(c.id); c = byId.get(c.parent_id)) {
+      seen.add(c.id);
+      if (c.courier_insurance_pct != null) {
+        if (c.courier_insurance_pct > 0) out.set(r.id, c.courier_insurance_pct);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 export function saveCategory(data, id = null, db = getDb()) {
   const name = String(data.name || '').trim();
   if (!name) throw new Error('Category name is required');
@@ -138,16 +166,18 @@ export function saveCategory(data, id = null, db = getDb()) {
     sort_order: clampInt(data.sortOrder, -9999, 9999, 0),
     active: data.active === false || data.active === 0 ? 0 : 1,
     quote_delivery: data.quoteDelivery === true || data.quoteDelivery === 1 || data.quoteDelivery === '1' || data.quoteDelivery === 'on' ? 1 : 0,
+    // Left out of `data` = keep (older callers); '' = inherit from the parent.
+    courier_insurance_pct: insurancePct(data.courierInsurancePct, id ? db.prepare('SELECT courier_insurance_pct c FROM categories WHERE id = ?').get(id)?.c : null),
     updated_at: now(),
   };
   if (id) {
     const res = db.prepare(`UPDATE categories SET parent_id=@parent_id, name=@name, slug=@slug, description=@description,
-      markup_pct=@markup_pct, sort_order=@sort_order, active=@active, quote_delivery=@quote_delivery, updated_at=@updated_at WHERE id=@id`).run({ ...fields, id });
+      markup_pct=@markup_pct, sort_order=@sort_order, active=@active, quote_delivery=@quote_delivery, courier_insurance_pct=@courier_insurance_pct, updated_at=@updated_at WHERE id=@id`).run({ ...fields, id });
     if (!res.changes) return null;
   } else {
     id = randomUUID();
-    db.prepare(`INSERT INTO categories (id, parent_id, name, slug, description, markup_pct, sort_order, active, quote_delivery, created_at, updated_at)
-      VALUES (@id, @parent_id, @name, @slug, @description, @markup_pct, @sort_order, @active, @quote_delivery, @updated_at, @updated_at)`).run({ ...fields, id });
+    db.prepare(`INSERT INTO categories (id, parent_id, name, slug, description, markup_pct, sort_order, active, quote_delivery, courier_insurance_pct, created_at, updated_at)
+      VALUES (@id, @parent_id, @name, @slug, @description, @markup_pct, @sort_order, @active, @quote_delivery, @courier_insurance_pct, @updated_at, @updated_at)`).run({ ...fields, id });
   }
   // A markup change must flow through to every auto-priced product underneath.
   repriceProducts({}, db);
@@ -520,7 +550,21 @@ function rowToSupplier(s) {
     collectionHours: s.collection_hours || '',
     collectionRequirements: s.collection_requirements || '',
     collectionLeadText: s.collection_lead_text || '',
+    ownCourierEnabled: Boolean(s.own_courier_enabled),
+    // Vendor details. The portal password itself is never sent in lists --
+    // only whether one is saved (GET /suppliers/:id/portal-password reveals it).
+    address: s.address || '',
+    website: s.website || '',
+    orderProcess: s.order_process || '',
+    portalUsername: s.portal_username || '',
+    hasPortalPassword: Boolean(s.portal_password_enc),
   };
+}
+
+export function supplierPortalPassword(id, db = getDb()) {
+  const row = db.prepare('SELECT name, portal_password_enc FROM suppliers WHERE id = ?').get(id);
+  if (!row) return null;
+  return { name: row.name, password: decryptSecret(row.portal_password_enc) };
 }
 
 export function listSuppliers(db = getDb()) {
@@ -544,11 +588,18 @@ export function saveSupplier(data, id = null, db = getDb()) {
   const bool = (v) => (v === true || v === 1 || v === '1' || v === 'on' ? 1 : 0);
   const f = {
     name,
-    contact_name: String(data.contactName || ''),
-    email: String(data.email || ''),
-    phone: String(data.phone || ''),
-    lead_time_text: String(data.leadTimeText || 'Ships from our warehouse in 2-5 business days'),
-    notes: String(data.notes || ''),
+    contact_name: pick('contactName', 'contact_name'),
+    email: pick('email', 'email'),
+    phone: pick('phone', 'phone'),
+    lead_time_text: pick('leadTimeText', 'lead_time_text', (v) => String(v || 'Ships from our warehouse in 2-5 business days')),
+    notes: pick('notes', 'notes'),
+    address: pick('address', 'address'),
+    website: pick('website', 'website', (v) => String(v ?? '').trim()),
+    order_process: pick('orderProcess', 'order_process'),
+    portal_username: pick('portalUsername', 'portal_username', (v) => String(v ?? '').trim()),
+    // Blank = keep the saved password; clearPortalPassword removes it.
+    portal_password_enc: data.clearPortalPassword ? '' : data.portalPassword ? encryptSecret(String(data.portalPassword)) : cur ? cur.portal_password_enc : '',
+    own_courier_enabled: pick('ownCourierEnabled', 'own_courier_enabled', bool),
     delivery_mode: pick('deliveryMode', 'delivery_mode', (v) => (v === 'flat' ? 'flat' : 'store')),
     delivery_fee_cents: pick('deliveryFee', 'delivery_fee_cents', (v) => Math.max(0, randToCents(v) || 0)),
     free_over_cost_cents: pick('freeOverCost', 'free_over_cost_cents', (v) => (randToCents(v) == null ? null : Math.max(0, randToCents(v)))),
@@ -561,6 +612,8 @@ export function saveSupplier(data, id = null, db = getDb()) {
     updated_at: now(),
   };
   if (f.collection_enabled && !String(f.collection_address).trim()) throw new Error('Enter the collection address, or switch collection off');
+  if (f.own_courier_enabled && !String(f.collection_address).trim()) throw new Error("Enter the collection address -- the customer's courier collects there");
+  if (f.website && !/^https?:\/\//i.test(f.website)) f.website = `https://${f.website}`;
   const cols = Object.keys(f).filter((k) => k !== 'updated_at');
   if (id) {
     db.prepare(`UPDATE suppliers SET ${cols.map((k) => `${k}=@${k}`).join(', ')}, updated_at=@updated_at WHERE id=@id`).run({ ...f, id });

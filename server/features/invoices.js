@@ -139,6 +139,8 @@ export function publicInvoice(orderId, db = getDb()) {
       method: sh.method,
       name: sh.name || '',
       feeCents: sh.feeCents || 0,
+      insuranceCents: sh.insuranceCents || 0,
+      insuranceName: sh.insuranceName || '',
       collection: sh.method === 'collect' && sh.collection
         ? { address: sh.collection.address || '', hours: sh.collection.hours || '', requirements: sh.collection.requirements || '' }
         : null,

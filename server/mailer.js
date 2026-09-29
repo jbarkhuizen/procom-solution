@@ -60,6 +60,16 @@ export function collectionBlock(c) {
 }
 
 const collectShipments = (order) => (order.shipments || []).filter((sh) => sh.method === 'collect');
+const ownCourierShipments = (order) => (order.shipments || []).filter((sh) => sh.method === 'own_courier');
+
+// Customer sends their own courier: where it collects, and what we need from them.
+function ownCourierBlock(order, sh) {
+  const s = getSettings();
+  return `<div style="background:#efe7d8;padding:12px;border-radius:4px;margin-bottom:12px">
+    <p style="margin:0 0 8px"><strong>You're sending your own courier${order.shipments.length > 1 ? ` for the items from our ${escapeHtml(sh.label)}` : ''}.</strong>
+    Please email your courier's <strong>waybill</strong> and the <strong>collection date</strong> to <a href="mailto:${escapeHtml(s.contactEmail)}" style="color:#c24b28">${escapeHtml(s.contactEmail)}</a>${s.whatsappNumber ? ` or WhatsApp ${escapeHtml(s.contactPhone)}` : ''}, quoting order ${escapeHtml(order.orderNumber)}. Book the collection for ${escapeHtml(sh.collection?.leadText || 'at least 2–3 business days after payment')}.</p>
+    ${collectionBlock(sh.collection)}</div>`;
+}
 
 // withSupplier: owner copy -- shows which supplier each line is ordered from.
 export function itemsTable(order, { withSupplier = false } = {}) {
@@ -69,7 +79,8 @@ export function itemsTable(order, { withSupplier = false } = {}) {
     .join('');
   return `<table style="width:100%;border-collapse:collapse;font-size:14px">${rows}
     ${order.discountCents ? `<tr><td style="padding:6px 0">Discount${order.promoCode ? ` (${escapeHtml(order.promoCode)})` : ''}</td><td style="padding:6px 0;text-align:right">−${formatRand(order.discountCents)}</td></tr>` : ''}
-    <tr><td style="padding:6px 0;border-top:1px solid #e5ddd0">Delivery: ${escapeHtml(order.shippingName)}</td><td style="padding:6px 0;border-top:1px solid #e5ddd0;text-align:right">${formatRand(order.shippingCents)}</td></tr>
+    <tr><td style="padding:6px 0;border-top:1px solid #e5ddd0">Delivery: ${escapeHtml(order.shippingName)}</td><td style="padding:6px 0;border-top:1px solid #e5ddd0;text-align:right">${formatRand(order.shippingCents - (order.insuranceCents || 0))}</td></tr>
+    ${(order.shipments || []).filter((sh) => sh.insuranceCents).map((sh) => `<tr><td style="padding:6px 0">${escapeHtml(sh.insuranceName || 'Courier insurance')}</td><td style="padding:6px 0;text-align:right">${formatRand(sh.insuranceCents)}</td></tr>`).join('')}
     <tr><td style="padding:6px 0;font-weight:700">Total</td><td style="padding:6px 0;text-align:right;font-weight:700">${formatRand(order.totalCents)}</td></tr></table>`;
 }
 
@@ -78,8 +89,9 @@ export function sendOrderConfirmation(order) {
     `Order ${order.orderNumber} confirmed`,
     `<p>Hi ${escapeHtml(order.firstName)},</p>
      <p>Thank you — your payment was received and your order <strong>${escapeHtml(order.orderNumber)}</strong> is being processed.
-     ${order.shipments.some((sh) => sh.method !== 'collect') ? "Items for delivery ship directly from our warehouse; we'll email you the tracking number as soon as they're dispatched." : ''}</p>
+     ${order.shipments.some((sh) => sh.method !== 'collect' && sh.method !== 'own_courier') ? "Items for delivery ship directly from our warehouse; we'll email you the tracking number as soon as they're dispatched." : ''}</p>
      ${collectShipments(order).map((sh) => `<div style="background:#efe7d8;padding:12px;border-radius:4px;margin-bottom:12px"><p style="margin:0 0 8px"><strong>You're collecting${order.shipments.length > 1 ? ` the items from our ${escapeHtml(sh.label)}` : ' this order'}.</strong> Please wait for our <strong>collection notice</strong> email before you go — ${escapeHtml(sh.collection?.leadText || 'typically 2–3 business days after payment')}.</p>${collectionBlock(sh.collection)}</div>`).join('')}
+     ${ownCourierShipments(order).map((sh) => ownCourierBlock(order, sh)).join('')}
      ${order.deliveryQuote ? `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Delivery quote to follow:</strong> your order includes large items, so delivery wasn't charged at checkout. We'll contact you within 1 business day with the courier cost to your address, before anything ships.</p>` : ''}
      ${itemsTable(order)}`,
   );
@@ -94,11 +106,12 @@ export function sendOwnerNewOrder(order) {
     `New paid order ${order.orderNumber}`,
     `<p><strong>${escapeHtml(order.firstName)} ${escapeHtml(order.lastName)}</strong> · ${escapeHtml(order.email)} · ${escapeHtml(order.phone)}</p>
      ${collectShipments(order).map((sh) => `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Customer will collect from the ${escapeHtml(sh.label)}.</strong> Ask the warehouse to pack and hold it under ${escapeHtml(order.orderNumber)}, then click “Ready for collection” on the order in admin to email the collection notice.</p>`).join('')}
+     ${ownCourierShipments(order).map((sh) => `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Customer's own courier collects from the ${escapeHtml(sh.label)}.</strong> Wait for their waybill and collection date, then pass them to the supplier with the order.</p>`).join('')}
      ${order.deliveryQuote ? `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>Delivery quote needed.</strong> This order contains large items — get a courier price to ${escapeHtml([order.address.suburb, order.address.city, order.address.postalCode].filter(Boolean).join(', '))} and send the customer the quote.</p>` : ''}
      ${itemsTable(order, { withSupplier: true })}
      ${dropship.length ? `<p style="margin-top:16px"><strong>${dropship.length} line(s) to order from ${escapeHtml(suppliers.join(' and '))}.</strong> Open the order in admin for the supplier order sheet${suppliers.length > 1 ? 's (one per supplier)' : ''}.</p>` : ''}`,
   );
-  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${suppliers.length ? ` — ${suppliers.join(' + ')}` : ''}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}${order.collection ? ' — COLLECTION' : ''}`, html, replyTo: order.email });
+  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${suppliers.length ? ` — ${suppliers.join(' + ')}` : ''}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}${order.collection ? ' — COLLECTION' : ''}${ownCourierShipments(order).length ? ' — OWN COURIER' : ''}`, html, replyTo: order.email });
 }
 
 export function sendShippedNotice(order) {

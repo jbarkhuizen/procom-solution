@@ -142,7 +142,7 @@ test('Esquire categories map onto the store tree', () => {
   assert.equal(where('Monitor Brackets'), 'Computers & Peripherals › Laptop & Monitor Stands');
   assert.equal(where('CCTV (Dome Camera)'), 'Networking › Security Cameras');
   assert.equal(where('Hard Disk (Surveillance)'), 'Computers & Peripherals › Storage & Memory');
-  assert.deepEqual(c('Televisions- Smart Ultra HD'), { parent: 'TV & Video', sub: 'Televisions', quote: true });
+  assert.deepEqual(c('Televisions- Smart Ultra HD'), { parent: 'TV & Video', sub: 'Televisions', quote: true, insurance: 3 });
   assert.equal(where('Samsung S4 Covers'), 'skip: Old phone, iPad and iPod covers');
   assert.equal(where('Scented Candles'), 'skip: Candles, balloons and party');
   assert.equal(where('Ballpoint Pens'), 'skip: Stationery and art');

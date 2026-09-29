@@ -244,6 +244,13 @@ admin.post('/uploads/images', imageUpload.array('images', 10), wrap(async (req) 
 }));
 
 admin.get('/suppliers', wrap(() => catalog.listSuppliers()));
+// Supplier portal password: decrypted only on request, and every look is audited.
+admin.get('/suppliers/:id/portal-password', wrap((req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const r = orNotFound(catalog.supplierPortalPassword(req.params.id));
+  governance.recordAudit({ action: `Viewed portal password: ${r.name}`, actor: req.admin.username, req });
+  return { password: r.password };
+}));
 admin.post('/suppliers', wrap((req) => catalog.saveSupplier(req.body || {})));
 admin.put('/suppliers/:id', wrap((req) => orNotFound(catalog.saveSupplier(req.body || {}, req.params.id))));
 admin.delete('/suppliers/:id', wrap((req) => ({ ok: orNotFound(catalog.deleteSupplier(req.params.id)) })));

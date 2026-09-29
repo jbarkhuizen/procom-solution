@@ -76,6 +76,18 @@ const COLUMN_MIGRATIONS = [
   // Set when an import (not an admin) marked the product out of stock, so a
   // feed that restores stock (Esquire) never overrides an admin's choice.
   ['products', 'out_by_feed', 'INTEGER NOT NULL DEFAULT 0'],
+  // Customer may send their own courier to the supplier's collection address.
+  ['suppliers', 'own_courier_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+  // Vendor details (Admin -> Suppliers). The portal password is stored
+  // encrypted (server/vault.js); the key lives only in the server .env.
+  ['suppliers', 'address', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'website', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'order_process', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'portal_username', "TEXT NOT NULL DEFAULT ''"],
+  ['suppliers', 'portal_password_enc', "TEXT NOT NULL DEFAULT ''"],
+  // % of the item price charged as courier insurance (e.g. Esquire: 3% on
+  // TVs shipped by courier). NULL = inherit from the parent category.
+  ['categories', 'courier_insurance_pct', 'REAL'],
 ];
 
 export function migrate(conn) {
@@ -313,6 +325,19 @@ export const SMD_DELIVERY = {
   collection_lead_text: 'typically 2–3 business days after payment',
 };
 
+// Esquire's terms (owner, 2026-09-29): collection in Samrand or the
+// customer's own courier; their courier fee is not known yet, so courier
+// delivery uses the store-wide brackets and quotes until it is.
+export const ESQUIRE_DELIVERY = {
+  public_label: 'Samrand warehouse',
+  collection_enabled: 1,
+  collection_address: '71 Landmarks Avenue, Kosmosdaal Ext 11, Samrand, 0157',
+  collection_hours: 'Mon–Fri 09:00–16:00 · Sat 09:00–12:00',
+  collection_requirements: "Bring your collection notice (the “ready for collection” email, printed or on your phone) and the collector's ID, driver's licence or passport.",
+  collection_lead_text: 'typically 2–3 business days after payment',
+  own_courier_enabled: 1,
+};
+
 // Mirrors lapanza3d.co.za's live shipping table (2026-09-25), minus the
 // 3D-filament-specific PUDO rows.
 const DEFAULT_SHIPPING = [
@@ -396,6 +421,17 @@ function seedDefaults(conn) {
     }
     conn.prepare("UPDATE shipping_options SET active = 0, updated_at = ? WHERE category = 'Collection'").run(now);
     conn.prepare("INSERT INTO settings (key, value) VALUES ('setup:supplierDeliveryV1', ?)").run(JSON.stringify(now));
+  }
+
+  // One-time, once an Esquire supplier exists: its collection / own-courier
+  // terms. Later edits in Admin -> Suppliers are never overwritten.
+  if (!conn.prepare("SELECT 1 FROM settings WHERE key = 'setup:esquireDeliveryV1'").get()) {
+    const esq = conn.prepare("SELECT id FROM suppliers WHERE name LIKE '%esquire%' ORDER BY created_at LIMIT 1").get();
+    if (esq) {
+      const cols = Object.keys(ESQUIRE_DELIVERY);
+      conn.prepare(`UPDATE suppliers SET ${cols.map((c) => `${c} = @${c}`).join(', ')}, updated_at = @now WHERE id = @id`).run({ ...ESQUIRE_DELIVERY, now, id: esq.id });
+      conn.prepare("INSERT INTO settings (key, value) VALUES ('setup:esquireDeliveryV1', ?)").run(JSON.stringify(now));
+    }
   }
 }
 

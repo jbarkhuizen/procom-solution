@@ -29,7 +29,7 @@ export function classifyItem(listKey, { name = '', category = '', sheet = '' }) 
   );
   if (!rule) return null;
   if (rule.skip) return { skip: rule.skip };
-  return { parent: rule.parent, sub: rule.sub, quote: Boolean(rule.quote), ...(rule.markup != null && { markup: rule.markup }) };
+  return { parent: rule.parent, sub: rule.sub, quote: Boolean(rule.quote), ...(rule.markup != null && { markup: rule.markup }), ...(rule.insurance != null && { insurance: rule.insurance }) };
 }
 
 const rand = (cents) => `R${(cents / 100).toFixed(2)}`;
@@ -42,15 +42,15 @@ function findCategory(db, name, parentId) {
 
 // Existing categories are reused by name (their settings untouched), so
 // running this twice is harmless.
-function ensureCategory(db, name, parentId, { quote = false, markup = null } = {}, created) {
+function ensureCategory(db, name, parentId, { quote = false, markup = null, insurance = null } = {}, created) {
   const found = findCategory(db, name, parentId);
   if (found) return found.id;
   const sortOrder = db.prepare(`SELECT COUNT(*) n FROM categories WHERE ${parentId ? 'parent_id = ?' : 'parent_id IS NULL'}`).get(...(parentId ? [parentId] : [])).n;
   created.push(name);
-  return saveCategory({ name, parentId, sortOrder, quoteDelivery: quote, markupPct: markup }, null, db).id;
+  return saveCategory({ name, parentId, sortOrder, quoteDelivery: quote, markupPct: markup, courierInsurancePct: insurance }, null, db).id;
 }
 
-const categoryNotes = (g) => [g.quote && 'delivery quoted', g.markup != null && `${g.markup}% markup`].filter(Boolean).join(', ');
+const categoryNotes = (g) => [g.quote && 'delivery quoted', g.markup != null && `${g.markup}% markup`, g.insurance != null && `${g.insurance}% courier insurance`].filter(Boolean).join(', ');
 
 // Categories the run would create, as "Parent › Sub" (or "Parent" when the
 // parent itself is missing). Shown in the preview so a near-duplicate of an

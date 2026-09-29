@@ -79,7 +79,8 @@ const RULES = [
   r('Networking', 'Networking Accessories', { cat: /^(networking|patch cable|network wire|modem \(accessories)/i }),
 
   // --- TV & Video
-  r('TV & Video', 'Televisions', { cat: /^televisions-? ?(smart|android|standard)/i }, { quote: true }),
+  // Esquire adds 3% insurance on TVs shipped by courier: charged as its own line.
+  r('TV & Video', 'Televisions', { cat: /^televisions-? ?(smart|android|standard)/i }, { quote: true, insurance: 3 }),
   r('TV & Video', 'TV Wall Mounts & Stands', { cat: /^(television brackets|tv stands|projector brackets)/i }),
   r('TV & Video', 'Projectors & Screens', { cat: /^projector/i }),
   r('TV & Video', 'TV Cables & Accessories', { cat: /^(televisions- accessories|remote control|multimedia tv|rca adaptors)/i }),

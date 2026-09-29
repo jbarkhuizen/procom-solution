@@ -27,7 +27,9 @@ function render(inv) {
   const s = inv.seller;
   const c = inv.customer;
   const many = inv.shipments.length > 1;
-  const delivery = inv.shipments.map((sh) => `<tr><td>${esc(shipmentLine(sh, many))}</td><td class="num">${formatRand(sh.feeCents)}</td></tr>`).join('');
+  const delivery = inv.shipments
+    .map((sh) => `<tr><td>${esc(shipmentLine(sh, many))}</td><td class="num">${formatRand(sh.feeCents)}</td></tr>${sh.insuranceCents ? `<tr><td>${esc(sh.insuranceName || 'Courier insurance')}</td><td class="num">${formatRand(sh.insuranceCents)}</td></tr>` : ''}`)
+    .join('');
   const collections = inv.shipments.filter((sh) => sh.collection);
   const deliverTo = collections.length === inv.shipments.length ? '' : addressLines(c);
 

@@ -122,6 +122,11 @@ sudo systemctl restart procomsolutions-admin
   `ESQUIRE_SYNC_HOURS=6,12,18`) and emails a report after each run. Needs a
   supplier named "Esquire" in Admin → Suppliers. Auto-list stays off until it
   is switched on in Admin → Warehouse feed → Esquire live feed.
+- **Supplier portal passwords:** `VAULT_KEY=<long random text>` (e.g. the
+  output of `openssl rand -base64 32`). Admin → Suppliers stores portal
+  passwords encrypted with it, so backups (incl. Google Drive) never hold them
+  readable. Keep a copy somewhere safe: if it is lost or changed, saved
+  portal passwords must be entered again. Without it, passwords can't be saved.
 
 Never paste these values into chat or any AI tool.
 
