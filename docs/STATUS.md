@@ -1,6 +1,6 @@
 # Status & backlog
 
-_Last updated: 2026-09-28_
+_Last updated: 2026-09-29_
 
 ## Live state
 
@@ -11,6 +11,7 @@ _Last updated: 2026-09-28_
 - **Delivery (per supplier, since 2026-09-28):** every live product is SMD's → courier **R150** incl VAT per order, **free** when SMD's invoice (our cost incl VAT, excluding our markup) is R5,000+, large items included; or **free collection** at SMD's Edenvale office (Mon–Fri 09:00–16:00, collection notice + ID). Store-wide courier brackets (0–3 kg R150, 3–10 kg R220, 10–25 kg R300) and delivery quotes now apply only to non-SMD suppliers and products without a supplier. PUDO + local delivery switched off.
 - **Google:** site verified in Search Console, sitemap submitted 2026-09-28.
 - **Deployed:** automatically on every merge to `main` via GitHub Actions (`.github/workflows/deploy.yml`) since 2026-09-28 -- first run 36403935284 green (server tests 49/49, health ok, lapanza3d 200). Check the Actions tab for the current live commit.
+- **Admin upgrade (from Lapanza3d), all 21 items live 2026-09-29:** Phase 1 accounts/invoices/promos/specials, Phase 2 analytics/newsletters/finance/marketing, Phase 3 backups (off-site to a Procom-only Google Drive folder, syncing), version history, test cases, about, audit log, todo, settings, nav. 160 server tests.
 
 The *Delivery* column is the category's quote flag. It only takes effect for non-SMD suppliers (SMD's flat R150 covers everything).
 
@@ -43,6 +44,14 @@ The *Delivery* column is the category's quote flag. It only takes effect for non
 - Creality wholesale list (474 usable of 475; 1 priced "TBC"): all listed under 3D Printing
 - SMD Infant Essential September 2026 (286 rows, 6 brand tabs): all 286 listed by the auto-list on 2026-09-28
 - SMD Cash Wholesale September 2026 (3,315 rows, 34 brand tabs): 2,481 listed by the auto-list on 2026-09-28 (44 marked delivery quoted); 647 already listed (Creality + hand-listed); 23 skipped (display stands, junk rows, refurbished/consumables, 2 mispriced TOSLINK cables). Backup before the run: `data/backups/pre-autolist-1790577475658.db`
+
+## Next: Esquire API import (new conversation)
+
+Starting point for the next piece of work:
+- **Esquire** exists as a supplier (Admin → Suppliers) but has **no products** yet -- every live product is SMD's. Its delivery terms are not set, so its items would use the store-wide courier brackets and delivery quotes.
+- Today's feed pipeline is **file-based** (upload → `server/feed-parsers.js` → preview/map → `server/feed.js` import, see CLAUDE.md "Warehouse feed"). An API import should feed the same import step (same column meaning: code, name, cost excl VAT, stock, category, brand, photo URL) so pricing, listing, stock-out and delete-import keep working; photos can go through `server/remote-images.js` (SSRF-guarded).
+- Rules to keep: money in integer cents; retail = cost excl VAT × 1.15 × (1 + markup), rounded up; credentials only in the server `.env` (repo is public); live data changes previewed and approved by the owner; schema changes additive via `COLUMN_MIGRATIONS` / feature `COLUMNS`.
+- To find out first: Esquire's API docs and auth (key, IP whitelist?), whether cost is incl or excl VAT, stock field, rate limits, categories/brands, photo URLs, and whether we pull on a schedule or on demand.
 
 ## Decisions made
 
