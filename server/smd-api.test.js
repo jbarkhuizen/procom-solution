@@ -215,3 +215,15 @@ test('SMD API category rules: placement follows the earlier SMD decisions', asyn
   assert.equal(at('Fashion and beauty/Sunglasses'), 'skip');
   assert.equal(at('Display Unit'), 'skip');
 });
+
+test('SMD specials appear on the Specials page, and leave it when the special ends', async () => {
+  const { productsOnSpecial } = await import('./features/specials.js');
+  listed('A');
+  listed('B');
+  await run({ products: [], prices: [price('A', '100.00', '80.00'), price('B', '100.00')], stock: [], media: [] });
+  let sp = productsOnSpecial({}, db);
+  assert.deepEqual(sp.rows, [row('A').id]);
+  await run({ products: [], prices: [price('A', '100.00'), price('B', '100.00')], stock: [], media: [] });
+  sp = productsOnSpecial({}, db);
+  assert.equal(sp.total, 0);
+});
