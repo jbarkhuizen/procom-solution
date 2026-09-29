@@ -7,7 +7,8 @@ _Last updated: 2026-09-29_
 - **Site:** https://www.procomsolutions.co.za — live, taking real payments (Payfast **live**, Lapanza's merchant account)
 - **Email:** working (Gmail SMTP as procompretoria@gmail.com); test email confirmed 2026-09-25
 - **Admin account:** created by the owner
-- **Live products:** 4,164 (2026-09-28, after the SMD auto-lists; was 1,397)
+- **Live products:** 6,904 (2026-09-29): SMD 4,164 (2,221 in stock -- stock now follows SMD's API) + Esquire 2,740 (listed by the Esquire auto-list at 12:00 on 2026-09-29).
+- **Supplier syncs (automatic, report email after every run):** Esquire API 06:00 / 12:00 / 18:00 SAST (auto-list on); SMD API 06:30 / 12:30 / 18:30 SAST (switched on 2026-09-29). Logins/keys in Admin → Suppliers (encrypted, key file `.vault-key` on the server).
 - **Delivery (per supplier, since 2026-09-28):** every live product is SMD's → courier **R150** incl VAT per order, **free** when SMD's invoice (our cost incl VAT, excluding our markup) is R5,000+, large items included; or **free collection** at SMD's Edenvale office (Mon–Fri 09:00–16:00, collection notice + ID). Store-wide courier brackets (0–3 kg R150, 3–10 kg R220, 10–25 kg R300) and delivery quotes now apply only to non-SMD suppliers and products without a supplier. PUDO + local delivery switched off.
 - **Google:** site verified in Search Console, sitemap submitted 2026-09-28.
 - **Deployed:** automatically on every merge to `main` via GitHub Actions (`.github/workflows/deploy.yml`) since 2026-09-28 -- first run 36403935284 green (server tests 49/49, health ok, lapanza3d 200). Check the Actions tab for the current live commit.
@@ -45,11 +46,19 @@ The *Delivery* column is the category's quote flag. It only takes effect for non
 - SMD Infant Essential September 2026 (286 rows, 6 brand tabs): all 286 listed by the auto-list on 2026-09-28
 - SMD Cash Wholesale September 2026 (3,315 rows, 34 brand tabs): 2,481 listed by the auto-list on 2026-09-28 (44 marked delivery quoted); 647 already listed (Creality + hand-listed); 23 skipped (display stands, junk rows, refurbished/consumables, 2 mispriced TOSLINK cables). Backup before the run: `data/backups/pre-autolist-1790577475658.db`
 
-## Esquire (API feed) -- live since 2026-09-29 (waiting for the login)
+## Supplier APIs (live since 2026-09-29)
+
+### Esquire
 
 `server/esquire.js` pulls Esquire's DataFeed API at 06:00, 12:00, 18:00 SAST (login from Admin → Suppliers → Esquire → Supplier portal login; runs are skipped quietly until it is saved), imports it as a complete list, auto-lists new items (switch in Admin -> Warehouse feed -> Esquire live feed, off until switched on) and emails a report after every run. Rules: `server/esquire-rules.js`. Runbook: DEPLOY.md "Secrets".
 
-Deployed: PR #36 (feed, delivery, vendor details, `233b7f2`) and PR #37 (login + password key from admin, `54cc283`), both green (tests + health + lapanza3d 200). No `.env` changes are needed; the password key file `.vault-key` is created by the server on first save.
+Deployed: PR #36 (feed, delivery, vendor details, `233b7f2`) and PR #37 (login + password key from admin, `54cc283`). First sync 11:41 (2,749 imported), auto-list switched on, 12:00 run listed **2,740** products (45 delivery quoted; 78 TVs with 3% courier insurance; 2,721 with photos, 12 photo links broken at Esquire).
+
+### SMD
+
+`server/smd-api.js` reads SMD's API (products, prices, stock, media; spec "SMD API INFO" PDF) with the token + Client access key on Admin → Suppliers → SMD. Runs 06:30 / 12:30 / 18:30 SAST once switched on (Warehouse feed → SMD live API; "Check connection" = read-only report). Updates listed SMD products only -- never categories: cost (SMD specials lower the price and show as Sale), stock (SOH), blank descriptions, full-size photos (admin photos never replaced). New SMD SKUs go to Warehouse feed (`smd-api.json`), not auto-listed. Deployed PR #40 (`f24a9df`).
+
+First sync 2026-09-29 12:44 (owner ran "Sync now"): API 6,322 products / 6,149 stock rows; **3,987 of 4,164** SMD products found (96%); 525 costs down, 18 up (543 prices updated); 518 on SMD special (Sale); 3,973 descriptions filled; 3,987 full-size photo sets queued; **1,943 marked out of stock** -- 1,766 with SOH 0 (SMD reports 0 on 58% of its range) + 177 not in the API (mostly Creality filaments/fans). 2,289 SMD SKUs not sold yet are in Warehouse feed.
 
 ## Decisions made
 
@@ -66,6 +75,7 @@ Deployed: PR #36 (feed, delivery, vendor details, `233b7f2`) and PR #37 (login +
 | 2026-09-27 | Cash Wholesale: category structure approved (4 new top-level categories); items already listed by hand keep their category; Creality tab skipped (listed from the Creality list); SA Filament listed under 3D Printing › Filament; laptops and phones listed; Gaming Chairs & Desks listed with delivery quoted |
 | 2026-09-27 | Phones and Laptops & Tablets: markup pinned at 10% on the category (same as today's default, but stays 10% if the default changes). Heavy Cash Wholesale items (49: soundbars/subwoofers, big party speakers, 24"/27" monitors, projector screens, large TV mounts, racing cockpit, electric scooter) listed with delivery quoted |
 | 2026-09-29 | Esquire delivery: collection in Samrand + customer's own courier (waybill + collection date emailed to us); TVs by courier carry Esquire's 3% insurance as a separate line (3% of the TV price). Supplier portal logins kept in Admin → Suppliers, password encrypted (key file `.vault-key` created by the server, never backed up), every reveal audited. The Esquire sync uses the Esquire supplier's portal login -- owner preferred admin over `.env`. |
+| 2026-09-29 | **SMD stock = SMD's API stock** (owner): SOH 0 means out of stock; items return automatically as SMD restocks. Chosen over "restore for now" and "available on order". |
 | 2026-09-29 | **SMD live API** (spec: SMD API INFO PDF): API token + Client access key on Admin → Suppliers → SMD (encrypted); read-only "Check connection" first, then automatic sync at 06:30/12:30/18:30 (30 min after Esquire), off until switched on. Updates listed SMD products only (never categories): cost from PriceExcl, SMD specials lower our price and show as Sale (normal price struck through); stock from SOH (out at 0 / below pack size, back when restocked, admin's manual out kept, "Only N left" at ≤5, checkout can't exceed stock); SMD long descriptions fill blank descriptions; full-size photos replace SMD's ~113px spreadsheet thumbnails (admin-uploaded/changed photos never touched). RRP ignored (a struck-out price must be one we charged). New SMD SKUs appear in Warehouse feed (file smd-api.json). Safety: >20% of listed SMD products missing from the API = left alone and reported; far fewer prices than last run = run skipped. Monthly pricelists still supply pack sizes. |
 | 2026-09-29 | Shop and Specials: **"Load more"** button (30 at a time, "Showing 60 of 412") instead of page numbers; Back from a product returns to the same list. Product cards and pages show a small **warehouse icon** next to "In stock" -- one colour per warehouse, tooltip "Ships from our Samrand/Edenvale warehouse" (public label only, supplier names never shown). |
 | 2026-09-28 | Legal pages reuse Lapanza3d's reviewed wording, adapted to Procom. Site name stays Procom Solutions, contact procompretoria@gmail.com; procompretoria.co.za not registered. Bubble Buddy duplicate left as is |
@@ -90,15 +100,16 @@ Deployed: PR #36 (feed, delivery, vendor details, `233b7f2`) and PR #37 (login +
 - **After the Phase 1 deploy:** Admin → Invoice history → **Issue missing invoices** once, so older paid orders (PC10002…) get invoice numbers before new ones.
 - ~~First real test order~~ done: paid live, emails and collection notice arrived.
 - **Legal pages — one open choice:** risk in transit passes to the customer *on delivery* (so courier losses are ours) — keep? (Drive backups are now in the Privacy Policy; address 23 Gladiator Rd confirmed.)
-- **Esquire go-live:** deployed 2026-09-29. Owner: enter the Esquire portal username + (new) password in Admin → Suppliers → Esquire, then Warehouse feed → Esquire live feed → Sync now (auto-list off), check the email, Preview auto-list, switch auto-list on. No `.env` changes needed. **Change the Esquire password first** (shared in a chat).
 - **Esquire delivery** (built, applied automatically on first start after deploy): Samrand warehouse collection (71 Landmarks Avenue, Kosmosdaal Ext 11, Samrand, 0157; Mon–Fri 09:00–16:00 · Sat 09:00–12:00), customer's own courier (free; customer emails waybill + collection date), otherwise store-wide courier brackets / quotes. **Still open: Esquire's courier fee** -- when known, set Admin → Suppliers → Esquire → "Flat courier fee". Televisions: 3% courier insurance as its own checkout line (category setting "Courier insurance %"), not charged on collection / own courier.
 - **Vendor details** (Admin → Suppliers): address, order process, portal website, username and encrypted password (key file `.vault-key` on the server, created automatically -- owner may keep a copy of it).
-- **SMD API go-live:** owner enters the token + key in Admin → Suppliers → SMD → Supplier API access, runs **Check connection** (Warehouse feed → SMD live API), reviews the email (match rate, cost changes, stock, photos, SKUs not sold yet), then switches the automatic sync on. First real sync queues full-size photo downloads for ~4,000 products (runs in the background for a while).
-- **Photos** (owner investigating): SMD's embedded photos are ~113px; upload better photos for key products first.
+- **SMD: Creality not in the API** -- 177 SMD products (mostly Creality filaments and fans, 3D Printing) are missing from SMD's API and now out of stock. Ask SMD whether Creality can be added to the API / how to order it; until then they come back only via a pricelist or by hand. Also: 2,289 SMD SKUs not sold yet sit in Warehouse feed (supplier SMD, file smd-api.json) -- an auto-list rule table can follow if wanted.
+- **Esquire soundbars:** soundbars with subwoofers from Esquire are not marked delivery quoted (SMD's are). Owner to say whether to add them to Esquire's heavy list.
+- **Esquire courier fee** still unknown -- set Admin → Suppliers → Esquire → flat courier fee when known (until then store-wide brackets / quotes).
+- **Photos:** SMD full-size photos are downloading in the background since 2026-09-29 (up to 4 per product, replacing the ~113px spreadsheet photos; admin-uploaded photos are kept). Check a few product pages once the queue (Warehouse feed → SMD live API) is empty.
 - **Google Search Console** — check in 1–2 weeks: sitemap "Success", indexed pages rising. If product pages still aren't indexed after ~4 weeks, consider server-rendered product pages (their content is filled in by JavaScript).
 
 **Routine**
-- **Monthly SMD update:** import the new Infant Essential / Cash Wholesale files, then on the server `node server/smd-autolist-cli.js` (dry run) and `--apply` (see DEPLOY.md) — the browser button can time out on the Cash list. Everfurn Theo boxes are skipped by rule (deleted 2026-09-28).
+- **Monthly SMD update:** prices, stock, descriptions and photos now come from SMD's API. Monthly pricelists are optional -- import one only to add new products with their pack sizes ("order in qty of N"), then `node server/smd-autolist-cli.js` on the server (dry run, then `--apply`; see DEPLOY.md). Everfurn Theo boxes are skipped by rule.
 
 **Low priority / known**
 - **Lapanza3d offsite photos:** fixed 2026-09-29 (Lapanza-3d-Creations PR #2, deployed). Check its Drive `uploads` folder keeps its photos after the next nightly run.
