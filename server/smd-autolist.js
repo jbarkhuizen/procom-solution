@@ -2,6 +2,10 @@ import { getDb } from './db.js';
 import { saveCategory, bulkUpdateProducts } from './catalog.js';
 import { listFeedItems } from './feed.js';
 import { SMD_LISTS } from './smd-rules.js';
+import { ESQUIRE_LIST } from './esquire-rules.js';
+
+// Every list the auto-list knows; tidyParentLevel() stays SMD-only.
+export const AUTOLIST_LISTS = { ...SMD_LISTS, esquire: ESQUIRE_LIST };
 
 // One-click listing of an imported SMD pricelist: each row is sorted into a
 // storefront sub-category by the rules in smd-rules.js, missing categories
@@ -13,7 +17,7 @@ const MIN_COST_CENTS = 100;
 const MAX_COST_CENTS = 10_000_000;
 
 function getList(key) {
-  const list = SMD_LISTS[key];
+  const list = AUTOLIST_LISTS[key];
   if (!list) throw new Error(`Unknown pricelist "${key}"`);
   return list;
 }
@@ -64,7 +68,7 @@ function missingCategories(db, groups) {
 // dryRun reports what would happen without creating or listing anything.
 export function autoList({ list: listKey, supplierId, dryRun = false } = {}, db = getDb()) {
   const list = getList(listKey);
-  if (!supplierId) throw new Error('Choose the SMD supplier first');
+  if (!supplierId) throw new Error('Choose the supplier first');
   const rows = db
     .prepare(`SELECT f.id, f.code, f.name, f.category, f.source_sheet, f.cost_cents, p.id AS product_id, p.category_id
       FROM feed_items f LEFT JOIN products p ON p.supplier_id = f.supplier_id AND p.supplier_code = f.code

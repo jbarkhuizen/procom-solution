@@ -579,6 +579,28 @@ async function productEditor(id) {
 
 // ============================================================== warehouse feed
 
+// Esquire's live API feed: pulled by the server on a schedule (server/esquire.js).
+function esquirePanel(esq) {
+  const lr = esq.lastRun;
+  const hours = esq.runHoursSast.map((x) => `${String(x).padStart(2, '0')}:00`).join(', ');
+  const last = !lr
+    ? 'No sync yet.'
+    : lr.ok
+      ? `Last sync ${h(fmtDate(lr.at))}: ${lr.sellableRows} products · ${lr.import.rowsNew} new · ${lr.import.priceChanges} cost changes · ${lr.import.productsMarkedOut} out of stock · ${lr.import.productsBackInStock} back in stock · ${esq.autoList ? `${lr.listed} listed` : `${lr.wouldList} would be listed`}`
+      : `<span class="money-up">Last sync ${h(fmtDate(lr.at))} failed: ${h(lr.error)}</span>`;
+  return `<div class="panel stack gap-3" style="margin-bottom:1rem">
+    <div class="section-head"><h3>Esquire live feed</h3>${esq.configured ? `<span class="badge published">Syncs daily at ${h(hours)}</span>` : '<span class="badge bad">Login not set on server</span>'}</div>
+    <p class="mini-help">${esq.configured ? last : 'Add ESQUIRE_USER and ESQUIRE_PASS to the server’s .env and restart the service.'}${esq.running ? ' <span class="badge info">Sync running…</span>' : ''}</p>
+    <p class="mini-help">Each sync imports the whole feed (prices include VAT, so they are stored excl VAT), updates costs and shop prices, marks listed items that left the feed out of stock and puts them back when they return, then emails a report to the order notification address.
+      Auto-list is <strong>${esq.autoList ? 'ON' : 'OFF'}</strong>${esq.autoList ? ': new matching items are listed live after each sync.' : ': the report shows what would be listed.'}</p>
+    <div class="toolbar" style="margin:0">
+      ${esq.configured && esq.supplier ? `<button class="btn small btn-primary" id="esq-sync" ${esq.running ? 'disabled' : ''}>Sync now</button>` : ''}
+      ${esq.supplier ? `<button class="btn small" data-autolist="esquire" data-supplier="${h(esq.supplier.id)}">Preview auto-list…</button>
+      <button class="btn small" id="esq-auto" data-on="${esq.autoList ? '1' : ''}">${esq.autoList ? 'Switch auto-list off' : 'Switch auto-list on…'}</button>` : '<span class="badge bad">No supplier named “Esquire”</span>'}
+    </div>
+  </div>`;
+}
+
 const feedState = { supplierId: '', q: '', category: '', brand: '', listed: 'no', singleUnit: true, withImage: false, changed: false, page: 1, selected: new Set() };
 
 routes.feed = async () => {
@@ -587,7 +609,7 @@ routes.feed = async () => {
   const [suppliers, cats, cfg] = await Promise.all([api('/suppliers'), categoryOptions(), siteSettings()]);
   if (!s.supplierId && suppliers[0]) s.supplierId = suppliers[0].id;
   const q = new URLSearchParams({ supplierId: s.supplierId, q: s.q, category: s.category, brand: s.brand, listed: s.listed, page: s.page, singleUnit: s.singleUnit ? '1' : '', withImage: s.withImage ? '1' : '', changed: s.changed ? '1' : '' });
-  const [facets, res] = await Promise.all([api(`/feed/facets?supplierId=${encodeURIComponent(s.supplierId)}`), api(`/feed?${q}`)]);
+  const [facets, res, esq] = await Promise.all([api(`/feed/facets?supplierId=${encodeURIComponent(s.supplierId)}`), api(`/feed?${q}`), api('/feed/esquire')]);
   const vat = 1 + cfg.vatRatePct / 100;
   const estPrice = (cost) => Math.ceil((cost * vat * (1 + cfg.defaultMarkupPct / 100)) / 100) * 100;
   const last = facets.imports[0];
@@ -616,6 +638,7 @@ routes.feed = async () => {
         </div>
       </div>
     </div>
+    ${esquirePanel(esq)}
     <div id="mapping-panel"></div>
 
     <div class="panel" style="margin-bottom:1rem">
@@ -734,10 +757,10 @@ routes.feed = async () => {
     } catch (err) { fail(err); }
   });
 
-  // SMD auto-list: preview panel first; nothing is written until "List".
-  const showAutolist = async (list) => {
+  // Auto-list (SMD pricelists, Esquire feed): preview panel first; nothing is written until "List".
+  const showAutolist = async (list, supplierId = s.supplierId) => {
     const panel = $('#mapping-panel', root);
-    const pv = await api('/feed/smd-autolist', { method: 'POST', body: { list, supplierId: s.supplierId, dryRun: true } });
+    const pv = await api('/feed/smd-autolist', { method: 'POST', body: { list, supplierId, dryRun: true } });
     const work = pv.summary.filter((g) => g.newListings || g.categorised);
     const total = work.reduce((n, g) => n + g.newListings, 0);
     const codes = (items) => items.map((i) => `${h(i.code)} <span class="muted">${h(i.name)}</span>`).join('<br>');
@@ -761,7 +784,7 @@ routes.feed = async () => {
       e.target.disabled = true;
       e.target.textContent = 'Listing…';
       try {
-        const r = await api('/feed/smd-autolist', { method: 'POST', body: { list, supplierId: s.supplierId, dryRun: false } });
+        const r = await api('/feed/smd-autolist', { method: 'POST', body: { list, supplierId, dryRun: false } });
         toast(`Listed ${r.created} product(s)${r.categorised ? ` · ${r.categorised} categorised` : ''}${r.quoted ? ` · ${r.quoted} delivery quoted` : ''}${r.categoriesCreated.length ? ` · ${r.categoriesCreated.length} categories created` : ''}${r.errors.length ? ` · ${r.errors.length} failed` : ''}`);
         if (r.errors.length) console.warn(r.errors);
         categoryCache = null;
@@ -777,7 +800,7 @@ routes.feed = async () => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       try {
-        await showAutolist(btn.dataset.autolist);
+        await showAutolist(btn.dataset.autolist, btn.dataset.supplier || s.supplierId);
       } catch (err) {
         fail(err);
       } finally {
@@ -786,12 +809,38 @@ routes.feed = async () => {
     }),
   );
 
+  $('#esq-sync', root)?.addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try {
+      await api('/feed/esquire/sync', { method: 'POST' });
+      toast('Esquire sync started — the report email follows when it finishes');
+      // Poll until the run is recorded, then refresh the page.
+      for (let i = 0; i < 60; i++) {
+        await new Promise((ok) => setTimeout(ok, 5000));
+        if (!(await api('/feed/esquire')).running) break;
+      }
+      reload();
+    } catch (err) {
+      fail(err);
+      e.target.disabled = false;
+    }
+  });
+  $('#esq-auto', root)?.addEventListener('click', async (e) => {
+    const on = e.target.dataset.on !== '1';
+    if (on && !confirm('Switch Esquire auto-list ON?\n\nFrom the next sync, every new Esquire product matched by the approved category rules is listed LIVE in the shop at the default markup, and categories it needs are created.\n\nUse "Preview auto-list" first to see what that means.')) return;
+    try {
+      await api('/feed/esquire/autolist', { method: 'PUT', body: { on } });
+      toast(`Esquire auto-list ${on ? 'on' : 'off'}`);
+      reload();
+    } catch (err) { fail(err); }
+  });
+
   // Step 1b: show detected columns; any change re-runs the mapped preview.
   function showMapping(pv, supplierId, supplierList) {
     const panel = $('#mapping-panel', root);
     const FIELD_LABELS = [
       ['code', 'Product code *'], ['name', 'Name *'], ['cost', 'Cost price *'], ['brand', 'Brand'],
-      ['category', 'Category'], ['image', 'Photo URL'], ['moq', 'Min. order qty'],
+      ['category', 'Category'], ['image', 'Photo URL'], ['moq', 'Min. order qty'], ['details', 'Description'],
     ];
     const headerOpts = pv.headers.map((x) => ({ value: x, label: x || '(blank heading)' }));
     const supplierName = supplierList.find((x) => x.id === supplierId)?.name || '';
@@ -974,10 +1023,10 @@ routes.orders = async (id, arg) => {
       <span class="muted">${res.total} order${res.total === 1 ? '' : 's'}</span>
     </div>
     <div class="panel table-wrap"><table class="catalog">
-      <thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th class="num">Items</th><th class="num">Total</th><th>Status</th><th>Placed</th></tr></thead>
+      <thead><tr><th>Order</th><th>Customer</th><th>Order from</th><th>Delivery</th><th class="num">Items</th><th class="num">Total</th><th>Status</th><th>Placed</th></tr></thead>
       <tbody>${
-        res.items.map((o) => `<tr data-go="#/orders/${h(o.id)}"><td><strong>${h(o.orderNumber)}</strong></td><td>${h(o.firstName)} ${h(o.lastName)}<br><span class="muted">${h(o.email)}</span></td><td>${o.deliveryQuote ? '<span class="badge warn">Delivery quote</span>' : o.collection ? `<span class="badge info">Collection${o.collectionReadyAt ? ' · ready' : ''}</span>` : h(o.shippingName)}</td><td class="num">${o.itemCount}</td><td class="num">${rand(o.totalCents)}</td><td>${statusBadge(o.status)}</td><td>${h(fmtDate(o.createdAt))}</td></tr>`).join('') ||
-        '<tr><td colspan="7" class="empty">No orders yet.</td></tr>'
+        res.items.map((o) => `<tr data-go="#/orders/${h(o.id)}"><td><strong>${h(o.orderNumber)}</strong></td><td>${h(o.firstName)} ${h(o.lastName)}<br><span class="muted">${h(o.email)}</span></td><td>${(o.suppliers || []).map((x) => `<span class="badge ${x === 'Own stock' ? 'ok' : 'info'}">${h(x)}</span>`).join(' ')}</td><td>${o.deliveryQuote ? '<span class="badge warn">Delivery quote</span>' : o.collection ? `<span class="badge info">Collection${o.collectionReadyAt ? ' · ready' : ''}</span>` : h(o.shippingName)}</td><td class="num">${o.itemCount}</td><td class="num">${rand(o.totalCents)}</td><td>${statusBadge(o.status)}</td><td>${h(fmtDate(o.createdAt))}</td></tr>`).join('') ||
+        '<tr><td colspan="8" class="empty">No orders yet.</td></tr>'
       }</tbody></table></div>
     ${pager(res.page, res.pages)}`);
   const reload = () => routes.orders();

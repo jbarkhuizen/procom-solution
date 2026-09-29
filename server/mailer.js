@@ -14,6 +14,11 @@ function getTransport() {
   return transport;
 }
 
+// Tests/scripts: capture mail instead of sending (e.g. nodemailer's jsonTransport).
+export function useTransport(t) {
+  transport = t;
+}
+
 // Never throws -- a mail outage must not fail a payment webhook or checkout.
 // `headers`: optional extra headers (e.g. List-Unsubscribe for newsletters).
 export async function sendMail({ to, subject, html, replyTo, headers }) {
@@ -56,9 +61,11 @@ export function collectionBlock(c) {
 
 const collectShipments = (order) => (order.shipments || []).filter((sh) => sh.method === 'collect');
 
-export function itemsTable(order) {
+// withSupplier: owner copy -- shows which supplier each line is ordered from.
+export function itemsTable(order, { withSupplier = false } = {}) {
+  const supplierOf = (i) => (i.fulfilment === 'stock' ? 'Own stock' : i.supplierName || 'Supplier');
   const rows = order.items
-    .map((i) => `<tr><td style="padding:6px 0">${escapeHtml(i.name)} × ${i.quantity}</td><td style="padding:6px 0;text-align:right">${formatRand(i.lineTotalCents)}</td></tr>`)
+    .map((i) => `<tr><td style="padding:6px 0">${escapeHtml(i.name)} × ${i.quantity}${withSupplier ? `<br><span style="font-size:12px;color:#6a5f54">${escapeHtml(supplierOf(i))}${i.supplierCode ? ` · ${escapeHtml(i.supplierCode)}` : ''}</span>` : ''}</td><td style="padding:6px 0;text-align:right">${formatRand(i.lineTotalCents)}</td></tr>`)
     .join('');
   return `<table style="width:100%;border-collapse:collapse;font-size:14px">${rows}
     ${order.discountCents ? `<tr><td style="padding:6px 0">Discount${order.promoCode ? ` (${escapeHtml(order.promoCode)})` : ''}</td><td style="padding:6px 0;text-align:right">−${formatRand(order.discountCents)}</td></tr>` : ''}
@@ -82,15 +89,16 @@ export function sendOrderConfirmation(order) {
 export function sendOwnerNewOrder(order) {
   const s = getSettings();
   const dropship = order.items.filter((i) => i.fulfilment === 'dropship');
+  const suppliers = [...new Set(dropship.map((i) => i.supplierName || 'Supplier'))];
   const html = layout(
     `New paid order ${order.orderNumber}`,
     `<p><strong>${escapeHtml(order.firstName)} ${escapeHtml(order.lastName)}</strong> · ${escapeHtml(order.email)} · ${escapeHtml(order.phone)}</p>
      ${collectShipments(order).map((sh) => `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Customer will collect from the ${escapeHtml(sh.label)}.</strong> Ask the warehouse to pack and hold it under ${escapeHtml(order.orderNumber)}, then click “Ready for collection” on the order in admin to email the collection notice.</p>`).join('')}
      ${order.deliveryQuote ? `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>Delivery quote needed.</strong> This order contains large items — get a courier price to ${escapeHtml([order.address.suburb, order.address.city, order.address.postalCode].filter(Boolean).join(', '))} and send the customer the quote.</p>` : ''}
-     ${itemsTable(order)}
-     ${dropship.length ? `<p style="margin-top:16px"><strong>${dropship.length} line(s) to order from the warehouse.</strong> Open the order in admin for the supplier order sheet.</p>` : ''}`,
+     ${itemsTable(order, { withSupplier: true })}
+     ${dropship.length ? `<p style="margin-top:16px"><strong>${dropship.length} line(s) to order from ${escapeHtml(suppliers.join(' and '))}.</strong> Open the order in admin for the supplier order sheet${suppliers.length > 1 ? 's (one per supplier)' : ''}.</p>` : ''}`,
   );
-  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}${order.collection ? ' — COLLECTION' : ''}`, html, replyTo: order.email });
+  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${suppliers.length ? ` — ${suppliers.join(' + ')}` : ''}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}${order.collection ? ' — COLLECTION' : ''}`, html, replyTo: order.email });
 }
 
 export function sendShippedNotice(order) {
@@ -121,6 +129,57 @@ export function sendCollectionReady(order, shipment) {
      <div style="background:#efe7d8;padding:12px;border-radius:4px;margin-bottom:12px">${collectionBlock(shipment?.collection)}</div>`,
   );
   return sendMail({ to: order.email, subject: `Procom Solutions — order ${order.orderNumber} ready for collection (collection notice)`, html });
+}
+
+// Status email after every Esquire API sync (esquire.js), success or failure.
+export function sendEsquireReport(report) {
+  const s = getSettings();
+  const im = report.import;
+  const al = report.autoList;
+  const row = (label, value) => `<tr><td style="padding:4px 0">${escapeHtml(label)}</td><td style="padding:4px 0;text-align:right;font-weight:700">${escapeHtml(String(value))}</td></tr>`;
+  const table = (rows) => `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0 16px">${rows.join('')}</table>`;
+  const list = (items, max = 30) =>
+    `<ul style="font-size:13px;margin:4px 0 16px;padding-left:18px">${items.slice(0, max).map((i) => `<li>${escapeHtml(i)}</li>`).join('')}${items.length > max ? `<li>… and ${items.length - max} more</li>` : ''}</ul>`;
+  const toList = al ? al.summary.reduce((n, g) => n + g.newListings, 0) : 0;
+  const when = new Date(report.startedAt).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
+
+  let body = `<p>${escapeHtml(when)} · ${report.trigger === 'scheduled' ? 'scheduled run' : 'run started from admin'} · ${report.seconds ?? 0}s</p>`;
+  if (!report.ok) {
+    body += `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>The sync did not complete.</strong><br>${escapeHtml(report.error)}</p>
+      <p>Nothing was changed in the shop by this run. The next scheduled run will try again.</p>`;
+  } else {
+    body += `<h3 style="font-size:15px;margin:12px 0 0">Feed</h3>${table([
+      row('Products in Esquire feed', report.feedRows),
+      row('Left out (groups we don’t sell)', report.leftOut.reduce((n, g) => n + g.n, 0)),
+      row('Imported', report.sellableRows),
+      row('New to the feed', im.rowsNew),
+      row('Cost changes', im.priceChanges),
+      row('Shop prices updated', im.productsRepriced),
+      row('Listed products now out of stock', im.productsMarkedOut),
+      row('Listed products back in stock', im.productsBackInStock),
+      row('Photos queued for download', im.imagesQueued),
+    ])}`;
+    if (report.autoListOn) {
+      body += `<h3 style="font-size:15px;margin:12px 0 0">Auto-list</h3>${table([
+        row('New products listed', al.created),
+        row('Marked delivery quoted (heavy)', al.quoted),
+        row('Categories created', al.categoriesCreated.length),
+        row('Errors', al.errors.length),
+      ])}`;
+      if (al.categoriesCreated.length) body += `<p style="margin:0">New categories:</p>${list(al.categoriesCreated)}`;
+      if (al.errors.length) body += `<p style="margin:0">Errors:</p>${list(al.errors, 10)}`;
+    } else {
+      body += `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Auto-list is off.</strong> ${toList} product(s) would be listed by the approved rules${al.newCategories.length ? `, creating ${al.newCategories.length} categories` : ''}. Switch it on in Admin → Warehouse feed → Esquire once the category table is approved.</p>`;
+    }
+    if (al.unmatched.length) body += `<p style="margin:0"><strong>${al.unmatched.length} product(s) not recognised</strong> by the category rules (not listed):</p>${list(al.unmatched.map((u) => `${u.code} — ${u.name}`))}`;
+    if (al.skipped.length) body += `<p style="margin:0">Imported but not listed (your call — list by hand, or ask for a rule):</p>${list(al.skipped.map((g) => `${g.items.length} · ${g.reason}`))}`;
+    if (report.leftOut.length) body += `<p style="margin:0">Left out of the import:</p>${list(report.leftOut.map((g) => `${g.n} · ${g.reason}`))}`;
+  }
+
+  const subject = report.ok
+    ? `Esquire sync — ${im.rowsNew} new, ${im.priceChanges} cost changes, ${im.productsMarkedOut} out of stock${report.autoListOn ? `, ${al.created} listed` : ''}`
+    : 'Esquire sync FAILED';
+  return sendMail({ to: s.ownerNotifyEmail, subject, html: layout('Esquire feed sync', body) });
 }
 
 export function sendContactNotice({ name, email, phone, message }) {

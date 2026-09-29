@@ -116,6 +116,12 @@ sudo systemctl restart procomsolutions-admin
 - **Email:** `GMAIL_USER=procompretoria@gmail.com` and a Gmail **App
   Password** (Google Account → Security → 2-Step Verification → App
   passwords). Without it the site works, but no order/enquiry emails go out.
+- **Esquire API feed:** `ESQUIRE_USER=procompretoria@gmail.com` and
+  `ESQUIRE_PASS=<Esquire portal password>`. With both set, the service pulls
+  Esquire's feed at 06:00, 12:00 and 18:00 SAST (change with
+  `ESQUIRE_SYNC_HOURS=6,12,18`) and emails a report after each run. Needs a
+  supplier named "Esquire" in Admin → Suppliers. Auto-list stays off until it
+  is switched on in Admin → Warehouse feed → Esquire live feed.
 
 Never paste these values into chat or any AI tool.
 

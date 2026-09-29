@@ -72,6 +72,10 @@ const COLUMN_MIGRATIONS = [
   ['orders', 'invoice_number', "TEXT NOT NULL DEFAULT ''"],
   ['orders', 'invoiced_at', "TEXT NOT NULL DEFAULT ''"],
   ...FEATURE_SCHEMAS.flatMap((f) => f.COLUMNS || []),
+  ['feed_items', 'details', "TEXT NOT NULL DEFAULT ''"],          // supplier's longer product text -> product description
+  // Set when an import (not an admin) marked the product out of stock, so a
+  // feed that restores stock (Esquire) never overrides an admin's choice.
+  ['products', 'out_by_feed', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 
 export function migrate(conn) {
@@ -290,6 +294,8 @@ export const DEFAULT_SETTINGS = {
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
   legalEntity: 'Lapanza (trading as Procom Solutions)',
+  // Esquire API sync lists new items by itself only when this is on.
+  esquireAutoList: false,
 };
 
 // SMD's delivery terms (owner, 2026-09-28): courier R150 incl VAT per order,

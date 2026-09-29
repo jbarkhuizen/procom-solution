@@ -284,10 +284,14 @@ export function listOrders(opts = {}, db = getDb()) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = clampInt(opts.page, 1, pages, 1);
   const rows = db
-    .prepare(`SELECT o.*, (SELECT SUM(quantity) FROM order_items WHERE order_id = o.id) AS item_count FROM orders o ${w} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`)
+    .prepare(`SELECT o.*, (SELECT SUM(quantity) FROM order_items WHERE order_id = o.id) AS item_count,
+      (SELECT GROUP_CONCAT(DISTINCT CASE WHEN oi.fulfilment = 'stock' THEN 'Own stock' ELSE COALESCE(s.name, 'Supplier') END)
+        FROM order_items oi LEFT JOIN suppliers s ON s.id = oi.supplier_id WHERE oi.order_id = o.id) AS supplier_names
+      FROM orders o ${w} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`)
     .all(params);
   return {
-    items: rows.map((r) => ({ ...rowToOrder(r), itemCount: r.item_count || 0 })),
+    // suppliers: which warehouse(s) each order must be placed with.
+    items: rows.map((r) => ({ ...rowToOrder(r), itemCount: r.item_count || 0, suppliers: r.supplier_names ? r.supplier_names.split(',') : [] })),
     total,
     page,
     pages,

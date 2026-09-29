@@ -413,6 +413,8 @@ export function saveProduct(data, id = null, db = getDb()) {
         : ['1', 1, true, 'always'].includes(data.quoteDelivery) ? 1 : ['0', 0, false, 'never'].includes(data.quoteDelivery) ? 0 : null,
     updated_at: now(),
   };
+  // Kept only while the admin leaves the stock flag as the feed set it.
+  fields.out_by_feed = existing && fields.supplier_in_stock === existing.supplier_in_stock ? existing.out_by_feed : 0;
   if (fields.price_mode === 'auto') fields.price_cents = priceFor(fields, db);
   if (fields.active && fields.price_cents <= 0) throw new Error('An active product needs a price above R0 (set a supplier cost or a manual price)');
 
@@ -483,7 +485,7 @@ export function bulkUpdateProducts({ ids, action, value }, db = getDb()) {
       }
       case 'supplier-out':
       case 'supplier-in':
-        changes = db.prepare(`UPDATE products SET supplier_in_stock = ?, updated_at = ? WHERE id IN (${ph})`).run(action === 'supplier-in' ? 1 : 0, ts, ...ids).changes;
+        changes = db.prepare(`UPDATE products SET supplier_in_stock = ?, out_by_feed = 0, updated_at = ? WHERE id IN (${ph})`).run(action === 'supplier-in' ? 1 : 0, ts, ...ids).changes;
         break;
       case 'delete':
         changes = db.prepare(`DELETE FROM products WHERE id IN (${ph})`).run(...ids).changes;

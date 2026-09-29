@@ -6,7 +6,7 @@ import { XMLParser } from 'fast-xml-parser';
 //   { format, tables: [{ name, headers: string[], rows: string[][], images: Map<rowIndex, Buffer> }], warnings }
 // Column mapping, preview and import then work identically for all formats.
 
-export const FIELDS = ['code', 'name', 'brand', 'category', 'cost', 'image', 'moq'];
+export const FIELDS = ['code', 'name', 'brand', 'category', 'cost', 'image', 'moq', 'details'];
 
 // Normalised header text -> field. Exact matches win over "contains" matches.
 const ALIASES = {
@@ -19,6 +19,9 @@ const ALIASES = {
   cost: ['cost excl vat', 'cost ex vat', 'cost', 'price excl vat', 'price ex vat', 'wholesale', 'wholesale price', 'dealer price', 'dealer', 'trade price', 'trade', 'reseller price', 'price', 'unit price', 'cost price', 'your price', 'nett price', 'net price', 'price incl vat', 'selling price', 'retail price', 'retail', 'rrp', 'rsp'],
   image: ['image', 'image url', 'picture', 'pictures', 'photo', 'image link', 'img', 'image src', 'thumbnail', 'main image'],
   moq: ['moq', 'min order qty', 'minimum order quantity', 'min qty', 'pack size', 'minimum quantity'],
+  // Longer product text (Esquire's productSummary). Never plain "description":
+  // many pricelists use that heading for the product name.
+  details: ['product summary', 'summary', 'long description', 'full description', 'product details', 'features'],
 };
 
 export function normHeader(h) {

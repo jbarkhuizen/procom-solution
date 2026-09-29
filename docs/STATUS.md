@@ -45,13 +45,9 @@ The *Delivery* column is the category's quote flag. It only takes effect for non
 - SMD Infant Essential September 2026 (286 rows, 6 brand tabs): all 286 listed by the auto-list on 2026-09-28
 - SMD Cash Wholesale September 2026 (3,315 rows, 34 brand tabs): 2,481 listed by the auto-list on 2026-09-28 (44 marked delivery quoted); 647 already listed (Creality + hand-listed); 23 skipped (display stands, junk rows, refurbished/consumables, 2 mispriced TOSLINK cables). Backup before the run: `data/backups/pre-autolist-1790577475658.db`
 
-## Next: Esquire API import (new conversation)
+## Esquire (API feed) -- built 2026-09-29, not live yet
 
-Starting point for the next piece of work:
-- **Esquire** exists as a supplier (Admin → Suppliers) but has **no products** yet -- every live product is SMD's. Its delivery terms are not set, so its items would use the store-wide courier brackets and delivery quotes.
-- Today's feed pipeline is **file-based** (upload → `server/feed-parsers.js` → preview/map → `server/feed.js` import, see CLAUDE.md "Warehouse feed"). An API import should feed the same import step (same column meaning: code, name, cost excl VAT, stock, category, brand, photo URL) so pricing, listing, stock-out and delete-import keep working; photos can go through `server/remote-images.js` (SSRF-guarded).
-- Rules to keep: money in integer cents; retail = cost excl VAT × 1.15 × (1 + markup), rounded up; credentials only in the server `.env` (repo is public); live data changes previewed and approved by the owner; schema changes additive via `COLUMN_MIGRATIONS` / feature `COLUMNS`.
-- To find out first: Esquire's API docs and auth (key, IP whitelist?), whether cost is incl or excl VAT, stock field, rate limits, categories/brands, photo URLs, and whether we pull on a schedule or on demand.
+`server/esquire.js` pulls Esquire's DataFeed API at 06:00, 12:00, 18:00 SAST (login in the server `.env` only), imports it as a complete list, auto-lists new items (switch in Admin -> Warehouse feed -> Esquire live feed, off until switched on) and emails a report after every run. Rules: `server/esquire-rules.js`. Runbook: DEPLOY.md "Secrets".
 
 ## Decisions made
 
@@ -77,6 +73,7 @@ Starting point for the next piece of work:
 | 2026-09-28 | **Phase 2 upgrade:** own first-party analytics (no cookie banner), newsletters via Gmail (opt-in only, 400/day throttle, one-click unsubscribe), Dashboard + Financial overview + Expenses (Payfast fees estimated: card 3.2% + R2, EFT 2% min R2, + VAT — adjust to statement), Potential market, Adverts, Calendar, Platform rules with read-only copy from Lapanza3d's DB. |
 | 2026-09-29 | **Phase 3 upgrade:** Backups with optional off-site copy to a Procom-only Google Drive folder (`gdrive,root_folder_id=<id>:`; plain `gdrive:` refused -- Lapanza3d syncs that root and would delete it), Version history, Test cases run from admin, About this site, Audit log, Todo/Backlog, tidied Site settings and admin nav. All 21 upgrade items done. |
 | 2026-09-28 | Automatic deploys: GitHub Actions deploys `main` using a key locked to `deploy-app.sh` (forced command in `~deploy/.ssh/authorized_keys`, comment `github-actions-procom`); secrets DEPLOY_SSH_KEY + DEPLOY_KNOWN_HOSTS set on the repo |
+| 2026-09-29 | **Esquire** via their live API (not file uploads): pulled 3x a day (06:00, 12:00, 18:00 SAST), complete list; feed prices include VAT (verified) and are stored excl VAT; `m=0` (Esquire's own markup) kept at 0; default 10% markup; listed items leaving the feed go out of stock and come back when they return (admin's manual out-of-stock is kept); status email to procompretoria@gmail.com after every run. Range: IT & electronics only -- old phone/iPad covers, candles/balloons, licensed characters, stationery are never imported. Same product from SMD and Esquire = two separate listings. Ordering: Esquire portal, dropshipped to the customer. |
 | 2026-09-28 | Hand-listed products on Gaming, Networking and Smart Home & Lighting (148) moved into the matching sub-categories with `smd-autolist-cli.js --tidy --apply` (backup `pre-autolist-2026-09-28T07-22-28-578Z.db`). The two mispriced TOSLINK cables stay skipped. |
 
 ## Open items / backlog
@@ -88,7 +85,8 @@ Starting point for the next piece of work:
 - **After the Phase 1 deploy:** Admin → Invoice history → **Issue missing invoices** once, so older paid orders (PC10002…) get invoice numbers before new ones.
 - ~~First real test order~~ done: paid live, emails and collection notice arrived.
 - **Legal pages — one open choice:** risk in transit passes to the customer *on delivery* (so courier losses are ours) — keep? (Drive backups are now in the Privacy Policy; address 23 Gladiator Rd confirmed.)
-- **Esquire delivery terms** — fill in Admin → Suppliers → Esquire → Delivery when known (public label, flat fee or store-wide, free threshold, collection). Until then Esquire items use the store-wide brackets and quotes. Same for IDS, Huge PC, Dicspeed.
+- **Esquire go-live:** category table approved 2026-09-29 (~2,750 items). Owner: add `ESQUIRE_USER`/`ESQUIRE_PASS` to the server `.env` and restart; first sync with auto-list off, check the email, then switch auto-list on. **Change the Esquire password** (shared in a chat), then update `.env`.
+- **Esquire delivery terms** -- collection: 71 Landmarks Avenue, Kosmosdaal Ext 11, Samrand, 0157, Mon-Fri 09:00-16:00, Sat 09:00-12:00. Courier fee to customers still to confirm. Own courier allowed (customer sends waybill + collection date). TVs by courier: 3% insurance, shown as its own line.
 - **Photos** (owner investigating): SMD's embedded photos are ~113px; upload better photos for key products first.
 - **Google Search Console** — check in 1–2 weeks: sitemap "Success", indexed pages rising. If product pages still aren't indexed after ~4 weeks, consider server-rendered product pages (their content is filled in by JavaScript).
 

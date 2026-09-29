@@ -111,6 +111,7 @@ export function itemsFromTables(parsed, mapping = {}, { pricesIncludeVat = false
         category: get('category') || section,
         costCents,
         minOrderQty: get('moq') ? clampInt(get('moq'), 1, 10_000, 1) : parseMinOrderQty(name),
+        details: get('details').replace(/\s+/g, ' ').slice(0, 4000),
         sheet: table.name,
         imageBuffer: table.images.get(i) || null,
         imageUrl,
@@ -164,7 +165,9 @@ export function previewMapped({ token, mapping, pricesIncludeVat }) {
 // Upserts feed rows, pushes new costs to listed products, reprices them.
 // completeList: the file is the supplier's full list, so listed products whose
 // code is missing from it are marked out of stock. Off for promo flyers.
-export async function importFeed({ supplierId, token, mapping, pricesIncludeVat = false, completeList = true }, db = getDb()) {
+// restoreStock: products this feed marked out of stock go back in stock when
+// their code reappears (live API feeds, where items drop out for a day or two).
+export async function importFeed({ supplierId, token, mapping, pricesIncludeVat = false, completeList = true, restoreStock = false }, db = getDb()) {
   if (!db.prepare('SELECT id FROM suppliers WHERE id = ?').get(supplierId)) throw new Error('Choose a supplier');
   const p = previews.get(token);
   if (!p) throw new Error('Preview expired — please choose the file again');
@@ -187,14 +190,14 @@ export async function importFeed({ supplierId, token, mapping, pricesIncludeVat 
   }
 
   const ts = new Date().toISOString();
-  const stats = { format, rowsTotal: items.length, rowsNew: 0, rowsUpdated: 0, priceChanges: 0, productsRepriced: 0, productsMarkedOut: 0, imagesQueued: 0, skipped: problems };
+  const stats = { format, rowsTotal: items.length, rowsNew: 0, rowsUpdated: 0, priceChanges: 0, productsRepriced: 0, productsMarkedOut: 0, productsBackInStock: 0, imagesQueued: 0, skipped: problems };
   const changedCosts = new Map();
   const getFeed = db.prepare('SELECT id, cost_cents FROM feed_items WHERE supplier_id = ? AND code = ?');
-  const insFeed = db.prepare(`INSERT INTO feed_items (id, supplier_id, code, name, brand, category, cost_cents, min_order_qty, image, image_url, image_status, source_file, source_sheet, in_latest_import, imported_at)
-    VALUES (@id, @supplierId, @code, @name, @brand, @category, @cost, @moq, @image, @imageUrl, @imageStatus, @file, @sheet, 1, @ts)`);
+  const insFeed = db.prepare(`INSERT INTO feed_items (id, supplier_id, code, name, brand, category, cost_cents, min_order_qty, details, image, image_url, image_status, source_file, source_sheet, in_latest_import, imported_at)
+    VALUES (@id, @supplierId, @code, @name, @brand, @category, @cost, @moq, @details, @image, @imageUrl, @imageStatus, @file, @sheet, 1, @ts)`);
   const updFeed = db.prepare(`UPDATE feed_items SET name = @name, brand = @brand, category = @category,
     previous_cost_cents = CASE WHEN cost_cents != @cost THEN cost_cents ELSE previous_cost_cents END,
-    cost_cents = @cost, min_order_qty = @moq, image = @image, image_url = @imageUrl,
+    cost_cents = @cost, min_order_qty = @moq, details = @details, image = @image, image_url = @imageUrl,
     image_status = CASE WHEN @image = '' AND @imageUrl != '' AND image_status != 'failed' THEN 'pending' ELSE image_status END,
     source_file = @file, source_sheet = @sheet, in_latest_import = 1, imported_at = @ts WHERE id = @id`);
   // Partial lists (promo flyers) carry weaker data -- guessed brands, no
@@ -222,6 +225,7 @@ export async function importFeed({ supplierId, token, mapping, pricesIncludeVat 
         category: it.category,
         cost: it.costCents,
         moq: it.minOrderQty,
+        details: it.details,
         image: it.image,
         imageUrl: it.imageUrl,
         imageStatus: !it.image && it.imageUrl ? 'pending' : '',
@@ -253,11 +257,17 @@ export async function importFeed({ supplierId, token, mapping, pricesIncludeVat 
 
     if (completeList) {
       // Listed items that vanished from the supplier's list can't be fulfilled --
-      // stop selling them. Never auto-flips back to in-stock: an admin's manual
-      // "out of stock" (e.g. supplier phoned) must survive the next import.
-      stats.productsMarkedOut = db.prepare(`UPDATE products SET supplier_in_stock = 0, updated_at = @ts
+      // stop selling them. Only restoreStock feeds flip them back, and only the
+      // ones a feed took out: an admin's manual "out of stock" (e.g. supplier
+      // phoned) must survive the next import.
+      stats.productsMarkedOut = db.prepare(`UPDATE products SET supplier_in_stock = 0, out_by_feed = 1, updated_at = @ts
         WHERE fulfilment = 'dropship' AND supplier_in_stock = 1 AND supplier_id = @s AND supplier_code IN
         (SELECT code FROM feed_items WHERE supplier_id = @s AND in_latest_import = 0)`).run({ ts, s: supplierId }).changes;
+      if (restoreStock) {
+        stats.productsBackInStock = db.prepare(`UPDATE products SET supplier_in_stock = 1, out_by_feed = 0, updated_at = @ts
+          WHERE fulfilment = 'dropship' AND supplier_in_stock = 0 AND out_by_feed = 1 AND supplier_id = @s AND supplier_code IN
+          (SELECT code FROM feed_items WHERE supplier_id = @s AND in_latest_import = 1)`).run({ ts, s: supplierId }).changes;
+      }
     }
   });
   tx();
@@ -406,6 +416,7 @@ export function listFeedItems({ feedIds, categoryId, markupPct, active = true, w
           markupPct: markupPct === '' || markupPct == null ? null : markupPct,
           priceMode: 'auto',
           minOrderQty: f.min_order_qty,
+          description: f.details && f.details !== f.name ? f.details : '',
           weightG: weightG || undefined,
           images: image ? [image] : [],
           active,
