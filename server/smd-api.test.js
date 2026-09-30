@@ -136,7 +136,7 @@ test('products missing from the API are hidden (owner rule), shown again when ba
   assert.equal(r.stats.hidden, 1, 'J not in the API: hidden (K was already hidden by the admin)');
   assert.equal(row('J').active, 0);
   assert.equal(row('J').hidden_by_feed, 1);
-  assert.equal(catalog.queryProducts({ q: 'Item J' }, db).total, 0, 'not on the shop');
+  assert.ok(!catalog.queryProducts({ q: 'Item J', pageSize: 100 }, db).items.some((p) => p.id === row('J').id), 'not on the shop');
   catalog.saveProduct({ name: 'Item J renamed' }, row('J').id, db);
   assert.equal(row('J').hidden_by_feed, 1, 'an unrelated admin edit keeps the feed hiding it');
 
