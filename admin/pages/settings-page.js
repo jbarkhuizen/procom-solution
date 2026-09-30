@@ -8,9 +8,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const digits = (s) => String(s || '').replace(/[\s\-().]/g, '');
 const FALLBACK_FEE_PCT = 3.5; // Payfast card, incl VAT, if the Finance estimate can't be read
 
-// Card fee on a typical R1,000 order as a % incl VAT, from Financial overview's estimate.
+// Fee on a typical R1,000 order as a % incl VAT, using the DEAREST payment method
+// switched on in Financial overview -> Payfast fees (worst case for the margin).
 function payfastFeePct(fin, vatRatePct) {
-  const card = fin?.payfastFees?.card;
+  const card = fin?.payfastFees?.pricing || fin?.payfastFees?.card;
   if (!card || !Number.isFinite(Number(card.pct))) return { pct: FALLBACK_FEE_PCT, fromFinance: false };
   const order = 100000;
   const base = Math.max((order * Number(card.pct)) / 100 + (Number(card.fixedCents) || 0), Number(card.minCents) || 0);
@@ -148,7 +149,7 @@ export default function register(routes, kit) {
           ? `<strong style="color:${colour}">Thin margin:</strong> any special or promo code bigger than about <strong>${pct(Math.max(0, c.headroomPct))}</strong> loses money once Payfast fees are counted (the discount cap only protects cost incl VAT, not fees).`
           : `<strong style="color:${colour}">OK:</strong> discounts up to about ${pct(c.headroomPct)} still cover Payfast fees.`;
       kit.setHtml(box, `<p style="margin:0 0 0.3rem">${verdict}</p>
-        <p class="mini-help" style="margin:0">Margin above cost incl VAT = markup ÷ (1 + markup) = <strong>${pct(c.marginPct)}</strong> of the selling price. Payfast card ≈ <strong>${pct(fee.pct)}</strong> incl VAT on a R1,000 order${fee.fromFinance ? ' (from Financial overview)' : ' (typical; set the real rate in Financial overview)'}. Category markups (e.g. Phones, Laptops at 10%) are not covered by this check.</p>`);
+        <p class="mini-help" style="margin:0">Margin above cost incl VAT = markup ÷ (1 + markup) = <strong>${pct(c.marginPct)}</strong> of the selling price. Payfast fees ≈ <strong>${pct(fee.pct)}</strong> incl VAT on a R1,000 order${fee.fromFinance ? ` (dearest method switched on: ${kit.h(fin.payfastFees.pricing?.name || 'card')}, from Financial overview)` : ' (typical; set the real rates in Financial overview)'}. Category markups (e.g. Phones, Laptops at 10%) are not covered by this check.</p>`);
     }
 
     function showErrors({ errors, warnings }) {

@@ -117,5 +117,7 @@ export async function verifyItn(rawBody, parsedBody, expectedCents, sourceIp) {
     paymentStatus: fields.payment_status,
     orderId: fields.m_payment_id,
     pfPaymentId: fields.pf_payment_id,
+    // Payfast reports its fee as a negative amount (rand) on the notification.
+    feeCents: Number.isFinite(Number(fields.amount_fee)) && fields.amount_fee !== '' && fields.amount_fee != null ? Math.round(Math.abs(Number(fields.amount_fee)) * 100) : null,
   };
 }

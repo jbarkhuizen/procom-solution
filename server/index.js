@@ -59,7 +59,7 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false, verify: (req,
     const result = await verifyItn(req.rawBody, req.body, order.totalCents, req.ip);
     if (!result.valid) return orders.logOrderEvent(order.id, `Rejected Payfast notification (signature=${result.signatureValid}, confirmed=${result.serverConfirmed}, amount=${result.amountValid})`);
     if (result.paymentStatus === 'COMPLETE') {
-      const { changed, order: paid } = orders.markOrderPaid(order.id, { pfPaymentId: result.pfPaymentId });
+      const { changed, order: paid } = orders.markOrderPaid(order.id, { pfPaymentId: result.pfPaymentId, feeCents: result.feeCents });
       if (changed) {
         mailer.sendOrderConfirmation(paid);
         mailer.sendOwnerNewOrder(paid);

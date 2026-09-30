@@ -21,10 +21,11 @@
 //                  store-wide options = the fee charged; collection and
 //                  delivery quotes = R0. An admin override per order
 //                  (finance_delivery_costs) wins when set.
-//   Payfast fees   ESTIMATE per order: total x % + fixed amount (with a
-//                  minimum), per payment method (card / Instant EFT), plus
-//                  VAT on the fee when "Payfast adds VAT" is on. Adjust to the
-//                  Payfast statement in the finance settings.
+//   Payfast fees   ACTUAL fee Payfast reported on the payment (ITN amount_fee,
+//                  orders.payfast_fee_cents) when we have it; otherwise an
+//                  ESTIMATE: total x % + fixed amount from the owner's Payfast
+//                  method table (card orders -> the "card" row, Instant EFT ->
+//                  the "EFT" row), plus VAT on the fee (not VAT-registered).
 //   Expenses       captured by hand, dated by the expense date.
 //   Profit         income - cost of goods - delivery cost - Payfast fees -
 //                  expenses.
@@ -35,13 +36,32 @@ import { getSettings } from '../settings.js';
 
 // ------------------------------------------------------------ settings
 
-// Payfast's published aggregation pricing (payfast.io/fees, checked
-// 2026-09-28): card 3.2% + R2.00, Instant EFT 2% (minimum R2.00), both
-// excluding VAT. Only an estimate -- the owner adjusts it to the statement.
+// The owner's Payfast merchant account (shared with Lapanza3d), payment
+// methods as shown in the Payfast dashboard on 2026-09-29. Fees exclude VAT.
+// minCents/maxCents = the order amounts Payfast accepts for that method.
+export const DEFAULT_PAYFAST_METHODS = [
+  { key: 'credit_card', name: 'Credit Card', enabled: true, fixedCents: 200, pct: 3.2, minCents: 500, maxCents: 100000000 },
+  { key: 'debit_card', name: 'Debit Card', enabled: true, fixedCents: 200, pct: 3.5, minCents: 500, maxCents: 100000000 },
+  { key: 'apple_pay', name: 'Apple Pay', enabled: true, fixedCents: 200, pct: 3.2, minCents: 500, maxCents: 100000000 },
+  { key: 'google_pay', name: 'Google Pay', enabled: true, fixedCents: 200, pct: 3.2, minCents: 500, maxCents: 100000000 },
+  { key: 'samsung_pay', name: 'Samsung Pay', enabled: true, fixedCents: 200, pct: 3.2, minCents: 500, maxCents: 100000000 },
+  { key: 'snapscan', name: 'SnapScan', enabled: true, fixedCents: 200, pct: 3.5, minCents: 500, maxCents: 100000000 },
+  { key: 'zapper', name: 'Zapper', enabled: true, fixedCents: 200, pct: 3.25, minCents: 500, maxCents: 100000000 },
+  { key: 'qr_apps', name: 'QR Code Apps (Scan to Pay)', enabled: true, fixedCents: 200, pct: 3.5, minCents: 500, maxCents: 100000000 },
+  { key: 'instant_eft', name: 'Instant EFT', enabled: false, fixedCents: 0, pct: 2, minCents: 500, maxCents: 1000000 },
+  { key: 'amex', name: 'American Express', enabled: false, fixedCents: 200, pct: 3.2, minCents: 500, maxCents: 100000000 },
+  { key: 'store_card', name: 'Store Card (RCS)', enabled: false, fixedCents: 200, pct: 3.2, minCents: 500, maxCents: 5000000 },
+  { key: 'mobicred', name: 'Mobicred', enabled: false, fixedCents: 0, pct: 3.2, minCents: 100, maxCents: 5000000 },
+  { key: 'moretyme', name: 'MoreTyme', enabled: false, fixedCents: 200, pct: 5.5, minCents: 5000, maxCents: 2500000 },
+  { key: 'mukuru', name: 'Mukuru Cash', enabled: false, fixedCents: 600, pct: 3.5, minCents: 20000, maxCents: 2000000 },
+  { key: 'scode', name: 'SCode', enabled: false, fixedCents: 500, pct: 4.5, minCents: 1000, maxCents: 100000000 },
+];
+
 export const DEFAULT_FINANCE_SETTINGS = {
   payfastFees: {
-    card: { pct: 3.2, fixedCents: 200, minCents: 0 },
-    eft: { pct: 2, fixedCents: 0, minCents: 200 },
+    methods: DEFAULT_PAYFAST_METHODS,
+    cardMethod: 'credit_card', // estimate for "Card" orders when Payfast's actual fee is missing
+    eftMethod: 'instant_eft',
     addVat: true,
   },
   expenseCategories: ['Advertising', 'Hosting & domain', 'Software', 'Bank charges', 'Delivery', 'Stock / samples', 'Other'],
@@ -54,13 +74,37 @@ const num = (v, min, max, fallback) => {
 };
 const cleanText = (v, max) => String(v ?? '').trim().slice(0, max);
 
-function cleanFeeRule(r, fallback) {
-  const src = r && typeof r === 'object' ? r : {};
-  return {
-    pct: Math.round(num(src.pct, 0, 20, fallback.pct) * 1000) / 1000,
+function cleanMethod(m, fallback) {
+  const src = m && typeof m === 'object' ? m : {};
+  const out = {
+    key: fallback.key,
+    name: cleanText(src.name ?? fallback.name, 60) || fallback.name,
+    enabled: typeof src.enabled === 'boolean' ? src.enabled : fallback.enabled,
     fixedCents: Math.round(num(src.fixedCents, 0, 100000, fallback.fixedCents)),
-    minCents: Math.round(num(src.minCents, 0, 100000, fallback.minCents)),
+    pct: Math.round(num(src.pct, 0, 20, fallback.pct) * 1000) / 1000,
+    minCents: Math.round(num(src.minCents, 0, 1e10, fallback.minCents)),
+    maxCents: Math.round(num(src.maxCents, 0, 1e10, fallback.maxCents)),
   };
+  if (out.maxCents < out.minCents) throw new Error(`${out.name}: the maximum amount must be at least the minimum`);
+  return out;
+}
+
+// Stored methods merged over the defaults (new Payfast methods appear automatically).
+function cleanMethods(list, fallback) {
+  const byKey = new Map((Array.isArray(list) ? list : []).filter((m) => m && typeof m.key === 'string').map((m) => [m.key, m]));
+  return fallback.map((d) => cleanMethod(byKey.get(d.key), d));
+}
+
+const feeRule = (m) => ({ key: m.key, name: m.name, enabled: m.enabled, pct: m.pct, fixedCents: m.fixedCents, minCents: 0, minAmountCents: m.minCents, maxAmountCents: m.maxCents });
+
+// Adds the rules the rest of the app reads: card / eft (estimates per order)
+// and pricing = the dearest ENABLED method (worst case for margin warnings).
+function withRules(fees) {
+  const find = (k) => fees.methods.find((m) => m.key === k) || fees.methods[0];
+  const on = fees.methods.filter((m) => m.enabled);
+  const cost = (m) => m.pct * 1000 + m.fixedCents; // fee on R1,000, in cents
+  const dearest = (on.length ? on : fees.methods).reduce((a, b) => (cost(b) > cost(a) ? b : a));
+  return { ...fees, card: feeRule(find(fees.cardMethod)), eft: feeRule(find(fees.eftMethod)), pricing: feeRule(dearest) };
 }
 
 function cleanList(list, fallback, max = 40) {
@@ -86,12 +130,20 @@ export function getFinanceSettings(db = getDb()) {
   }
   const d = DEFAULT_FINANCE_SETTINGS;
   const fees = stored.payfastFees || {};
+  const keys = new Set(DEFAULT_PAYFAST_METHODS.map((m) => m.key));
+  let methods;
+  try {
+    methods = cleanMethods(fees.methods, d.payfastFees.methods);
+  } catch {
+    methods = d.payfastFees.methods.map((m) => ({ ...m }));
+  }
   return {
-    payfastFees: {
-      card: cleanFeeRule(fees.card, d.payfastFees.card),
-      eft: cleanFeeRule(fees.eft, d.payfastFees.eft),
+    payfastFees: withRules({
+      methods,
+      cardMethod: keys.has(fees.cardMethod) ? fees.cardMethod : d.payfastFees.cardMethod,
+      eftMethod: keys.has(fees.eftMethod) ? fees.eftMethod : d.payfastFees.eftMethod,
       addVat: typeof fees.addVat === 'boolean' ? fees.addVat : d.payfastFees.addVat,
-    },
+    }),
     expenseCategories: stored.expenseCategories ? cleanList(stored.expenseCategories, d.expenseCategories) : [...d.expenseCategories],
     expensePaymentMethods: stored.expensePaymentMethods ? cleanList(stored.expensePaymentMethods, d.expensePaymentMethods) : [...d.expensePaymentMethods],
   };
@@ -101,10 +153,17 @@ export function updateFinanceSettings(patch = {}, db = getDb()) {
   const cur = getFinanceSettings(db);
   const next = { ...cur };
   if (patch.payfastFees && typeof patch.payfastFees === 'object') {
+    const pf = patch.payfastFees;
+    const keys = new Set(DEFAULT_PAYFAST_METHODS.map((m) => m.key));
+    if (pf.cardMethod !== undefined && !keys.has(pf.cardMethod)) throw new Error('Unknown Payfast method for card orders');
+    if (pf.eftMethod !== undefined && !keys.has(pf.eftMethod)) throw new Error('Unknown Payfast method for Instant EFT orders');
+    const edits = Array.isArray(pf.methods) ? pf.methods : [];
+    const merged = cur.payfastFees.methods.map((c) => ({ ...c, ...(edits.find((m) => m && m.key === c.key) || {}) }));
     next.payfastFees = {
-      card: cleanFeeRule(patch.payfastFees.card, cur.payfastFees.card),
-      eft: cleanFeeRule(patch.payfastFees.eft, cur.payfastFees.eft),
-      addVat: patch.payfastFees.addVat === undefined ? cur.payfastFees.addVat : Boolean(patch.payfastFees.addVat),
+      methods: cleanMethods(merged, cur.payfastFees.methods),
+      cardMethod: pf.cardMethod ?? cur.payfastFees.cardMethod,
+      eftMethod: pf.eftMethod ?? cur.payfastFees.eftMethod,
+      addVat: pf.addVat === undefined ? cur.payfastFees.addVat : Boolean(pf.addVat),
     };
   }
   if (patch.expenseCategories !== undefined) {
@@ -114,7 +173,9 @@ export function updateFinanceSettings(patch = {}, db = getDb()) {
   if (patch.expensePaymentMethods !== undefined) next.expensePaymentMethods = cleanList(patch.expensePaymentMethods, cur.expensePaymentMethods);
   const up = db.prepare('INSERT INTO finance_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
   db.transaction(() => {
-    for (const k of ['payfastFees', 'expenseCategories', 'expensePaymentMethods']) up.run(k, JSON.stringify(next[k]));
+    const { methods, cardMethod, eftMethod, addVat } = next.payfastFees; // derived rules are never stored
+    up.run('payfastFees', JSON.stringify({ methods, cardMethod, eftMethod, addVat }));
+    for (const k of ['expenseCategories', 'expensePaymentMethods']) up.run(k, JSON.stringify(next[k]));
   })();
   return getFinanceSettings(db);
 }
@@ -170,10 +231,32 @@ export function deliveryCostCents(row) {
 }
 
 export function estimatePayfastFee(totalCents, paymentMethod, fees, vatRatePct = 15) {
+  return feeForRule(totalCents, paymentMethod === 'payfast_eft' ? fees.eft : fees.card, fees.addVat, vatRatePct);
+}
+
+export function feeForRule(totalCents, rule, addVat = true, vatRatePct = 15) {
   if (!(totalCents > 0)) return 0;
-  const rule = paymentMethod === 'payfast_eft' ? fees.eft : fees.card;
-  const base = Math.max((totalCents * rule.pct) / 100 + rule.fixedCents, rule.minCents);
-  return Math.round(fees.addVat ? base * (1 + vatRatePct / 100) : base);
+  const base = Math.max((totalCents * rule.pct) / 100 + rule.fixedCents, rule.minCents || 0);
+  return Math.round(addVat ? base * (1 + vatRatePct / 100) : base);
+}
+
+// Core hook (orders.js createOrder): null when the customer may pay this way,
+// else a customer-friendly reason. Card is always allowed; Instant EFT only
+// when it is switched on in Payfast (the owner's method table) and the total
+// is within Payfast's limits for it.
+export function paymentMethodProblem(paymentMethod, totalCents, db = getDb()) {
+  if (paymentMethod !== 'payfast_eft') return null;
+  const eft = getFinanceSettings(db).payfastFees.eft;
+  if (!eft.enabled) return 'Instant EFT is not available at the moment - please pay by card.';
+  if (totalCents < eft.minAmountCents || totalCents > eft.maxAmountCents) {
+    return `Instant EFT is only available for orders from R${(eft.minAmountCents / 100).toFixed(2)} to R${(eft.maxAmountCents / 100).toFixed(2)} - please pay by card.`;
+  }
+  return null;
+}
+
+export function publicPaymentOptions(db = getDb()) {
+  const eft = getFinanceSettings(db).payfastFees.eft;
+  return { eft: { enabled: eft.enabled, minCents: eft.minAmountCents, maxCents: eft.maxAmountCents } };
 }
 
 function context(db) {
@@ -191,7 +274,7 @@ function orderFigures(row, ctx) {
     incomeCents: row.total_cents,
     cogsCents: Math.round((row.cost_excl_cents || 0) * ctx.vat),
     deliveryCostCents: deliveryCostCents(row),
-    payfastFeesCents: estimatePayfastFee(row.total_cents, row.payment_method, ctx.fees, ctx.vatRatePct),
+    payfastFeesCents: row.payfast_fee_cents != null ? row.payfast_fee_cents : estimatePayfastFee(row.total_cents, row.payment_method, ctx.fees, ctx.vatRatePct),
   };
 }
 
@@ -312,6 +395,7 @@ export function getFinancialOverview({ from, to, now = new Date() } = {}, db = g
       vatRatePct: ctx.vatRatePct,
       payfastFees: settings.payfastFees,
       deliveryOverrides: db.prepare('SELECT COUNT(*) n FROM finance_delivery_costs').get().n,
+      actualFeeOrders: db.prepare("SELECT COUNT(*) n FROM orders WHERE payment_status = 'paid' AND payfast_fee_cents IS NOT NULL").get().n,
     },
   };
 }
@@ -540,7 +624,8 @@ const orNotFound = (v) => {
   return v;
 };
 
-export function register({ admin, wrap }) {
+export function register({ app, admin, wrap }) {
+  app.get('/api/payment-options', wrap(() => publicPaymentOptions()));
   admin.get('/finance/dashboard', wrap(() => getDashboard()));
   admin.get('/finance/overview', wrap((req) => getFinancialOverview({ from: req.query.from, to: req.query.to })));
   admin.get('/finance/settings', wrap(() => getFinanceSettings()));

@@ -6,6 +6,7 @@ import { specialPriceCents } from './features/specials.js';
 import { priceAdjustments } from './features/promos.js';
 import { onOrderCreated } from './features/accounts.js';
 import { onOrderPaid } from './features/invoices.js';
+import { paymentMethodProblem } from './features/finance.js';
 
 export const DELIVERY_QUOTE_NAME = QUOTE_NAME;
 
@@ -208,6 +209,8 @@ export function createOrder(input, db = getDb()) {
   };
 
   const paymentMethod = input.paymentMethod === 'payfast_eft' ? 'payfast_eft' : 'payfast_card';
+  const payProblem = paymentMethodProblem(paymentMethod, subtotal - discount + ship.priceCents, db);
+  if (payProblem) throw new Error(payProblem);
   const id = randomUUID();
   const ts = new Date().toISOString();
 
@@ -254,14 +257,14 @@ export function createOrder(input, db = getDb()) {
 }
 
 // Idempotent: a repeated ITN for an already-paid order is a no-op.
-export function markOrderPaid(id, { pfPaymentId = '' } = {}, db = getDb()) {
+export function markOrderPaid(id, { pfPaymentId = '', feeCents = null } = {}, db = getDb()) {
   const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
   if (!o) return { changed: false, order: null };
   if (o.payment_status === 'paid') return { changed: false, order: getOrder(id, db) };
   const ts = new Date().toISOString();
   const tx = db.transaction(() => {
-    db.prepare("UPDATE orders SET payment_status = 'paid', status = CASE WHEN status = 'pending_payment' THEN 'paid' ELSE status END, pf_payment_id = ?, paid_at = ?, updated_at = ? WHERE id = ?")
-      .run(pfPaymentId, ts, ts, id);
+    db.prepare("UPDATE orders SET payment_status = 'paid', status = CASE WHEN status = 'pending_payment' THEN 'paid' ELSE status END, pf_payment_id = ?, payfast_fee_cents = ?, paid_at = ?, updated_at = ? WHERE id = ?")
+      .run(pfPaymentId, Number.isInteger(feeCents) && feeCents >= 0 ? feeCents : null, ts, ts, id);
     // Own-stock items leave inventory at payment time (not at checkout, so
     // abandoned Payfast sessions never hold stock hostage).
     for (const it of db.prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ? AND fulfilment = 'stock'").all(id)) {

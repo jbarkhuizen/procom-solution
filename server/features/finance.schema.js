@@ -46,4 +46,8 @@ CREATE TABLE IF NOT EXISTS finance_delivery_costs (
   updated_at TEXT NOT NULL
 );
 `;
-export const COLUMNS = [];
+export const COLUMNS = [
+  // Fee Payfast deducted from this payment (ITN amount_fee, cents incl VAT);
+  // NULL = not reported, Financial overview then estimates it.
+  ['orders', 'payfast_fee_cents', 'INTEGER'],
+];
