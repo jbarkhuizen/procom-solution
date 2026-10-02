@@ -14,8 +14,13 @@ const specials = await import('./specials.js');
 const { todaySast } = await import('./discount-common.js');
 
 let db;
+const finance = await import('./finance.js');
+// These tests check special/promo mechanics against the cost-incl-VAT floor;
+// Payfast fees are zeroed here and the fee floor has its own test below.
+const noFees = (db) => finance.updateFinanceSettings({ payfastFees: { methods: finance.DEFAULT_PAYFAST_METHODS.map((m) => ({ key: m.key, pct: 0, fixedCents: 0 })) } }, db);
 beforeEach(() => {
   db = useMemoryDb();
+  noFees(db);
 });
 
 const catId = (slug) => db.prepare('SELECT id FROM categories WHERE slug = ?').get(slug).id;

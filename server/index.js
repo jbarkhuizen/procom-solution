@@ -361,7 +361,7 @@ admin.get('/settings', wrap(() => settings.getSettings()));
 admin.put('/settings', wrap((req) => {
   const before = settings.getSettings();
   const after = settings.updateSettings(req.body || {});
-  const repriced = before.defaultMarkupPct !== after.defaultMarkupPct || before.vatRatePct !== after.vatRatePct ? catalog.repriceProducts() : 0;
+  const repriced = before.defaultMarkupPct !== after.defaultMarkupPct || before.vatRatePct !== after.vatRatePct || before.minProfitRand !== after.minProfitRand ? catalog.repriceProducts() : 0;
   return { ...after, repriced };
 }));
 

@@ -39,6 +39,16 @@ test('retail = cost × 1.15 VAT × (1 + markup), rounded up to whole rand', () =
   assert.equal(roundRetail(12600), 12600); // already whole rand stays
 });
 
+test('minimum profit per item: price is at least cost incl VAT + R10 (Site settings, default R10)', () => {
+  assert.equal(computeRetailCents(1976, 10, 15, 1000), 3300); // plug top: R22.72 + R10 = R32.72 -> R33 (markup alone gave R25)
+  assert.equal(computeRetailCents(10000, 10, 15, 1000), 12700); // R100 cost: 10% markup (R11.50) already beats R10
+  assert.equal(computeRetailCents(0, 10, 15, 1000), 0); // no cost, no price
+  assert.equal(product({ costCents: 1976 }).priceCents, 3300, 'auto-priced products use the setting');
+  updateSettings({ minProfitRand: 0 });
+  assert.equal(catalog.repriceProducts() > 0, true);
+  assert.equal(product({ costCents: 1976, sku: 'P2' }).priceCents, 2500);
+});
+
 test('markup precedence: product > nearest category > site default', () => {
   assert.equal(effectiveMarkupPct({ productMarkup: 25, categoryChain: [{ markup_pct: 15 }], defaultMarkup: 10 }), 25);
   assert.equal(effectiveMarkupPct({ productMarkup: null, categoryChain: [{ markup_pct: null }, { markup_pct: 15 }], defaultMarkup: 10 }), 15);

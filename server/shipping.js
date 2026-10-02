@@ -14,6 +14,7 @@ function row(r) {
     minWeight: r.min_weight,
     maxWeight: r.max_weight,
     priceCents: r.price_cents,
+    costCents: r.cost_cents ?? null,
     active: Boolean(r.active),
     sortOrder: r.sort_order,
   };
@@ -54,6 +55,8 @@ export function saveShippingOption(data, id = null, db = getDb()) {
     min_weight: type === 'fixed' ? 0 : clampInt(data.minWeight ?? existing?.min_weight, 0, 1e7, 0),
     max_weight: type === 'fixed' || maxRaw === '' || maxRaw == null ? null : clampInt(maxRaw, 0, 1e7, null),
     price_cents: data.price !== undefined ? parseRandToCents(data.price) ?? 0 : existing?.price_cents ?? 0,
+    // Blank = the courier costs us what the customer pays.
+    cost_cents: data.cost !== undefined ? (String(data.cost).trim() === '' ? null : parseRandToCents(data.cost)) : existing?.cost_cents ?? null,
     active: (data.active ?? (existing ? Boolean(existing.active) : true)) ? 1 : 0,
     sort_order: clampInt(data.sortOrder ?? existing?.sort_order, -999, 999, 0),
     updated_at: new Date().toISOString(),
@@ -69,11 +72,11 @@ export function saveShippingOption(data, id = null, db = getDb()) {
   }
   if (existing) {
     db.prepare(`UPDATE shipping_options SET name=@name, option_type=@option_type, category=@category, min_weight=@min_weight, max_weight=@max_weight,
-      price_cents=@price_cents, active=@active, sort_order=@sort_order, updated_at=@updated_at WHERE id=@id`).run({ ...f, id });
+      price_cents=@price_cents, cost_cents=@cost_cents, active=@active, sort_order=@sort_order, updated_at=@updated_at WHERE id=@id`).run({ ...f, id });
   } else {
     id = randomUUID();
-    db.prepare(`INSERT INTO shipping_options (id, name, option_type, category, min_weight, max_weight, price_cents, active, sort_order, created_at, updated_at)
-      VALUES (@id, @name, @option_type, @category, @min_weight, @max_weight, @price_cents, @active, @sort_order, @updated_at, @updated_at)`).run({ ...f, id });
+    db.prepare(`INSERT INTO shipping_options (id, name, option_type, category, min_weight, max_weight, price_cents, cost_cents, active, sort_order, created_at, updated_at)
+      VALUES (@id, @name, @option_type, @category, @min_weight, @max_weight, @price_cents, @cost_cents, @active, @sort_order, @updated_at, @updated_at)`).run({ ...f, id });
   }
   return getShippingOption(id, db);
 }

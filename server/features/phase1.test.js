@@ -12,9 +12,15 @@ const accounts = await import('./accounts.js');
 const promos = await import('./promos.js');
 const specials = await import('./specials.js');
 const invoices = await import('./invoices.js');
+const finance = await import('./finance.js');
+// These tests check special/promo mechanics against the cost-incl-VAT floor;
+// Payfast fees are zeroed here and the fee floor has its own test below.
+const noFees = (db) => finance.updateFinanceSettings({ payfastFees: { methods: finance.DEFAULT_PAYFAST_METHODS.map((m) => ({ key: m.key, pct: 0, fixedCents: 0 })) } }, db);
+
 
 test('special + capped promo + account link + invoice, end to end', () => {
   const db = useMemoryDb();
+  noFees(db);
   const cat = db.prepare("SELECT id FROM categories WHERE slug = 'keyboards-mice'").get().id;
   // Cost R1,000 excl VAT, default 10% markup -> R1,265.
   const p = catalog.saveProduct({ name: 'Mouse', sku: 'M1', costCents: 100000, categoryId: cat, weightG: 500 });

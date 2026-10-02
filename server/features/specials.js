@@ -12,7 +12,7 @@
 import { randomUUID } from 'crypto';
 import { getDb } from '../db.js';
 import { parseRandToCents, clampInt } from '../util.js';
-import { floorCents, todaySast, normDate, windowState, descendantMap, brandKey, vatRate, productsForTarget, brandList } from './discount-common.js';
+import { floorCents, floorContext, todaySast, normDate, windowState, descendantMap, brandKey, productsForTarget, brandList } from './discount-common.js';
 
 export const TARGET_TYPES = ['product', 'category', 'brand'];
 export const KINDS = ['percent', 'price'];
@@ -29,7 +29,7 @@ function loadIndex(db) {
   if (hit && t - hit.builtAt < CACHE_TTL_MS) return hit;
   const today = todaySast(t);
   const rows = db.prepare('SELECT * FROM specials WHERE active = 1').all().filter((r) => windowState(r, today) === 'running');
-  const idx = { builtAt: t, vat: vatRate(db), count: rows.length, byProduct: new Map(), byCategory: new Map(), byBrand: new Map() };
+  const idx = { builtAt: t, vat: floorContext(db), count: rows.length, byProduct: new Map(), byCategory: new Map(), byBrand: new Map() };
   const add = (map, key, s) => (map.has(key) ? map.get(key).push(s) : map.set(key, [s]));
   if (rows.length) {
     const desc = descendantMap(db);
@@ -190,7 +190,7 @@ export function deleteSpecial(id, db = getDb()) {
 // its own (another special may still beat it). Used for the admin list's
 // counts and the preview table.
 export function specialImpact(s, db = getDb(), { limit = 0 } = {}) {
-  const vat = vatRate(db);
+  const vat = floorContext(db);
   const rows = productsForTarget(db, { type: s.target_type, id: s.target_id, brand: s.target_id }, 'p.id, p.name, p.sku, p.brand, p.price_cents, p.cost_cents, p.active');
   let affected = 0;
   let capped = 0;

@@ -46,6 +46,8 @@ export function validateSettings(s) {
   }
   const markup = Number(s.defaultMarkupPct);
   if (!Number.isFinite(markup) || markup < 0 || markup > 300) errors.defaultMarkupPct = 'Markup must be between 0% and 300%.';
+  const minProfit = Number(s.minProfitRand);
+  if (!Number.isFinite(minProfit) || minProfit < 0 || minProfit > 1000) errors.minProfitRand = 'Minimum profit must be between R0 and R1,000.';
   const vat = Number(s.vatRatePct);
   if (!Number.isFinite(vat) || vat < 0 || vat > 30) errors.vatRatePct = 'VAT rate must be between 0% and 30% (South Africa: 15%).';
   else if (vat !== 15) warnings.push(`VAT rate is ${vat}% (South Africa is 15%). Supplier prices are grossed up by this rate.`);
@@ -92,6 +94,7 @@ export default function register(routes, kit) {
 
         ${section('Pricing & VAT', 'Auto price = supplier cost excl VAT × (1 + VAT) × (1 + markup), rounded up to the next rand. A product or category markup overrides the default.', `
           ${field('defaultMarkupPct', 'Default markup %', 'On supplier cost incl VAT. Changing it reprices every auto-priced product that has no product or category markup of its own.', { type: 'number', attrs: 'step="0.5" min="0" max="300"' })}
+          ${field('minProfitRand', 'Minimum profit per item (R)', 'Every auto-priced item sells for at least cost incl VAT + this amount, so cheap items still cover the Payfast fee (about R2.30 + 4% per card payment). Changing it reprices every auto-priced product.', { type: 'number', attrs: 'step="1" min="0" max="1000"' })}
           <div id="margin-check" class="panel" style="padding:0.75rem 0.9rem;box-shadow:none" aria-live="polite"></div>
           ${field('vatRatePct', 'VAT rate %', 'Supplier prices include VAT that we pay as a cost. South Africa: 15%.', { type: 'number', attrs: 'step="0.5" min="0" max="30"' })}
           <label class="field checkbox"><input type="checkbox" name="vatRegistered" ${s.vatRegistered ? 'checked' : ''}><span>Business is VAT-registered</span></label>
@@ -194,7 +197,7 @@ export default function register(routes, kit) {
         $(`[name="${Object.keys(check.errors)[0]}"]`, root)?.focus();
         return;
       }
-      const repricing = Number(body.defaultMarkupPct) !== Number(s.defaultMarkupPct) || Number(body.vatRatePct) !== Number(s.vatRatePct);
+      const repricing = Number(body.defaultMarkupPct) !== Number(s.defaultMarkupPct) || Number(body.vatRatePct) !== Number(s.vatRatePct) || Number(body.minProfitRand) !== Number(s.minProfitRand);
       if (repricing && !confirm('Changing the default markup or VAT rate reprices every auto-priced product without its own or a category markup. Prices on the live shop change immediately. Continue?')) return;
       try {
         const r = await api('/settings', { method: 'PUT', body });
