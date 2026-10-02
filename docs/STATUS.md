@@ -1,32 +1,34 @@
 # Status & backlog
 
-_Last updated: 2026-09-29_
+_Last updated: 2026-10-02_
 
 ## Resume here (handoff for a new conversation)
 
 - **Read first:** this file, then `CLAUDE.md` (layout, business rules, deploy, gotchas) and `deploy/DEPLOY.md` (runbook).
-- **Owner workflow:** changes go on branch `claude/inspiring-galileo-yxx323` -> PR -> owner says "merge and push to production" -> merging to `main` deploys automatically (GitHub Actions: tests, deploy, health check of procomsolutions + lapanza3d). Verify after every deploy: `/api/health` ok, lapanza3d 200. After a code change, the owner usually asks for docs to be updated and pushed too.
-- **Owner preferences:** plain-language reports; propose category tables for approval before listing; confirm before outward-facing actions; logins/settings the owner maintains live in the admin (encrypted), not `.env`; Excel exports for reviews.
+- **Owner workflow:** changes go on a `claude/...` branch -> PR -> owner says "merge and push to production" -> merging to `main` deploys automatically (GitHub Actions: tests, deploy, health check of procomsolutions + lapanza3d). Verify after every deploy: `/api/health` ok, lapanza3d 200. After a code change, the owner usually asks for docs to be updated and pushed too.
+- **Owner preferences:** plain-language reports; **present decisions one at a time** (one question, examples, a recommendation) -- long numbered decision lists confuse; propose category tables for approval before listing; confirm before outward-facing actions; logins/settings the owner maintains live in the admin (encrypted), not `.env`; Excel exports for reviews.
 - **Server access (Johan's PC only):** `ssh -i ~/.ssh/lapanza_vps_deploy deploy@41.222.36.147` -- one SSH session per operation (fail2ban). Read-only checks: pipe a small `node` script into the session that opens `data/procom.db` with `{ readonly: true }`. Never print `.env` values.
-- **Last session (2026-09-29):** Esquire + SMD live APIs, vendor details, own-courier + TV insurance delivery, Load more, warehouse icon, stock on hand, SKU, Specials quick filter, admin reload banner. Last deploy: PR #49 (`f554021`), 191 server tests.
+- **Last session (2026-09-29 -> 10-02):** search matches model numbers (K1-C = K1 C = K1C), SKU on cards, "In stock only" by default, **not in the API feed = not listed** (auto hide/show), price comparison of 109 products vs other SA stores (Excel), **Payfast fee table** (15 methods, actual fee per payment, Instant EFT off and hidden), **pricing covers Payfast fees** (fee-aware discount floor, R10 minimum profit, delivery R157/R229/R313, 19 raises -- applied live 2026-10-02 with `server/pricing-2026-09-30-cli.js`, DB backup `data/backups/pre-pricing-2026-09-30-*.db`). Same Payfast fee table + payment wording on Lapanza3d (its PRs #3, #4, deployed 2026-10-02). Last Procom deploy: PR #56 (`ac63a88`), 198 server tests.
 
 ## Live state
 
 - **Site:** https://www.procomsolutions.co.za — live, taking real payments (Payfast **live**, Lapanza's merchant account)
 - **Email:** working (Gmail SMTP as procompretoria@gmail.com); test email confirmed 2026-09-25
 - **Admin account:** created by the owner
-- **Live products:** **9,182** (2026-09-29, 16:00): SMD 6,442 (4,164 from the pricelists + 2,278 new from SMD's API, listed 14:52 by the SMD auto-list) + Esquire 2,740. SMD stock follows SMD's API (SOH); Esquire has no stock numbers (in feed = in stock).
-- **Specials page:** 644 products on special (all SMD supplier specials; none set in Admin → Specials), with a category quick filter. Counts follow SMD's specials automatically.
+- **Live products:** **9,028** showing (2026-10-02): SMD 6,292 (3,230 in stock) + Esquire 2,736; **243 hidden** because they are no longer in the supplier's API (SMD 184, Esquire 59) -- they come back automatically if the supplier lists them again. SMD stock follows SMD's API (SOH); Esquire has no stock numbers (in feed = in stock). The shop shows **in-stock items only** unless the customer unticks the box.
+- **Specials page:** about **1,060** products with a struck-through was-price (SMD supplier specials; none set in Admin → Specials), with a category quick filter. Counts follow SMD's specials automatically.
+- **Pricing:** cost excl VAT × 1.15 × (1 + markup, default 10%), but always at least cost incl VAT **+ R10** (Site settings → Minimum profit per item). Specials and promo codes never go below cost incl VAT + the Payfast fee. 19 products carry their own markup (raised to 5% under the next store, 2026-10-02).
+- **Payments:** Payfast card and wallets (credit/debit card, Apple/Google/Samsung Pay, SnapScan, Zapper, QR apps). **Instant EFT is off** in Payfast and hidden at checkout (owner, 2026-09-30). Fees per method in Financial overview; the actual fee is recorded on each payment.
 - **Supplier syncs (automatic, report email after every run):** Esquire API 06:00 / 12:00 / 18:00 SAST (auto-list on); SMD API 06:30 / 12:30 / 18:30 SAST (sync on, auto-list of new SMD products on). Logins/keys in Admin → Suppliers (encrypted, key file `.vault-key` on the server).
 - **Delivery (per supplier):**
-  - **SMD** ("Edenvale warehouse"): courier **R150** incl VAT per order, **free** when SMD's invoice (our cost incl VAT) is R5,000+, large items included; or **free collection** at 2 Lascelles Road, Meadowbrook, Edenvale (Mon–Fri 09:00–16:00, collection notice + ID).
-  - **Esquire** ("Samrand warehouse"): collection at 71 Landmarks Avenue, Kosmosdaal Ext 11, Samrand (Mon–Fri 09:00–16:00 · Sat 09:00–12:00); customer's own courier (free; customer emails waybill + collection date); otherwise store-wide courier brackets (0–3 kg R150, 3–10 kg R220, 10–25 kg R300) or a delivery quote for large items. Esquire TVs by courier add 3% courier insurance as a separate line.
+  - **SMD** ("Edenvale warehouse"): courier **R157** per order (SMD charges us R150; R7 covers the Payfast fee), **free** when SMD's invoice (our cost incl VAT) is R5,000+, large items included; or **free collection** at 2 Lascelles Road, Meadowbrook, Edenvale (Mon–Fri 09:00–16:00, collection notice + ID).
+  - **Esquire** ("Samrand warehouse"): collection at 71 Landmarks Avenue, Kosmosdaal Ext 11, Samrand (Mon–Fri 09:00–16:00 · Sat 09:00–12:00); customer's own courier (free; customer emails waybill + collection date); otherwise store-wide courier brackets (0–3 kg R157, 3–10 kg R229, 10–25 kg R313; cost to us R150/R220/R300) or a delivery quote for large items. Esquire TVs by courier add 3% courier insurance as a separate line.
   - Mixed carts: one delivery choice per supplier, fees add up. PUDO + local delivery switched off.
 - **Google:** site verified in Search Console, sitemap submitted 2026-09-28.
 - **Deployed:** automatically on every merge to `main` via GitHub Actions (`.github/workflows/deploy.yml`). Check the Actions tab for the current live commit.
 - **Admin upgrade (from Lapanza3d), all 21 items live 2026-09-29:** Phase 1 accounts/invoices/promos/specials, Phase 2 analytics/newsletters/finance/marketing, Phase 3 backups (off-site to a Procom-only Google Drive folder, syncing), version history, test cases, about, audit log, todo, settings, nav.
 
-Live categories (2026-09-29, 16:00; *delivery quoted* flags only matter for non-SMD suppliers -- SMD's flat R150 covers everything):
+Live categories (2026-09-29, 16:00; *delivery quoted* flags only matter for non-SMD suppliers -- SMD's flat courier fee covers everything):
 
 | Category (biggest sub-categories) | Live |
 |---|---|
@@ -118,7 +120,7 @@ First sync 2026-09-29 12:44 (owner ran "Sync now"): API 6,322 products / 6,149 s
 
 **Needs the owner**
 - ~~After the Phase 3 deploy~~ done 2026-09-29: Drive backups to a Procom-only folder synced; tests run from admin.
-- **After the Phase 2 deploy:** Platform rules → "Copy platforms & rules from Lapanza3d" (check the preview, then apply). Financial overview → check the Payfast fee estimates against a Payfast statement.
+- **After the Phase 2 deploy:** Platform rules → "Copy platforms & rules from Lapanza3d" (check the preview, then apply). Financial overview → Payfast fees are now set from the Payfast dashboard and the actual fee is recorded per payment; compare one Payfast statement once.
 - ~~Margins~~ decided 2026-09-30: specials/promos are capped at cost + VAT + Payfast fee, so at the 10% default markup a special can be at most ~5% off.
 - **After the Phase 1 deploy:** Admin → Invoice history → **Issue missing invoices** once, so older paid orders (PC10002…) get invoice numbers before new ones.
 - ~~First real test order~~ done: paid live, emails and collection notice arrived.
