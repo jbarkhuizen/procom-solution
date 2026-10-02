@@ -11,11 +11,17 @@ const catalog = await import('../catalog.js');
 const orders = await import('../orders.js');
 const { updateSettings } = await import('../settings.js');
 const specials = await import('./specials.js');
-const { floorCents, todaySast } = await import('./discount-common.js');
+const { floorCents, floorContext, todaySast } = await import('./discount-common.js');
+const finance = await import('./finance.js');
+// These tests check special/promo mechanics against the cost-incl-VAT floor;
+// Payfast fees are zeroed here and the fee floor has its own test below.
+const noFees = (db) => finance.updateFinanceSettings({ payfastFees: { methods: finance.DEFAULT_PAYFAST_METHODS.map((m) => ({ key: m.key, pct: 0, fixedCents: 0 })) } }, db);
+
 
 let db;
 beforeEach(() => {
   db = useMemoryDb();
+  noFees(db);
 });
 
 const catId = (slug) => db.prepare('SELECT id FROM categories WHERE slug = ?').get(slug).id;
@@ -48,6 +54,21 @@ test('percentage special rounds up to the rand and shows on the storefront', () 
   assert.equal(pub.compareAtCents, 12700);
   assert.equal(pub.onSpecial, true);
   assert.equal(catalog.getProduct(p.id).priceCents, 12700, 'admin sees the normal price');
+});
+
+test('with Payfast fees on (default), the floor also covers the dearest fee', () => {
+  db = useMemoryDb(); // fees as in the Payfast dashboard: dearest switched on = Debit Card 3.5% + R2, + VAT
+  const ctx = floorContext(db);
+  assert.equal(ctx.fee.name, 'Debit Card');
+  // (R115 + R2.30) / (1 - 4.025%) = R122.22 -> 12222 cents
+  assert.equal(floorCents(10000, ctx), 12222);
+  assert.equal(floorCents(0, ctx), 0);
+  const p = product(); // R127
+  specials.saveSpecial({ label: 'Deep', targetType: 'product', targetId: p.id, kind: 'percent', percentOff: 20 });
+  const sp = specials.specialPriceCents(row(p.id));
+  assert.equal(sp, 12222, 'capped at the fee floor');
+  const fee = Math.round((sp * 0.035 + 200) * 1.15);
+  assert.ok(sp - fee >= 11500, 'after the Payfast fee the sale still covers cost incl VAT');
 });
 
 test('special never goes below cost incl VAT', () => {

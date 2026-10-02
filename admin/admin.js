@@ -1256,7 +1256,9 @@ routes.suppliers = async () => {
       <div class="section-head" style="margin-top:0.5rem"><h3>Delivery</h3></div>
       <label class="field"><span>Name customers see (never the supplier's name)</span><input name="publicLabel" value="${h(s?.publicLabel)}" placeholder="e.g. Edenvale warehouse"></label>
       <label class="field"><span>How this supplier delivers</span><select name="deliveryMode">${options([{ value: 'store', label: 'Store-wide shipping options (weight brackets, quotes for large items)' }, { value: 'flat', label: 'Flat courier fee per order (covers large items too)' }], s?.deliveryMode || 'store')}</select></label>
-      <div class="grid-2"><label class="field"><span>Courier fee R (flat)</span><input name="deliveryFee" type="number" step="0.01" min="0" value="${toRands(s?.deliveryFeeCents ?? 0)}"></label>
+      <div class="grid-2"><label class="field"><span>Courier fee R (flat) — what the customer pays</span><input name="deliveryFee" type="number" step="0.01" min="0" value="${toRands(s?.deliveryFeeCents ?? 0)}"></label>
+      <label class="field"><span>Courier cost to us R (blank = same as the fee)</span><input name="deliveryCost" type="number" step="0.01" min="0" value="${s?.deliveryCostCents != null ? toRands(s.deliveryCostCents) : ''}" placeholder="e.g. 150 when customers pay 157"></label></div>
+      <div class="grid-2">
       <label class="field"><span>Free when their invoice (our cost incl VAT) reaches R</span><input name="freeOverCost" type="number" step="0.01" min="0" value="${s?.freeOverCostCents != null ? toRands(s.freeOverCostCents) : ''}" placeholder="blank = never free"></label></div>
       <label class="field checkbox"><input type="checkbox" name="collectionEnabled" ${s?.collectionEnabled ? 'checked' : ''}><span>Customers can collect from this supplier (free)</span></label>
       <label class="field"><span>Collection address (checkout map &amp; emails only)</span><input name="collectionAddress" value="${h(s?.collectionAddress)}"></label>
@@ -1313,13 +1315,14 @@ routes.shipping = async () => {
     <td><input class="inline-input" name="minWeight" type="number" min="0" value="${o?.minWeight ?? 0}" style="width:6rem"></td>
     <td><input class="inline-input" name="maxWeight" type="number" min="0" value="${o?.maxWeight ?? ''}" placeholder="∞" style="width:6rem"></td>
     <td><input class="inline-input" name="price" type="number" step="0.01" min="0" value="${toRands(o?.priceCents ?? 0)}" style="width:7rem"></td>
+    <td><input class="inline-input" name="cost" type="number" step="0.01" min="0" value="${o?.costCents != null ? toRands(o.costCents) : ''}" placeholder="= price" style="width:7rem" title="What the courier costs us (blank = same as the price)"></td>
     <td><input type="checkbox" name="active" ${!o || o.active ? 'checked' : ''}></td>
     <td style="white-space:nowrap"><button class="btn small btn-primary" data-save>Save</button> ${o ? '<button class="btn small btn-danger" data-del>×</button>' : ''}</td>
   </tr>`;
   const root = view(`<div class="panel table-wrap">
     <p class="mini-help">Same model as lapanza3d: “Auto by weight” options (Courier) are picked automatically from the cart weight — their ranges must not overlap, and both ends count, so the next range starts one gram later (e.g. 0–3000, 3001–10000, 10001–25000). Save each row on its own. “Customer picks” options are listed under their category at checkout. Weights in grams, and only for “Auto by weight” (typing a weight selects it). PUDO options ask the customer for their locker.</p>
     <datalist id="ship-cats"><option>Courier</option><option>PUDO Locker</option><option>Local Delivery</option></datalist>
-    <table class="catalog"><thead><tr><th>Name</th><th>Group</th><th>Type</th><th>Min g</th><th>Max g</th><th>Price R</th><th>On</th><th></th></tr></thead>
+    <table class="catalog"><thead><tr><th>Name</th><th>Group</th><th>Type</th><th>Min g</th><th>Max g</th><th>Price R</th><th>Cost to us R</th><th>On</th><th></th></tr></thead>
     <tbody id="ship-rows">${list.map(row).join('')}</tbody></table></div>`);
   $('[data-ship-new]').addEventListener('click', () => $('#ship-rows', root).insertAdjacentHTML('afterbegin', row(null)));
   // Weights only count for "Auto by weight" (the server drops them for
@@ -1338,7 +1341,7 @@ routes.shipping = async () => {
     }
     if (e.target.closest('[data-save]')) {
       const get = (n) => tr.querySelector(`[name="${n}"]`);
-      const body = { name: get('name').value, category: get('category').value, optionType: get('optionType').value, minWeight: get('minWeight').value, maxWeight: get('maxWeight').value, price: get('price').value, active: get('active').checked };
+      const body = { name: get('name').value, category: get('category').value, optionType: get('optionType').value, minWeight: get('minWeight').value, maxWeight: get('maxWeight').value, price: get('price').value, cost: get('cost').value, active: get('active').checked };
       try {
         // Update just this row so unsaved edits in other rows are kept.
         const saved = await api(id ? `/shipping/${id}` : '/shipping', { method: id ? 'PUT' : 'POST', body });

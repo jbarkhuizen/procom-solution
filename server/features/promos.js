@@ -12,7 +12,7 @@
 import { randomUUID } from 'crypto';
 import { getDb } from '../db.js';
 import { parseRandToCents, clampInt } from '../util.js';
-import { floorCents, todaySast, normDate, windowState, descendantMap, brandKey, vatRate, productsForTarget, brandList } from './discount-common.js';
+import { floorCents, floorContext, todaySast, normDate, windowState, descendantMap, brandKey, productsForTarget, brandList } from './discount-common.js';
 import { specialPriceCents } from './specials.js';
 
 export const KINDS = ['percent', 'fixed'];
@@ -79,7 +79,7 @@ export function evaluatePromo({ items = [], subtotalCents, promoCode, email = ''
   const eligibleSubtotal = eligible.reduce((s, i) => s + i.unitCents * i.quantity, 0);
   const requested = promo.kind === 'percent' ? Math.round((eligibleSubtotal * promo.percent_off) / 100) : Math.min(promo.amount_cents, eligibleSubtotal);
 
-  const vat = vatRate(db);
+  const vat = floorContext(db);
   const capCents = eligible.reduce((s, i) => s + Math.max(0, i.unitCents - floorCents(i.p.cost_cents, vat)) * i.quantity, 0);
   const discountCents = Math.max(0, Math.min(requested, capCents, subtotal));
   return { code: promo.code, promo, requestedCents: requested, capCents, discountCents, capped: discountCents < requested };
@@ -243,7 +243,7 @@ export function deletePromo(id, db = getDb()) {
 // products whose margin is below the percentage, and the % they can really
 // get. For a rand code: products whose margin on one unit is below the amount.
 export function floorImpact(promo, db = getDb()) {
-  const vat = vatRate(db);
+  const vat = floorContext(db);
   const inScope = scopeTest(promo, db);
   const rows = productsForTarget(db, promo.category_id ? { type: 'category', id: promo.category_id } : promo.brand ? { type: 'brand', brand: promo.brand } : {}).filter(inScope);
   const caps = [];

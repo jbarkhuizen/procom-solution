@@ -1,16 +1,33 @@
 // Shared by promo codes and specials: the owner's margin guard, SA dates and
 // category/brand targeting.
 //
-// MARGIN GUARD (owner rule): no discount may ever take an item below its cost
-// including VAT. The floor per unit is ceil(cost_cents × (1 + VAT)), with the
-// VAT rate from settings (vatRatePct). Supplier VAT is a cost to us because the
-// business is not VAT-registered, so this floor is our real break-even.
+// MARGIN GUARD (owner rule, 2026-09-30): no discount may ever take an item
+// below its cost including VAT PLUS the Payfast fee on that price. Supplier VAT
+// is a cost to us (not VAT-registered), and so is the VAT on Payfast's fee.
+// The fee used is the dearest payment method switched on in Financial overview
+// (worst case), and its fixed part is counted per unit (a one-item order).
+//   floor = ceil((cost x (1 + VAT) + fixed x feeVat) / (1 - pct x feeVat))
+// `ctx` is floorContext(db); a plain number is a VAT rate with no fee (old callers, tests).
 
-export function floorCents(costCents, vatRatePct = 15) {
+import { getFinanceSettings } from './finance.js';
+
+export function floorCents(costCents, ctx = 15) {
   const cost = Math.max(0, Number(costCents) || 0);
-  const vat = Number.isFinite(Number(vatRatePct)) ? Number(vatRatePct) : 15;
+  const o = typeof ctx === 'object' && ctx ? ctx : { vatRatePct: ctx };
+  const vat = Number.isFinite(Number(o.vatRatePct)) ? Number(o.vatRatePct) : 15;
   // cost × (100 + vat) / 100 keeps integer VAT rates exact (no 11499.9999 -> 11500 drift).
-  return Math.ceil((cost * (100 + vat)) / 100 - 1e-9);
+  const withVat = Math.ceil((cost * (100 + vat)) / 100 - 1e-9) || 0; // never -0
+  if (!o.fee || !cost) return withVat;
+  const f = o.fee;
+  return Math.ceil((withVat + f.fixedCents * f.vatFactor) / (1 - (f.pct / 100) * f.vatFactor) - 1e-9);
+}
+
+// VAT rate + worst-case Payfast fee for floorCents().
+export function floorContext(db) {
+  const vatRatePct = vatRate(db);
+  const fees = getFinanceSettings(db).payfastFees;
+  const r = fees.pricing;
+  return { vatRatePct, fee: { pct: r.pct, fixedCents: r.fixedCents, vatFactor: fees.addVat ? 1 + vatRatePct / 100 : 1, name: r.name } };
 }
 
 // Room to discount one unit without going below the floor.

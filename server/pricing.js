@@ -28,10 +28,15 @@ export function roundRetail(rawCents) {
   return Math.ceil(rawCents / 100) * 100;
 }
 
-export function computeRetailCents(costCents, markupPct, vatRatePct = 15) {
+// minProfitCents (owner rule 2026-09-30, Site settings "Minimum profit per item"):
+// the price is at least cost incl VAT + that amount, so cheap items still cover
+// Payfast's fixed fee (a R25 plug at 10% markup made R2.27 and lost money on a card sale).
+export function computeRetailCents(costCents, markupPct, vatRatePct = 15, minProfitCents = 0) {
   const cost = Number(costCents) || 0;
-  const raw = cost * (1 + (Number(vatRatePct) || 0) / 100) * (1 + (Number(markupPct) || 0) / 100);
-  return roundRetail(Math.round(raw));
+  const withVat = cost * (1 + (Number(vatRatePct) || 0) / 100);
+  const raw = withVat * (1 + (Number(markupPct) || 0) / 100);
+  const min = cost > 0 ? withVat + Math.max(0, Number(minProfitCents) || 0) : 0;
+  return roundRetail(Math.round(Math.max(raw, min)));
 }
 
 // Gross profit per unit. Not VAT-registered: supplier VAT is a cost we absorb.

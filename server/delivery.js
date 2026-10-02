@@ -26,6 +26,7 @@ export function supplierDelivery(row) {
   return {
     mode: row?.delivery_mode === 'flat' ? 'flat' : 'store',
     feeCents: row?.delivery_fee_cents || 0,
+    costCents: row?.delivery_cost_cents ?? null, // null = same as the fee
     freeOverCostCents: row?.free_over_cost_cents ?? null,
     label: row?.public_label || '',
     ownCourier: Boolean(row?.own_courier_enabled && row?.collection_address),
@@ -82,14 +83,14 @@ export function planDelivery(items, db = getDb()) {
     }
     if (g.conf.mode === 'flat') {
       const free = g.conf.freeOverCostCents != null && costInclVat >= g.conf.freeOverCostCents;
-      opts.push({ id: 'courier', method: 'courier', name: free ? 'Courier delivery — free for this order' : 'Courier delivery to your door', priceCents: free ? 0 : g.conf.feeCents });
+      opts.push({ id: 'courier', method: 'courier', name: free ? 'Courier delivery — free for this order' : 'Courier delivery to your door', priceCents: free ? 0 : g.conf.feeCents, costCents: free ? 0 : g.conf.costCents ?? g.conf.feeCents });
     } else if (g.items.some((it) => needsDeliveryQuote(it.p, quoteSet))) {
       g.largeItems = g.items.filter((it) => needsDeliveryQuote(it.p, quoteSet)).map((it) => it.p.name);
       opts.push({ id: 'quote', method: 'quote', name: QUOTE_NAME, priceCents: 0 });
     } else {
       for (const o of storeOptions) {
         if (o.optionType === 'auto_weight' && (g.weightG < o.minWeight || (o.maxWeight != null && g.weightG > o.maxWeight))) continue;
-        opts.push({ id: o.id, method: 'store', name: o.name, priceCents: o.priceCents, category: o.category, optionType: o.optionType });
+        opts.push({ id: o.id, method: 'store', name: o.name, priceCents: o.priceCents, costCents: o.costCents ?? o.priceCents, category: o.category, optionType: o.optionType });
       }
     }
     // Our courier carries the goods: add the insurance line (never for collect / own courier).
@@ -136,6 +137,7 @@ export function resolveDelivery(groups, choices = {}, legacyOptionId = null, db 
       optionId: opt.method === 'store' ? opt.id : null,
       category: opt.category || '',
       feeCents: opt.priceCents,
+      costCents: opt.costCents ?? opt.priceCents, // what the courier costs us
       insuranceCents: opt.insuranceCents || 0,
       insuranceName: opt.insuranceName || '',
       productIds: g.items.map((it) => it.p.id),

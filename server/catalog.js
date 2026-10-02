@@ -395,7 +395,7 @@ function priceFor(fields, db) {
     categoryChain: categoryChain(fields.category_id, db),
     defaultMarkup: settings.defaultMarkupPct,
   });
-  return computeRetailCents(fields.cost_cents, markup, settings.vatRatePct);
+  return computeRetailCents(fields.cost_cents, markup, settings.vatRatePct, Math.round((Number(settings.minProfitRand) || 0) * 100));
 }
 
 function normaliseSpecs(specs) {
@@ -576,6 +576,7 @@ function rowToSupplier(s) {
     feedCount: s.feed_count,
     deliveryMode: s.delivery_mode === 'flat' ? 'flat' : 'store',
     deliveryFeeCents: s.delivery_fee_cents || 0,
+    deliveryCostCents: s.delivery_cost_cents ?? null,
     freeOverCostCents: s.free_over_cost_cents ?? null,
     publicLabel: s.public_label || '',
     collectionEnabled: Boolean(s.collection_enabled),
@@ -640,6 +641,7 @@ export function saveSupplier(data, id = null, db = getDb()) {
     api_key_enc: data.clearApiAccess ? '' : data.apiKey ? encryptSecret(String(data.apiKey).trim()) : cur ? cur.api_key_enc : '',
     delivery_mode: pick('deliveryMode', 'delivery_mode', (v) => (v === 'flat' ? 'flat' : 'store')),
     delivery_fee_cents: pick('deliveryFee', 'delivery_fee_cents', (v) => Math.max(0, randToCents(v) || 0)),
+    delivery_cost_cents: pick('deliveryCost', 'delivery_cost_cents', (v) => (randToCents(v) == null ? null : Math.max(0, randToCents(v)))),
     free_over_cost_cents: pick('freeOverCost', 'free_over_cost_cents', (v) => (randToCents(v) == null ? null : Math.max(0, randToCents(v)))),
     public_label: pick('publicLabel', 'public_label'),
     collection_enabled: pick('collectionEnabled', 'collection_enabled', bool),

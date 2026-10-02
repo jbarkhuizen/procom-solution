@@ -100,6 +100,18 @@ test('delivery cost rule: SMD courier = fee charged, free order = R0, collect = 
   assert.throws(() => finance.setDeliveryCost('PC99999', { costCents: 1 }, db), /No order/);
 });
 
+test('delivery cost uses what the courier costs us, not the higher fee the customer pays', () => {
+  const smd = smdId();
+  const name = catalog.listSuppliers(db).find((s) => s.id === smd).name;
+  catalog.saveSupplier({ name, deliveryFee: '157', deliveryCost: '150' }, smd, db);
+  const o = paid({ delivery: { [smd]: 'courier' }, items: [{ productId: smdProduct().id, quantity: 1 }] });
+  assert.equal(o.shippingCents, 15700, 'customer pays R157');
+  assert.equal(totals().deliveryChargedCents, 15700);
+  assert.equal(totals().deliveryCostCents, 15000, 'SMD charges us R150');
+  catalog.saveSupplier({ name, deliveryCost: '' }, smd, db);
+  assert.equal(catalog.listSuppliers(db).find((s) => s.id === smd).deliveryCostCents, null, 'blank = same as the fee');
+});
+
 test('legacy orders without fulfilment_json use the old shipping fields', () => {
   const o = paid({ shippingOptionId: courierSmall(), items: [{ productId: product().id, quantity: 1 }] });
   db.prepare("UPDATE orders SET fulfilment_json = '' WHERE id = ?").run(o.id);

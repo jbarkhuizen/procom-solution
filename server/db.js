@@ -80,6 +80,11 @@ const COLUMN_MIGRATIONS = [
   // longer in that API (owner rule: not in the API feed = not listed). The sync
   // shows it again when it returns; products an admin hid are never touched.
   ['products', 'hidden_by_feed', 'INTEGER NOT NULL DEFAULT 0'],
+  // What the courier actually costs US (NULL = same as what the customer pays).
+  // The customer price includes the Payfast fee on the delivery charge (owner
+  // 2026-09-30: SMD R150 -> R157), so profit must use the real cost.
+  ['suppliers', 'delivery_cost_cents', 'INTEGER'],
+  ['shipping_options', 'cost_cents', 'INTEGER'],
   // Customer may send their own courier to the supplier's collection address.
   ['suppliers', 'own_courier_enabled', 'INTEGER NOT NULL DEFAULT 0'],
   // Vendor details (Admin -> Suppliers). The portal password is stored
@@ -329,6 +334,8 @@ export const DEFAULT_SETTINGS = {
   vatNumber: '',
   vatRatePct: 15,
   defaultMarkupPct: 10,
+  // Every auto-priced item keeps at least this much (rand) above cost incl VAT.
+  minProfitRand: 10,
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
   legalEntity: 'Lapanza (trading as Procom Solutions)',
