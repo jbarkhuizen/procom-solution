@@ -352,7 +352,7 @@ export const DEFAULT_SETTINGS = {
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
   // Esquire / SMD sync report emails (with the Word overview); comma-separated.
-  supplierReportEmail: 'admin@lapanzaonline.co.za',
+  supplierReportEmail: 'lapanzaonline@gmail.com',
   // 'every' = after each sync, 'daily' = one combined email at 19:00 SAST, 'off'.
   supplierReportMode: 'every',
   legalEntity: 'Lapanza (trading as Procom Solutions)',

@@ -147,7 +147,7 @@ export function sendCollectionReady(order, shipment) {
 }
 
 // Supplier sync reports go to Site settings -> "Supplier update emails"
-// (owner 2026-10-05: admin@lapanzaonline.co.za), with a Word overview attached.
+// (owner 2026-10-05: lapanzaonline@gmail.com), with a Word overview attached.
 const reportRecipients = (s) => String(s.supplierReportEmail || s.ownerNotifyEmail || '').split(/[,;\s]+/).filter(Boolean).join(', ');
 
 // Shop-price changes this run (sync-report.js diffPrices): rows for the email + Word.
