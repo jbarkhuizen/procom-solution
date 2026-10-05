@@ -430,6 +430,7 @@ const SUITE_DESCRIPTIONS = {
   'server/feed.test.js': 'Warehouse price lists: reading Excel/CSV/PDF files, matching columns, importing, cost updates and out-of-stock handling.',
   'server/esquire.test.js': 'Esquire API sync: VAT stripped, stock out/back in, glitch guard, schedule, category rules.',
   'server/catalog-search.test.js': 'Shop search: model numbers match however they are typed (K1-C, K1 C, K1C).',
+  'server/sync-report.test.js': 'Supplier sync report: products that went on special or changed price, and the Word overview attached to the report email.',
   'server/supplier-extras.test.js': 'Supplier details: encrypted portal password, own-courier delivery, courier insurance line (Esquire TVs).',
   'server/smd-api.test.js': 'SMD live API: headers and paging, check mode, costs and specials, stock, descriptions, new SKUs, photos, schedule.',
   'server/smd-autolist.test.js': 'SMD auto-list: which store category each SMD row goes into, skipped rows, heavy items marked "delivery quoted".',

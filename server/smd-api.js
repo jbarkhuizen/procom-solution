@@ -10,6 +10,7 @@ import { decryptSecret } from './vault.js';
 import { fetchImage } from './remote-images.js';
 import { storeProductImage, deleteUpload, resolveUpload } from './images.js';
 import { sendSmdReport } from './mailer.js';
+import { snapshotPrices, diffPrices } from './sync-report.js';
 import { nextRunAt } from './esquire.js';
 
 // SMD's live API (https://api.smdtechnologies.com/v1/, spec: "SMD API INFO"
@@ -321,6 +322,7 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
       }
       if (!cat.prices.size) throw new Error('SMD sent no prices -- skipped');
       const planned = planSmdChanges(cat, db);
+      const before = check ? null : snapshotPrices(planned.supplier.id, db);
       report.stats = planned.stats;
       if (!check) {
         report.repriced = applyPlan(planned, db);
@@ -331,6 +333,7 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
       // says what it would list.
       report.autoListOn = Boolean(getSettings(db).smdApiAutoList);
       report.autoList = autoList({ list: 'smdapi', supplierId: planned.supplier.id, dryRun: check || !report.autoListOn }, db);
+      if (before) report.changes = diffPrices(before, planned.supplier.id, db);
       report.ok = true;
     } catch (err) {
       report.error = err.message;

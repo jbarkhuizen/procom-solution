@@ -1,3 +1,4 @@
+import { buildSyncReportDocx, reportFileName } from './sync-report.js';
 import nodemailer from 'nodemailer';
 import { getSettings } from './settings.js';
 import { escapeHtml, formatRand } from './util.js';
@@ -21,7 +22,7 @@ export function useTransport(t) {
 
 // Never throws -- a mail outage must not fail a payment webhook or checkout.
 // `headers`: optional extra headers (e.g. List-Unsubscribe for newsletters).
-export async function sendMail({ to, subject, html, replyTo, headers }) {
+export async function sendMail({ to, subject, html, replyTo, headers, attachments }) {
   const t = getTransport();
   if (!t) {
     console.log(`[mail disabled] would send "${subject}" to ${to}`);
@@ -29,7 +30,7 @@ export async function sendMail({ to, subject, html, replyTo, headers }) {
   }
   try {
     const s = getSettings();
-    await t.sendMail({ from: `"${s.siteName}" <${process.env.GMAIL_USER}>`, to, subject, html, replyTo, ...(headers ? { headers } : {}) });
+    await t.sendMail({ from: `"${s.siteName}" <${process.env.GMAIL_USER}>`, to, subject, html, replyTo, ...(headers ? { headers } : {}), ...(attachments ? { attachments } : {}) });
     return true;
   } catch (err) {
     console.error('Mail send failed:', err.message);
@@ -144,8 +145,44 @@ export function sendCollectionReady(order, shipment) {
   return sendMail({ to: order.email, subject: `Procom Solutions — order ${order.orderNumber} ready for collection (collection notice)`, html });
 }
 
+// Supplier sync reports go to Site settings -> "Supplier update emails"
+// (owner 2026-10-05: admin@lapanzaonline.co.za), with a Word overview attached.
+const reportRecipients = (s) => String(s.supplierReportEmail || s.ownerNotifyEmail || '').split(/[,;\s]+/).filter(Boolean).join(', ');
+
+// Shop-price changes this run (sync-report.js diffPrices): rows for the email + Word.
+function changeRows(changes) {
+  if (!changes) return [];
+  return [
+    ['Went on special', changes.newSpecials.length],
+    ['Shop price reduced', changes.priceDown.length],
+    ['Shop price increased', changes.priceUp],
+    ['Specials ended', changes.specialsEnded],
+    ['Newly listed in the shop', changes.newlyListed],
+  ];
+}
+
+async function reportAttachment(supplierLabel, report, summaryRows) {
+  try {
+    const content = await buildSyncReportDocx({ supplierLabel, startedAt: report.startedAt, ok: report.ok, error: report.error, summaryRows, changes: report.changes || null });
+    return [{ filename: reportFileName(supplierLabel, report.startedAt), content, contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }];
+  } catch (err) {
+    console.error('Sync report document failed:', err.message);
+    return undefined; // the email still goes out
+  }
+}
+
+function changesHtml(changes, row, table, list) {
+  if (!changes) return '';
+  const r = (c) => formatRand(c);
+  let html = `<h3 style="font-size:15px;margin:12px 0 0">Shop prices this run</h3>${table(changeRows(changes).map(([k, v]) => row(k, v)))}`;
+  if (changes.newSpecials.length) html += `<p style="margin:0">Went on special (biggest savings first):</p>${list(changes.newSpecials.map((x) => `${x.name} (${x.sku}): ${r(x.normalCents)} → ${r(x.specialCents)}`), 15)}`;
+  if (changes.priceDown.length) html += `<p style="margin:0">Price reduced (biggest first):</p>${list(changes.priceDown.map((x) => `${x.name} (${x.sku}): ${r(x.fromCents)} → ${r(x.toCents)}`), 15)}`;
+  if (changes.newSpecials.length || changes.priceDown.length) html += '<p style="font-size:13px;margin:0 0 12px">The full lists are in the attached Word document.</p>';
+  return html;
+}
+
 // Status email after every Esquire API sync (esquire.js), success or failure.
-export function sendEsquireReport(report) {
+export async function sendEsquireReport(report) {
   const s = getSettings();
   const im = report.import;
   const al = report.autoList;
@@ -174,6 +211,7 @@ export function sendEsquireReport(report) {
       row('Shown again (back in the feed)', im.productsUnhidden || 0),
       row('Photos queued for download', im.imagesQueued),
     ])}`;
+    body += changesHtml(report.changes, row, table, list);
     if (report.autoListOn) {
       body += `<h3 style="font-size:15px;margin:12px 0 0">Auto-list</h3>${table([
         row('New products listed', al.created),
@@ -191,19 +229,37 @@ export function sendEsquireReport(report) {
     if (report.leftOut.length) body += `<p style="margin:0">Left out of the import:</p>${list(report.leftOut.map((g) => `${g.n} · ${g.reason}`))}`;
   }
 
+  const ch = report.changes;
   const subject = report.ok
-    ? `Esquire sync — ${im.rowsNew} new, ${im.priceChanges} cost changes, ${im.productsMarkedOut} out of stock${report.autoListOn ? `, ${al.created} listed` : ''}`
+    ? `Esquire sync — ${im.rowsNew} new, ${im.priceChanges} cost changes, ${ch ? `${ch.newSpecials.length} on special, ${ch.priceDown.length} price down, ` : ''}${im.productsMarkedOut} out of stock${report.autoListOn ? `, ${al.created} listed` : ''}`
     : 'Esquire sync FAILED';
-  return sendMail({ to: s.ownerNotifyEmail, subject, html: layout('Esquire feed sync', body) });
+  const summaryRows = report.ok
+    ? [
+      ['Products in Esquire feed', report.feedRows],
+      ['Imported', report.sellableRows],
+      ['New to the feed', im.rowsNew],
+      ['Cost changes', im.priceChanges],
+      ['Shop prices updated', im.productsRepriced],
+      ...changeRows(ch),
+      ['Listed products now out of stock', im.productsMarkedOut],
+      ['Listed products back in stock', im.productsBackInStock],
+      ['Hidden from the shop (left the feed)', im.productsHidden || 0],
+      ['Shown again (back in the feed)', im.productsUnhidden || 0],
+      ...(report.autoListOn ? [['New products listed', al.created]] : []),
+    ]
+    : [];
+  const attachments = await reportAttachment('Esquire', report, summaryRows);
+  return sendMail({ to: reportRecipients(s), subject, html: layout('Esquire feed sync', body), attachments });
 }
 
 // After every SMD API run (smd-api.js). A connection check says so: nothing changed.
-export function sendSmdReport(report) {
+export async function sendSmdReport(report) {
   const s = getSettings();
   const st = report.stats || {};
   const row = (label, value) => `<tr><td style="padding:4px 0">${escapeHtml(label)}</td><td style="padding:4px 0;text-align:right;font-weight:700">${escapeHtml(String(value ?? '—'))}</td></tr>`;
   const table = (rows) => `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0 16px">${rows.join('')}</table>`;
-  const list = (items) => `<ul style="font-size:13px;margin:4px 0 16px;padding-left:18px">${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
+  const list = (items, max = 1000) =>
+    `<ul style="font-size:13px;margin:4px 0 16px;padding-left:18px">${items.slice(0, max).map((i) => `<li>${escapeHtml(i)}</li>`).join('')}${items.length > max ? `<li>… and ${items.length - max} more</li>` : ''}</ul>`;
   const when = new Date(report.startedAt).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
   const verb = report.check ? 'would be' : 'were';
   let body = `<p>${escapeHtml(when)} · ${report.check ? '<strong>connection check — nothing in the shop was changed</strong>' : report.trigger === 'scheduled' ? 'scheduled run' : 'run started from admin'} · ${report.seconds ?? 0}s</p>`;
@@ -230,6 +286,7 @@ export function sendSmdReport(report) {
       row(`Products that ${verb} get full-size photos`, st.photoSets),
       ...(report.check ? [] : [row('Shop prices updated', report.repriced)]),
     ])}`;
+    body += changesHtml(report.changes, row, table, list);
     if (st.missingNotMarked) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>${st.notInApi} of your SMD products are not in the API</strong> — too many to be real sell-outs, so they were left as they are (probably an incomplete API response). Examples:</p>${list(st.missingSample || [])}`;
     else if (st.missingSample?.length) body += `<p style="margin:0">Not in the API (${verb} hidden from the shop):</p>${list(st.missingSample)}`;
     if (report.stats?.biggestChanges?.length) body += `<p style="margin:0">Biggest cost changes:</p>${list(report.stats.biggestChanges.map((c) => `${c.name} (${c.sku}): ${formatRand(c.from)} → ${formatRand(c.to)} excl VAT`))}`;
@@ -248,8 +305,27 @@ export function sendSmdReport(report) {
     ? `SMD sync FAILED${report.check ? ' (connection check)' : ''}`
     : report.check
       ? `SMD connection check — ${st.matched} of ${st.listed} products found, nothing changed`
-      : `SMD sync — ${st.costUp + st.costDown} cost changes, ${st.markedOut} out of stock, ${st.backInStock} back`;
-  return sendMail({ to: s.ownerNotifyEmail, subject, html: layout('SMD live API', body) });
+      : `SMD sync — ${st.costUp + st.costDown} cost changes, ${report.changes ? `${report.changes.newSpecials.length} on special, ${report.changes.priceDown.length} price down, ` : ''}${st.markedOut} out of stock, ${st.backInStock} back`;
+  const summaryRows = report.ok
+    ? [
+      ['Products SMD sent', report.api.products],
+      ['Your SMD products', st.listed],
+      ['Found in the API', st.matched],
+      ['Costs raised', st.costUp],
+      ['Costs lowered', st.costDown],
+      ['Shop prices updated', report.repriced ?? 0],
+      ...changeRows(report.changes),
+      ['On SMD special now', st.specials],
+      ['Marked out of stock', st.markedOut],
+      ['Back in stock', st.backInStock],
+      ['Hidden from the shop (not in the API)', st.hidden],
+      ['Shown again (back in the API)', st.unhidden],
+      ['New SMD products not in the shop yet', st.newSkus],
+      ...(report.autoList && report.autoListOn && !report.check ? [['New products listed', report.autoList.created]] : []),
+    ]
+    : [];
+  const attachments = report.check ? undefined : await reportAttachment('SMD', report, summaryRows);
+  return sendMail({ to: reportRecipients(s), subject, html: layout('SMD live API', body), attachments });
 }
 
 export function sendContactNotice({ name, email, phone, message }) {
