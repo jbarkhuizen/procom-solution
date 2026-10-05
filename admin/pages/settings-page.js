@@ -38,6 +38,7 @@ export function validateSettings(s) {
   }
   const reportTo = String(s.supplierReportEmail || '').split(/[,;\s]+/).filter(Boolean);
   if (reportTo.some((e) => !EMAIL_RE.test(e))) errors.supplierReportEmail = 'Enter one or more email addresses, separated by commas.';
+  if (s.supplierReportMode !== undefined && !['every', 'daily', 'off'].includes(s.supplierReportMode)) errors.supplierReportMode = 'Choose how often to send supplier update emails.';
   const phone = digits(s.contactPhone);
   if (phone && !/^(\+27|0)\d{9}$/.test(phone) && !/^\+\d{8,15}$/.test(phone)) errors.contactPhone = 'Enter a phone number like 082 663 9608 or +27 82 663 9608.';
   const wa = String(s.whatsappNumber || '').trim();
@@ -109,7 +110,11 @@ export default function register(routes, kit) {
 
           ${section('Email & notifications', 'Emails go out through the shop’s Gmail account (set on the server).', `
             ${field('ownerNotifyEmail', 'Send new-order & enquiry notifications to', 'Where you get told about paid orders and contact-form messages.', { type: 'email' })}
-            ${field('supplierReportEmail', 'Supplier update emails (Esquire & SMD)', 'After every supplier sync (Esquire 06:00/12:00/18:00, SMD 06:30/12:30/18:30): counts plus a Word document listing products that went on special or came down in price. Separate several addresses with commas. Blank = the notification address above.')}`)}
+            <label class="field" data-field="supplierReportMode"><span>Supplier update emails (Esquire &amp; SMD)</span>
+              <select name="supplierReportMode">${[['every', 'After every update (up to 6 a day)'], ['daily', 'Once a day at 19:00 (all updates of the day in one email)'], ['off', 'Off (no supplier update emails)']].map(([v, l]) => `<option value="${v}" ${(s.supplierReportMode || 'every') === v ? 'selected' : ''}>${kit.h(l)}</option>`).join('')}</select>
+              <small class="mini-help" id="help-supplierReportMode">Each email has the counts and a Word document listing products that went on special or came down in price. Updates run at Esquire 06:00/12:00/18:00 and SMD 06:30/12:30/18:30. A connection check started from admin is always emailed.</small>
+              <small class="error hidden" id="err-supplierReportMode" role="alert" style="color:var(--danger);font-size:0.8rem"></small></label>
+            ${field('supplierReportEmail', 'Send supplier update emails to', 'Separate several addresses with commas. Blank = the notification address above.')}`)}
         </div>
       </div>
 

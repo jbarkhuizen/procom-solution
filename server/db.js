@@ -217,6 +217,19 @@ export function ensureSchema(conn) {
     );
 
     -- Supplier photo sets waiting to be downloaded onto a product (smd-api.js).
+    -- One row per Esquire / SMD sync, for the supplier update emails (mailer.js):
+    -- sent at once, or collected into the once-a-day email (supplier-digest.js).
+    CREATE TABLE IF NOT EXISTS sync_report_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      supplier TEXT NOT NULL,              -- 'Esquire' | 'SMD'
+      started_at TEXT NOT NULL,
+      ok INTEGER NOT NULL,
+      error TEXT NOT NULL DEFAULT '',
+      summary_json TEXT NOT NULL,          -- [[label, value], ...]
+      changes_json TEXT,                   -- sync-report.js diffPrices() or NULL
+      sent INTEGER NOT NULL DEFAULT 0
+    );
+
     CREATE TABLE IF NOT EXISTS product_media_queue (
       product_id TEXT PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
       urls TEXT NOT NULL,                 -- JSON ["https://...", ...] in display order
@@ -340,6 +353,8 @@ export const DEFAULT_SETTINGS = {
   ownerNotifyEmail: 'procompretoria@gmail.com',
   // Esquire / SMD sync report emails (with the Word overview); comma-separated.
   supplierReportEmail: 'admin@lapanzaonline.co.za',
+  // 'every' = after each sync, 'daily' = one combined email at 19:00 SAST, 'off'.
+  supplierReportMode: 'every',
   legalEntity: 'Lapanza (trading as Procom Solutions)',
   // Esquire API sync lists new items by itself only when this is on.
   esquireAutoList: false,

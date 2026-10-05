@@ -97,3 +97,55 @@ export function reportFileName(supplierLabel, startedAt) {
   const t = new Date(Date.parse(startedAt) + 2 * 3600_000).toISOString(); // SAST
   return `${supplierLabel.replace(/\W+/g, '-')}-update-${t.slice(0, 10)}-${t.slice(11, 13)}${t.slice(14, 16)}.docx`;
 }
+
+// ------------------------------------------------------------ once-a-day email
+
+// Several runs of one supplier -> one set of lists: specials/price drops from
+// every run, one row per product (first "was" price, last "now" price).
+export function mergeChanges(list) {
+  const specials = new Map();
+  const down = new Map();
+  const out = { newSpecials: [], priceDown: [], priceUp: 0, specialsEnded: 0, newlyListed: 0 };
+  for (const c of list.filter(Boolean)) {
+    for (const x of c.newSpecials) specials.set(x.sku, x);
+    for (const x of c.priceDown) down.set(x.sku, down.has(x.sku) ? { ...x, fromCents: down.get(x.sku).fromCents } : x);
+    out.priceUp += c.priceUp;
+    out.specialsEnded += c.specialsEnded;
+    out.newlyListed += c.newlyListed;
+  }
+  const saving = (x) => (x.normalCents - x.specialCents) / x.normalCents;
+  out.newSpecials = [...specials.values()].sort((a, b) => saving(b) - saving(a));
+  out.priceDown = [...down.values()].filter((x) => x.toCents < x.fromCents).sort((a, b) => (b.fromCents - b.toCents) / b.fromCents - (a.fromCents - a.toCents) / a.fromCents);
+  return out;
+}
+
+const sastTime = (iso) => new Date(iso).toLocaleTimeString('en-ZA', { timeZone: 'Africa/Johannesburg', hour: '2-digit', minute: '2-digit', hour12: false });
+
+// sections: [{ supplier, runs: [{ startedAt, ok, error, summaryRows }], changes }]
+export async function buildDigestDocx({ dateLabel, sections }) {
+  const children = [
+    new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun({ text: 'Supplier updates' })] }),
+    para(`Procom Solutions · ${dateLabel} · all Esquire and SMD updates of the day`, { color: '7A6E64' }),
+  ];
+  for (const sec of sections) {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(sec.supplier)] }));
+    const times = sec.runs.map((r) => sastTime(r.startedAt));
+    for (const r of sec.runs.filter((x) => !x.ok)) children.push(para(`${sastTime(r.startedAt)} update did not complete: ${r.error}`, { bold: true, color: 'C24B28' }));
+    const labels = [];
+    for (const r of sec.runs) for (const [k] of r.summaryRows || []) if (!labels.includes(k)) labels.push(k);
+    if (labels.length) {
+      children.push(table(['', ...times], labels.map((k) => [k, ...sec.runs.map((r) => (r.summaryRows || []).find(([l]) => l === k)?.[1] ?? '—')]), times.map((_, i) => i + 1)));
+    }
+    const c = sec.changes;
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(`Went on special (${c.newSpecials.length})`)] }));
+    children.push(c.newSpecials.length
+      ? table(['SKU', 'Product', 'Normal price', 'Special price', 'Saving'], c.newSpecials.slice(0, MAX_ROWS).map((x) => [x.sku, x.name, rand(x.normalCents), rand(x.specialCents), pct(x.normalCents, x.specialCents)]), [2, 3, 4])
+      : para('No products went on special today.'));
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(`Price reduced (${c.priceDown.length})`)] }));
+    children.push(c.priceDown.length
+      ? table(['SKU', 'Product', 'Was', 'Now', 'Down'], c.priceDown.slice(0, MAX_ROWS).map((x) => [x.sku, x.name, rand(x.fromCents), rand(x.toCents), pct(x.fromCents, x.toCents)]), [2, 3, 4])
+      : para('No shop prices came down today.'));
+  }
+  const doc = new Document({ creator: 'Procom Solutions', title: 'Supplier updates', sections: [{ children }] });
+  return Packer.toBuffer(doc);
+}
