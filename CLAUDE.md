@@ -30,6 +30,8 @@ server/            API (index.js), schema+migrations (db.js), catalog, pricing, 
   smd-api-rules.js category rules for NEW SMD API products (SMD category path -> shop sub-category), auto-list 'smdapi'
   vault.js         AES-GCM for supplier portal passwords (key: VAULT_KEY or auto-created .vault-key); reveal is audited
   remote-images.js background photo-URL downloader (SSRF-guarded)
+  sync-report.js   supplier sync report: price snapshot/diff (went on special, price reduced) + Word (.docx) builders
+  supplier-digest.js  once-a-day supplier update email at 19:00 SAST (Site settings "Supplier update emails" = daily)
   *.test.js        node --test suites (npm test)
 admin/             admin SPA served at /admin (no build step); dom.js = only HTML sink
 src/js, src/styles storefront JS + Tailwind (main.css from lapanza3d); dom.js = only HTML sink
