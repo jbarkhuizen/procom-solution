@@ -61,6 +61,7 @@ test('prices are stored excl VAT and the summary becomes the description when li
   updateSettings({ esquireAutoList: true }, db);
   const r2 = await sync([rec('A', 115), rec('B', 3.000005)]);
   assert.equal(r2.autoList.created, 2);
+  assert.equal(r2.changes.newlyListed, 2, 'report: newly listed products');
   assert.equal(product('A').description, 'Summary of A, retail box.');
   assert.equal(product('A').price_cents, 12700); // R100 x 1.15 x 1.10 = R126.50 -> R127
 });

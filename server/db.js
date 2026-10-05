@@ -338,6 +338,8 @@ export const DEFAULT_SETTINGS = {
   minProfitRand: 10,
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
+  // Esquire / SMD sync report emails (with the Word overview); comma-separated.
+  supplierReportEmail: 'admin@lapanzaonline.co.za',
   legalEntity: 'Lapanza (trading as Procom Solutions)',
   // Esquire API sync lists new items by itself only when this is on.
   esquireAutoList: false,

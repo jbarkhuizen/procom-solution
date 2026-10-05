@@ -4,6 +4,7 @@ import { importFile } from './feed.js';
 import { autoList, classifyItem } from './smd-autolist.js';
 import { ESQUIRE_LIST } from './esquire-rules.js';
 import { sendEsquireReport } from './mailer.js';
+import { snapshotPrices, diffPrices } from './sync-report.js';
 import { decryptSecret } from './vault.js';
 
 // Esquire's live product API, pulled on a schedule (3x a day) instead of an
@@ -125,6 +126,7 @@ export function syncEsquire({ trigger = 'manual', records = null, email = true, 
         throw new Error(`Feed has only ${sellable.length} products (last run ${previous}) -- skipped this run so nothing is marked out of stock by mistake`);
       }
 
+      const before = snapshotPrices(supplier.id, db);
       report.import = await importFile(
         { supplierId: supplier.id, fileName: ESQUIRE_FILE, buffer: Buffer.from(JSON.stringify(sellable)), pricesIncludeVat: true, completeList: true, restoreStock: true },
         db,
@@ -132,6 +134,7 @@ export function syncEsquire({ trigger = 'manual', records = null, email = true, 
       // Switched off until the owner approves the category table: the report
       // then shows what *would* be listed.
       report.autoList = autoList({ list: 'esquire', supplierId: supplier.id, dryRun: !report.autoListOn }, db);
+      report.changes = diffPrices(before, supplier.id, db);
       report.ok = true;
     } catch (err) {
       report.error = err.message;

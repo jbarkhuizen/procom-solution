@@ -82,6 +82,8 @@ test('costs, SMD specials shown as Sale, and the special ending', async () => {
   assert.equal(p.price_cents, 10200); // R80 x 1.15 x 1.10 = R101.20 -> R102
   assert.equal(p.compare_at_cents, 12700, 'normal price struck through');
   assert.equal(p.special_by_feed, 1);
+  assert.deepEqual(r.changes.newSpecials.map((x) => [x.normalCents, x.specialCents]), [[12700, 10200]], 'report: went on special');
+  assert.equal(r.changes.priceDown.length, 1, 'report: price reduced');
   r = await run({ products: [prod('A')], prices: [price('A', '100.00')], stock: [], media: [] });
   p = row('A');
   assert.equal(p.cost_cents, 10000);
