@@ -1,5 +1,6 @@
 import { buildSyncReportDocx, reportFileName } from './sync-report.js';
 import nodemailer from 'nodemailer';
+import { getDb } from './db.js';
 import { getSettings } from './settings.js';
 import { escapeHtml, formatRand } from './util.js';
 
@@ -161,6 +162,30 @@ function changeRows(changes) {
   ];
 }
 
+export const REPORT_MODES = ['every', 'daily', 'off'];
+export const reportMode = (s = getSettings()) => (REPORT_MODES.includes(s.supplierReportMode) ? s.supplierReportMode : 'every');
+
+// Every sync is recorded; the email goes out now ('every'), later in the
+// once-a-day email ('daily', supplier-digest.js) or not at all ('off').
+// A connection check started from admin is always emailed at once.
+async function deliverSyncReport(label, report, { subject, html, summaryRows }) {
+  const s = getSettings();
+  const mode = report.check ? 'every' : reportMode(s);
+  if (!report.check) {
+    try {
+      getDb().prepare('INSERT INTO sync_report_runs (supplier, started_at, ok, error, summary_json, changes_json, sent) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(label, report.startedAt, report.ok ? 1 : 0, report.error || '', JSON.stringify(summaryRows), report.changes ? JSON.stringify(report.changes) : null, mode === 'every' ? 1 : 0);
+    } catch (err) {
+      console.error('Could not record the sync report:', err.message);
+    }
+  }
+  if (mode !== 'every') return false;
+  const attachments = report.check ? undefined : await reportAttachment(label, report, summaryRows);
+  return sendMail({ to: reportRecipients(s), subject, html, attachments });
+}
+
+export { reportRecipients, changesHtml };
+
 async function reportAttachment(supplierLabel, report, summaryRows) {
   try {
     const content = await buildSyncReportDocx({ supplierLabel, startedAt: report.startedAt, ok: report.ok, error: report.error, summaryRows, changes: report.changes || null });
@@ -248,8 +273,7 @@ export async function sendEsquireReport(report) {
       ...(report.autoListOn ? [['New products listed', al.created]] : []),
     ]
     : [];
-  const attachments = await reportAttachment('Esquire', report, summaryRows);
-  return sendMail({ to: reportRecipients(s), subject, html: layout('Esquire feed sync', body), attachments });
+  return deliverSyncReport('Esquire', report, { subject, html: layout('Esquire feed sync', body), summaryRows });
 }
 
 // After every SMD API run (smd-api.js). A connection check says so: nothing changed.
@@ -324,8 +348,7 @@ export async function sendSmdReport(report) {
       ...(report.autoList && report.autoListOn && !report.check ? [['New products listed', report.autoList.created]] : []),
     ]
     : [];
-  const attachments = report.check ? undefined : await reportAttachment('SMD', report, summaryRows);
-  return sendMail({ to: reportRecipients(s), subject, html: layout('SMD live API', body), attachments });
+  return deliverSyncReport('SMD', report, { subject, html: layout('SMD live API', body), summaryRows });
 }
 
 export function sendContactNotice({ name, email, phone, message }) {
