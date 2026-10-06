@@ -137,6 +137,7 @@ test('rejects out-of-stock, hidden and below-MOQ items', () => {
   assert.throws(() => orders.createOrder({ customer, shippingOptionId: ship, items: [{ productId: out.id, quantity: 1 }] }), /out of stock/);
   assert.throws(() => orders.createOrder({ customer, shippingOptionId: ship, items: [{ productId: hidden.id, quantity: 1 }] }), /no longer available/);
   assert.throws(() => orders.createOrder({ customer, shippingOptionId: ship, items: [{ productId: moq.id, quantity: 2 }] }), /minimum order quantity of 6/);
+  assert.throws(() => orders.createOrder({ customer, shippingOptionId: ship, items: [{ productId: moq.id, quantity: 8 }] }), /sold in packs of 6 -- please order 6, 12, 18/, 'whole packs only');
 });
 
 test('marking paid is idempotent and decrements own stock once', () => {

@@ -307,6 +307,7 @@ export async function sendSmdReport(report) {
       row(`Shown again (back in the API)`, st.unhidden),
       row('Low stock (5 or fewer)', st.lowStock),
       row(`Descriptions that ${verb} filled`, st.descriptions),
+      row(`Pack sizes that ${verb} updated (sold in packs)`, st.packSizes || 0),
       row(`Products that ${verb} get full-size photos`, st.photoSets),
       ...(report.check ? [] : [row('Shop prices updated', report.repriced)]),
     ])}`;

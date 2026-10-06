@@ -123,7 +123,7 @@ function renderCart() {
           <div class="qty"><button type="button" data-qty="-1" aria-label="Decrease">−</button><input type="number" value="${Number(i.quantity)}" min="1" aria-label="Quantity" data-qty-input><button type="button" data-qty="1" aria-label="Increase">+</button></div>
           <button type="button" data-remove class="text-xs text-espresso/55 hover:text-terracotta underline">Remove</button>
         </div>
-        ${i.minOrderQty > 1 ? `<p class="text-[0.7rem] text-espresso/50 mt-1">Minimum ${Number(i.minOrderQty)}</p>` : ''}
+        ${i.minOrderQty > 1 ? `<p class="text-[0.7rem] text-espresso/50 mt-1">Sold in packs of ${Number(i.minOrderQty)} · ${Number(i.quantity) / Number(i.minOrderQty)} pack${Number(i.quantity) / Number(i.minOrderQty) === 1 ? '' : 's'}</p>` : ''}
       </div>
     </div>`,
       )
@@ -151,7 +151,7 @@ function initCart() {
     const item = getCart().find((i) => i.productId === id);
     if (!item) return;
     const step = e.target.closest('[data-qty]');
-    if (step) setQuantity(id, item.quantity + Number(step.dataset.qty));
+    if (step) setQuantity(id, item.quantity + Number(step.dataset.qty) * (item.minOrderQty || 1)); // a whole pack at a time
     if (e.target.closest('[data-remove]')) removeFromCart(id);
   });
   document.addEventListener('change', (e) => {

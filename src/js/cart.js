@@ -25,6 +25,16 @@ export const cartSubtotal = () => read().reduce((s, i) => s + i.priceCents * i.q
 export const cartWeight = () => read().reduce((s, i) => s + (i.weightG || 0) * i.quantity, 0);
 export const cartNeedsDeliveryQuote = () => read().some((i) => i.quoteDelivery);
 
+// Pack items (min_order_qty > 1, "Order in Qty of 12") are sold in whole packs
+// only (owner 2026-10-06): 12, 24, 36... Rounds to the nearest whole pack,
+// at least one pack, and never more whole packs than `max` units allow.
+export function toWholePacks(quantity, pack = 1, max = null) {
+  const n = Math.max(1, Number(pack) || 1);
+  let q = Math.max(n, Math.round((Number(quantity) || 0) / n) * n);
+  if (max != null) q = Math.min(q, Math.floor(max / n) * n);
+  return q;
+}
+
 export function addToCart(product, quantity = 1) {
   track('add_to_cart', { productId: product.id, quantity });
   const items = read();
@@ -45,7 +55,7 @@ export function addToCart(product, quantity = 1) {
       quantity: Math.max(min, quantity),
     });
   const line = items.find((i) => i.productId === product.id);
-  if (line.maxQty != null) line.quantity = Math.min(line.quantity, line.maxQty);
+  line.quantity = toWholePacks(line.quantity, line.minOrderQty, line.maxQty);
   write(items);
 }
 
@@ -54,7 +64,7 @@ export function setQuantity(productId, quantity) {
   const line = items.find((i) => i.productId === productId);
   if (!line) return;
   if (quantity < (line.minOrderQty || 1)) items = items.filter((i) => i.productId !== productId);
-  else line.quantity = line.maxQty != null ? Math.min(quantity, line.maxQty) : Math.min(quantity, 999);
+  else line.quantity = toWholePacks(Math.min(quantity, 999), line.minOrderQty, line.maxQty);
   write(items);
 }
 

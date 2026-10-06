@@ -130,6 +130,15 @@ test('descriptions fill blanks only; unknown SKUs go to Warehouse feed; categori
   assert.equal(f.cost_cents, 2000);
 });
 
+test('pack size: listed products follow the SMD name ( Order in Qty of 12)', async () => {
+  listed('MUG');
+  listed('ONE');
+  const r = await run({ products: [prod('MUG', { Name: 'Snappy Mug 473ml ( Order in Qty of 12)' }), prod('ONE')], prices: [price('MUG', '40.00'), price('ONE', '40.00')], stock: [{ Sku: 'MUG', SOH: 240 }, { Sku: 'ONE', SOH: 5 }], media: [] });
+  assert.equal(r.stats.packSizes, 1);
+  assert.equal(row('MUG').min_order_qty, 12);
+  assert.equal(row('ONE').min_order_qty, 1, 'no pack in the name: unchanged');
+});
+
 test('products missing from the API are hidden (owner rule), shown again when back; very many missing are left alone', async () => {
   for (const c of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']) listed(c);
   catalog.saveProduct({ active: false }, row('K').id, db); // admin hid K by hand
