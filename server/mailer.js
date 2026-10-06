@@ -1,4 +1,4 @@
-import { buildSyncReportDocx, reportFileName } from './sync-report.js';
+import { buildSyncReportDocx, reportFileName, buildAttention } from './sync-report.js';
 import nodemailer from 'nodemailer';
 import { getDb } from './db.js';
 import { getSettings } from './settings.js';
@@ -155,8 +155,8 @@ function changeRows(changes) {
   if (!changes) return [];
   return [
     ['Went on special', changes.newSpecials.length],
-    ['Shop price reduced', changes.priceDown.length],
-    ['Shop price increased', changes.priceUp],
+    ['Shop prices went down', changes.priceDown.length],
+    ['Shop prices went up', changes.priceUp],
     ['Specials ended', changes.specialsEnded],
     ['Newly listed in the shop', changes.newlyListed],
   ];
@@ -168,10 +168,15 @@ export const reportMode = (s = getSettings()) => (REPORT_MODES.includes(s.suppli
 // Every sync is recorded; the email goes out now ('every'), later in the
 // once-a-day email ('daily', supplier-digest.js) or not at all ('off').
 // A connection check started from admin is always emailed at once.
-async function deliverSyncReport(label, report, { subject, html, summaryRows }) {
+async function deliverSyncReport(label, report, { subject, html, summaryRows, docx = {} }) {
   const s = getSettings();
   const mode = report.check ? 'every' : reportMode(s);
+  let previousRows = null; // the last good run of this supplier, for the Word "last run" column
   if (!report.check) {
+    try {
+      const last = getDb().prepare('SELECT summary_json FROM sync_report_runs WHERE supplier = ? AND ok = 1 ORDER BY id DESC LIMIT 1').get(label);
+      previousRows = last ? JSON.parse(last.summary_json) : null;
+    } catch { /* no comparison column */ }
     try {
       getDb().prepare('INSERT INTO sync_report_runs (supplier, started_at, ok, error, summary_json, changes_json, sent) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .run(label, report.startedAt, report.ok ? 1 : 0, report.error || '', JSON.stringify(summaryRows), report.changes ? JSON.stringify(report.changes) : null, mode === 'every' ? 1 : 0);
@@ -180,15 +185,15 @@ async function deliverSyncReport(label, report, { subject, html, summaryRows }) 
     }
   }
   if (mode !== 'every') return false;
-  const attachments = report.check ? undefined : await reportAttachment(label, report, summaryRows);
+  const attachments = report.check ? undefined : await reportAttachment(label, report, summaryRows, { ...docx, previousRows });
   return sendMail({ to: reportRecipients(s), subject, html, attachments });
 }
 
 export { reportRecipients, changesHtml };
 
-async function reportAttachment(supplierLabel, report, summaryRows) {
+async function reportAttachment(supplierLabel, report, summaryRows, docx = {}) {
   try {
-    const content = await buildSyncReportDocx({ supplierLabel, startedAt: report.startedAt, ok: report.ok, error: report.error, summaryRows, changes: report.changes || null });
+    const content = await buildSyncReportDocx({ supplierLabel, startedAt: report.startedAt, ok: report.ok, error: report.error, summaryRows, changes: report.changes || null, seconds: report.seconds ?? null, ...docx });
     return [{ filename: reportFileName(supplierLabel, report.startedAt), content, contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }];
   } catch (err) {
     console.error('Sync report document failed:', err.message);
@@ -196,14 +201,29 @@ async function reportAttachment(supplierLabel, report, summaryRows) {
   }
 }
 
-function changesHtml(changes, row, table, list) {
-  if (!changes) return '';
-  const r = (c) => formatRand(c);
-  let html = `<h3 style="font-size:15px;margin:12px 0 0">Shop prices this run</h3>${table(changeRows(changes).map(([k, v]) => row(k, v)))}`;
-  if (changes.newSpecials.length) html += `<p style="margin:0">Went on special (biggest savings first):</p>${list(changes.newSpecials.map((x) => `${x.name} (${x.sku}): ${r(x.normalCents)} → ${r(x.specialCents)}`), 15)}`;
-  if (changes.priceDown.length) html += `<p style="margin:0">Price reduced (biggest first):</p>${list(changes.priceDown.map((x) => `${x.name} (${x.sku}): ${r(x.fromCents)} → ${r(x.toCents)}`), 15)}`;
-  if (changes.newSpecials.length || changes.priceDown.length) html += '<p style="font-size:13px;margin:0 0 12px">The full lists are in the attached Word document.</p>';
+// The short email (owner 2026-10-06): headline numbers, what needs attention, a
+// pointer to the Word document that holds every list.
+const LEVEL_COLOR = { red: '#c24b28', amber: '#b7791f' };
+export function slimEmail({ meta, headline, attention = [], notes = [], withDoc = true }) {
+  const e = escapeHtml;
+  let html = `<p style="margin:0 0 12px;color:#6a5f54">${e(meta)}</p>`;
+  html += `<p style="font-size:17px;font-weight:700;margin:0 0 16px;line-height:1.5">${headline.map(([n, label]) => `${e(String(n))} ${e(label)}`).join(' · ')}</p>`;
+  html += `<h3 style="font-size:15px;margin:0 0 6px">Needs your attention</h3>`;
+  html += attention.length
+    ? attention.map((i) => `<div style="border-left:4px solid ${LEVEL_COLOR[i.level] || '#b7791f'};background:#faf6ee;padding:8px 12px;margin:0 0 8px;font-size:14px">${e(i.text)}${(i.examples || []).map((x) => `<br><span style="color:#6a5f54;font-size:13px">${e(x)}</span>`).join('')}</div>`).join('')
+    : '<p style="margin:0 0 8px;color:#2e7d32;font-weight:700">Nothing needs your attention in this run.</p>';
+  html += notes.join('');
+  if (withDoc) html += '<p style="font-size:13px;margin:16px 0 0;color:#6a5f54">Every changed product, with links, is in the attached Word document.</p>';
   return html;
+}
+
+// Digest section: the same short form for a whole day of runs.
+function changesHtml(changes, row, table) {
+  if (!changes) return '';
+  const att = buildAttention(changes);
+  const e = escapeHtml;
+  return `<h3 style="font-size:15px;margin:12px 0 0">Shop prices today</h3>${table(changeRows(changes).map(([k, v]) => row(k, v)))}`
+    + att.map((i) => `<div style="border-left:4px solid ${LEVEL_COLOR[i.level] || '#b7791f'};background:#faf6ee;padding:8px 12px;margin:0 0 8px;font-size:14px">${e(i.text)}</div>`).join('');
 }
 
 // Status email after every Esquire API sync (esquire.js), success or failure.
@@ -218,40 +238,41 @@ export async function sendEsquireReport(report) {
   const toList = al ? al.summary.reduce((n, g) => n + g.newListings, 0) : 0;
   const when = new Date(report.startedAt).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
 
+  let docx = {};
   let body = `<p>${escapeHtml(when)} · ${report.trigger === 'scheduled' ? 'scheduled run' : 'run started from admin'} · ${report.seconds ?? 0}s</p>`;
   if (!report.ok) {
     body += `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>The sync did not complete.</strong><br>${escapeHtml(report.error)}</p>
       <p>Nothing was changed in the shop by this run. The next scheduled run will try again.</p>`;
   } else {
-    body += `<h3 style="font-size:15px;margin:12px 0 0">Feed</h3>${table([
-      row('Products in Esquire feed', report.feedRows),
-      row('Left out (groups we don’t sell)', report.leftOut.reduce((n, g) => n + g.n, 0)),
-      row('Imported', report.sellableRows),
-      row('New to the feed', im.rowsNew),
-      row('Cost changes', im.priceChanges),
-      row('Shop prices updated', im.productsRepriced),
-      row('Listed products now out of stock', im.productsMarkedOut),
-      row('Listed products back in stock', im.productsBackInStock),
-      row('Hidden from the shop (left the feed)', im.productsHidden || 0),
-      row('Shown again (back in the feed)', im.productsUnhidden || 0),
-      row('Photos queued for download', im.imagesQueued),
-    ])}`;
-    body += changesHtml(report.changes, row, table, list);
-    if (report.autoListOn) {
-      body += `<h3 style="font-size:15px;margin:12px 0 0">Auto-list</h3>${table([
-        row('New products listed', al.created),
-        row('Marked delivery quoted (heavy)', al.quoted),
-        row('Categories created', al.categoriesCreated.length),
-        row('Errors', al.errors.length),
-      ])}`;
-      if (al.categoriesCreated.length) body += `<p style="margin:0">New categories:</p>${list(al.categoriesCreated)}`;
-      if (al.errors.length) body += `<p style="margin:0">Errors:</p>${list(al.errors, 10)}`;
-    } else {
-      body += `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Auto-list is off.</strong> ${toList} product(s) would be listed by the approved rules${al.newCategories.length ? `, creating ${al.newCategories.length} categories` : ''}. Switch it on in Admin → Warehouse feed → Esquire once the category table is approved.</p>`;
+    // Short email; everything else is in the Word document (owner 2026-10-06).
+    const chg = report.changes;
+    const extra = [];
+    if (al) {
+      if (report.autoListOn && al.errors.length) extra.push({ level: 'red', text: `${al.errors.length} product(s) could not be listed.`, examples: al.errors.slice(0, 3).map(String) });
+      if (!report.autoListOn) extra.push({ level: 'amber', text: `Auto-list is off: ${toList} product(s) would be listed by the approved rules${al.newCategories.length ? `, creating ${al.newCategories.length} categories` : ''}. Switch it on in Admin → Warehouse feed → Esquire once the category table is approved.` });
+      if (al.unmatched.length) extra.push({ level: 'amber', text: `${al.unmatched.length} product(s) were not recognised by the category rules, so they were not listed.`, examples: al.unmatched.slice(0, 3).map((u) => `${u.code} — ${u.name}`) });
+      if (al.skipped.length) extra.push({ level: 'amber', text: `${al.skipped.reduce((n, g) => n + g.items.length, 0)} imported product(s) were not listed (list by hand, or ask for a rule).`, examples: al.skipped.slice(0, 3).map((g) => `${g.items.length} · ${g.reason}`) });
     }
-    if (al.unmatched.length) body += `<p style="margin:0"><strong>${al.unmatched.length} product(s) not recognised</strong> by the category rules (not listed):</p>${list(al.unmatched.map((u) => `${u.code} — ${u.name}`))}`;
-    if (al.skipped.length) body += `<p style="margin:0">Imported but not listed (your call — list by hand, or ask for a rule):</p>${list(al.skipped.map((g) => `${g.items.length} · ${g.reason}`))}`;
-    if (report.leftOut.length) body += `<p style="margin:0">Left out of the import:</p>${list(report.leftOut.map((g) => `${g.n} · ${g.reason}`))}`;
+    body = slimEmail({
+      meta: `${when} · ${report.trigger === 'scheduled' ? 'scheduled run' : 'run started from admin'} · ${report.seconds ?? 0}s`,
+      headline: [[im.productsRepriced, 'shop prices changed'], [chg ? chg.newSpecials.length : 0, 'on special'], [im.productsMarkedOut, 'out of stock'], [im.productsBackInStock, 'back in stock'], [im.rowsNew, 'new in the feed']],
+      attention: buildAttention(chg, extra),
+    });
+    docx = {
+      attention: extra,
+      notListed: al ? al.skipped.map((g) => [g.reason, g.items.length]) : [],
+      details: [
+        ['Started by', report.trigger === 'scheduled' ? 'Schedule' : 'Admin'],
+        ['Products in the Esquire feed', report.feedRows],
+        ['Left out (groups we don’t sell)', report.leftOut.reduce((n, g) => n + g.n, 0)],
+        ['Imported', report.sellableRows],
+        ['New to the feed', im.rowsNew],
+        ['Supplier cost changes', im.priceChanges],
+        ['Photos queued for download', im.imagesQueued],
+        ...(report.autoListOn && al ? [['New products listed', al.created], ['Marked delivery quoted (heavy)', al.quoted], ['Categories created', al.categoriesCreated.length], ['Listing errors', al.errors.length]] : []),
+        ...report.leftOut.map((g) => [`Left out: ${g.reason}`, g.n]),
+      ],
+    };
   }
 
   const ch = report.changes;
@@ -273,7 +294,7 @@ export async function sendEsquireReport(report) {
       ...(report.autoListOn ? [['New products listed', al.created]] : []),
     ]
     : [];
-  return deliverSyncReport('Esquire', report, { subject, html: layout('Esquire feed sync', body), summaryRows });
+  return deliverSyncReport('Esquire', report, { subject, html: layout('Esquire feed sync', body), summaryRows, docx });
 }
 
 // After every SMD API run (smd-api.js). A connection check says so: nothing changed.
@@ -286,6 +307,7 @@ export async function sendSmdReport(report) {
     `<ul style="font-size:13px;margin:4px 0 16px;padding-left:18px">${items.slice(0, max).map((i) => `<li>${escapeHtml(i)}</li>`).join('')}${items.length > max ? `<li>… and ${items.length - max} more</li>` : ''}</ul>`;
   const when = new Date(report.startedAt).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
   const verb = report.check ? 'would be' : 'were';
+  let docx = {};
   let body = `<p>${escapeHtml(when)} · ${report.check ? '<strong>connection check — nothing in the shop was changed</strong>' : report.trigger === 'scheduled' ? 'scheduled run' : 'run started from admin'} · ${report.seconds ?? 0}s</p>`;
   if (!report.ok) {
     body += `<p style="background:#c24b28;color:#fff;padding:12px;border-radius:4px"><strong>The SMD sync did not complete.</strong><br>${escapeHtml(report.error)}</p><p>Nothing was changed in the shop by this run.</p>`;
@@ -311,7 +333,6 @@ export async function sendSmdReport(report) {
       row(`Products that ${verb} get full-size photos`, st.photoSets),
       ...(report.check ? [] : [row('Shop prices updated', report.repriced)]),
     ])}`;
-    body += changesHtml(report.changes, row, table, list);
     if (st.missingNotMarked) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>${st.notInApi} of your SMD products are not in the API</strong> — too many to be real sell-outs, so they were left as they are (probably an incomplete API response). Examples:</p>${list(st.missingSample || [])}`;
     else if (st.missingSample?.length) body += `<p style="margin:0">Not in the API (${verb} hidden from the shop):</p>${list(st.missingSample)}`;
     if (report.stats?.biggestChanges?.length) body += `<p style="margin:0">Biggest cost changes:</p>${list(report.stats.biggestChanges.map((c) => `${c.name} (${c.sku}): ${formatRand(c.from)} → ${formatRand(c.to)} excl VAT`))}`;
@@ -325,6 +346,38 @@ export async function sendSmdReport(report) {
       if (al.unmatched.length) body += `<p style="margin:0"><strong>${al.unmatched.length} new SMD product(s) not recognised</strong> by the category rules (not listed):</p>${list(al.unmatched.slice(0, 30).map((u) => `${u.code} — ${u.name}`))}`;
     }
     if (report.check) body += `<p style="background:#efe7d8;padding:12px;border-radius:4px">If this looks right, switch the SMD sync on in Admin → Warehouse feed → SMD live API. It then runs at 06:30, 12:30 and 18:30.</p>`;
+    else {
+      // Short email; everything else is in the Word document (owner 2026-10-06).
+      const ch = report.changes;
+      const extra = [];
+      if (st.missingNotMarked) extra.push({ level: 'red', text: `${st.notInApi} of your SMD products are not in the API. That is too many to be real sell-outs, so they were left as they are (probably an incomplete API response).`, examples: (st.missingSample || []).slice(0, 3) });
+      if (al) {
+        if (report.autoListOn && al.errors.length) extra.push({ level: 'red', text: `${al.errors.length} new SMD product(s) could not be listed.`, examples: al.errors.slice(0, 3).map(String) });
+        if (!report.autoListOn) extra.push({ level: 'amber', text: `Auto-list is off: ${al.summary.reduce((n, g) => n + g.newListings, 0)} new SMD product(s) would be listed. Switch it on in Admin → Warehouse feed → SMD live API.` });
+        if (al.unmatched.length) extra.push({ level: 'amber', text: `${al.unmatched.length} new SMD product(s) were not recognised by the category rules, so they were not listed.`, examples: al.unmatched.slice(0, 3).map((u) => `${u.code} — ${u.name}`) });
+      }
+      body = slimEmail({
+        meta: `${when} · ${report.trigger === 'scheduled' ? 'scheduled run' : 'run started from admin'} · ${report.seconds ?? 0}s`,
+        headline: [[report.repriced ?? 0, 'shop prices changed'], [ch ? ch.newSpecials.length : 0, 'on special'], [st.markedOut, 'out of stock'], [st.backInStock, 'back in stock'], [ch ? ch.newlyListed : 0, 'new products listed']],
+        attention: buildAttention(ch, extra),
+      });
+      docx = {
+        attention: extra,
+        notListed: Object.entries(st.newSkuCategories || {}).sort((a, b) => b[1] - a[1]),
+        details: [
+          ['Started by', report.trigger === 'scheduled' ? 'Schedule' : 'Admin'],
+          ['Products SMD sent', report.api.products],
+          ['Prices / stock levels / products with photos', `${report.api.prices} / ${report.api.stock} / ${report.api.photoSkus}`],
+          ['Your SMD products found in the API', `${st.matched} of ${st.listed}`],
+          ['Not in the API', st.notInApi],
+          ['Low stock (5 or fewer)', st.lowStock],
+          ['Descriptions filled', st.descriptions],
+          ['Pack sizes updated', st.packSizes || 0],
+          ['Products given full-size photos', st.photoSets],
+          ...(al && report.autoListOn ? [['New products listed', al.created], ['Categories created', al.categoriesCreated.length], ['Listing errors', al.errors.length]] : []),
+        ],
+      };
+    }
   }
   const subject = !report.ok
     ? `SMD sync FAILED${report.check ? ' (connection check)' : ''}`
@@ -336,12 +389,12 @@ export async function sendSmdReport(report) {
       ['Products SMD sent', report.api.products],
       ['Your SMD products', st.listed],
       ['Found in the API', st.matched],
-      ['Costs raised', st.costUp],
-      ['Costs lowered', st.costDown],
+      ['Supplier costs went up', st.costUp],
+      ['Supplier costs went down', st.costDown],
       ['Shop prices updated', report.repriced ?? 0],
       ...changeRows(report.changes),
       ['On SMD special now', st.specials],
-      ['Marked out of stock', st.markedOut],
+      ['Went out of stock', st.markedOut],
       ['Back in stock', st.backInStock],
       ['Hidden from the shop (not in the API)', st.hidden],
       ['Shown again (back in the API)', st.unhidden],
@@ -349,7 +402,7 @@ export async function sendSmdReport(report) {
       ...(report.autoList && report.autoListOn && !report.check ? [['New products listed', report.autoList.created]] : []),
     ]
     : [];
-  return deliverSyncReport('SMD', report, { subject, html: layout('SMD live API', body), summaryRows });
+  return deliverSyncReport('SMD', report, { subject, html: layout('SMD live API', body), summaryRows, docx });
 }
 
 export function sendContactNotice({ name, email, phone, message }) {
