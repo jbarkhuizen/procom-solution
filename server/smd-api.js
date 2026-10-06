@@ -11,6 +11,7 @@ import { fetchImage } from './remote-images.js';
 import { storeProductImage, deleteUpload, resolveUpload } from './images.js';
 import { sendSmdReport } from './mailer.js';
 import { snapshotPrices, diffPrices } from './sync-report.js';
+import { recordApiRun } from './api-run-log.js';
 import { nextRunAt } from './esquire.js';
 
 // SMD's live API (https://api.smdtechnologies.com/v1/, spec: "SMD API INFO"
@@ -347,6 +348,7 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
     }
     report.seconds = Math.round((Date.now() - started) / 1000);
     saveLastRun(db, report);
+    recordApiRun('SMD', report, db);
     if (email) await sendSmdReport(report);
     return report;
   })().finally(() => {

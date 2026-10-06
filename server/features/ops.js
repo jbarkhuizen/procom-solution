@@ -25,6 +25,9 @@ import { getDb } from '../db.js';
 import { backupsDir, dataDir, uploadsDir } from '../paths.js';
 import { listBackups } from '../backups.js';
 import { payfastMode } from '../payfast.js';
+import { listApiRuns, apiRunSummary, backfillApiRunLog } from '../api-run-log.js';
+import { nextRunAt, syncHours } from '../esquire.js';
+import { smdStatus } from '../smd-api.js';
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const defaultRun = promisify(runFile); // (file, args, opts) -> { stdout, stderr }
@@ -445,6 +448,7 @@ const SUITE_DESCRIPTIONS = {
   'server/features/phase1.test.js': 'Accounts, invoices, promos and specials working together in one order.',
   'server/features/promos.test.js': 'Promo codes: validity, usage limits, discount never takes a sale below cost incl VAT.',
   'server/features/specials.test.js': 'Specials: sale prices, dates, never below cost incl VAT, struck-through normal price.',
+  'server/api-run-log.test.js': 'API run log (Admin -> System): every Esquire / SMD run is logged with its status and a one-line overview; filters, summary and seeding from the report history.',
   'server/features/ops.test.js': 'Ops: off-site backup copy, version history, test runs and About this site (with rclone/git faked).',
 };
 
@@ -791,6 +795,18 @@ export function register({ admin, wrap, jobs = true }) {
   admin.get('/ops/tests', wrap(() => ({ ...listTestCases(), runs: listTestRuns(), active: testRunActive() })));
   admin.get('/ops/tests/runs/:id', wrap((req) => getTestRun(req.params.id) || Promise.reject(httpError('Test run not found', 404))));
   admin.post('/ops/tests/run', wrap((req) => startTestRun({ requestedBy: who(req) }).run));
+
+  // API run log (Esquire / SMD).
+  admin.get('/ops/api-runs', wrap((req) => {
+    backfillApiRunLog();
+    const smd = smdStatus();
+    const slots = (smd.runTimesSast || []).map((t) => ({ h: Number(t.slice(0, 2)), m: Number(t.slice(3)) }));
+    const iso = (d) => (d ? d.toISOString() : null);
+    return {
+      summary: apiRunSummary().map((s) => ({ ...s, nextRunAt: iso(nextRunAt(new Date(), s.supplier === 'SMD' ? slots : syncHours())) })),
+      runs: listApiRuns({ supplier: String(req.query.supplier || ''), status: String(req.query.status || ''), limit: req.query.limit }),
+    };
+  }));
 
   // About this site.
   admin.get('/ops/overview', wrap(() => siteOverview()));

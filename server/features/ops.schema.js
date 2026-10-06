@@ -7,6 +7,8 @@
 // version_history    one row per deployed git commit, recorded at server start
 //                    when HEAD changed since the last row. Labels 1.0, 1.01, ...
 // test_runs          "Run tests now" history from Admin -> Test cases.
+// api_run_log        one row per supplier API run (Esquire / SMD): when, who started it,
+//                    ok or failed, how long, a one-line overview. Kept 180 days.
 export const SQL = `
   CREATE TABLE IF NOT EXISTS ops_settings (
     key TEXT PRIMARY KEY,
@@ -58,6 +60,20 @@ export const SQL = `
     output TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS idx_test_runs_started ON test_runs (started_at);
+
+  CREATE TABLE IF NOT EXISTS api_run_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplier TEXT NOT NULL,              -- 'Esquire' | 'SMD'
+    started_at TEXT NOT NULL,
+    trigger TEXT NOT NULL DEFAULT 'scheduled',  -- scheduled | manual
+    kind TEXT NOT NULL DEFAULT 'sync',   -- sync | check (SMD connection check, changes nothing)
+    ok INTEGER NOT NULL DEFAULT 1,
+    error TEXT NOT NULL DEFAULT '',
+    seconds INTEGER NOT NULL DEFAULT 0,
+    overview TEXT NOT NULL DEFAULT '',   -- one line for the list
+    figures_json TEXT NOT NULL DEFAULT '[]'  -- [[label, value], ...] shown when a row is opened
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_run_log_started ON api_run_log (started_at);
 `;
 
 export const COLUMNS = [];
