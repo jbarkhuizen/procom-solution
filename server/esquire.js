@@ -5,6 +5,7 @@ import { autoList, classifyItem } from './smd-autolist.js';
 import { ESQUIRE_LIST } from './esquire-rules.js';
 import { sendEsquireReport } from './mailer.js';
 import { snapshotPrices, diffPrices } from './sync-report.js';
+import { recordApiRun } from './api-run-log.js';
 import { decryptSecret } from './vault.js';
 
 // Esquire's live product API, pulled on a schedule (3x a day) instead of an
@@ -142,6 +143,7 @@ export function syncEsquire({ trigger = 'manual', records = null, email = true, 
     }
     report.seconds = Math.round((Date.now() - started) / 1000);
     saveLastRun(db, report);
+    recordApiRun('Esquire', report, db);
     if (email) await sendEsquireReport(report);
     return report;
   })().finally(() => {
