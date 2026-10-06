@@ -1,3 +1,4 @@
+import { toWholePacks } from './cart.js';
 import { addWithFeedback } from './site.js';
 import { api, esc, formatRand, getSite, whatsappLink } from './api.js';
 import { productCard, availabilityPill, bindAddButtons, packLabel } from './cards.js';
@@ -93,7 +94,7 @@ async function load() {
           <div class="qty"><button type="button" data-step="-1" aria-label="Decrease">−</button><input id="qty" type="number" value="${min}" min="${min}" ${p.stockQty != null ? `max="${Number(p.stockQty)}"` : p.stockMax != null ? `max="${Number(p.stockMax)}"` : ''} aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase">+</button></div>
           <button type="button" id="add-btn" class="magnetic-btn flex-1 sm:flex-none sm:w-60 bg-charcoal text-cream rounded-full px-6 py-2.5 text-sm font-semibold brutal hover:bg-terracotta">Add to cart</button>
         </div>
-        ${min > 1 ? `<p class="text-xs text-espresso/60 mb-3">Sold in packs of ${min} — the quantity starts at ${min}.</p>` : ''}` : `<p class="text-sm text-espresso/70 mb-4">This item is currently unavailable. WhatsApp us and we'll let you know when it's back or suggest an alternative.</p>`}
+        ${min > 1 ? `<p class="text-xs text-espresso/60 mb-3">Sold in packs of ${min} only — order ${min}, ${min * 2}, ${min * 3}… The price shown is for one pack.</p>` : ''}` : `<p class="text-sm text-espresso/70 mb-4">This item is currently unavailable. WhatsApp us and we'll let you know when it's back or suggest an alternative.</p>`}
         <a href="${esc(whatsappLink(site, `Hi Procom, I have a question about ${p.name} (${p.sku}).`))}" target="_blank" rel="noopener noreferrer" class="inline-flex text-sm font-semibold border-2 border-charcoal rounded-full px-5 py-2.5 hover:bg-charcoal hover:text-cream transition-colors">Ask about this product</a>
         <div class="flex items-start gap-2 rounded-sm border border-charcoal/10 bg-linen/60 px-3 py-2.5 text-xs text-espresso/70 mt-4">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 mt-0.5"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
@@ -131,10 +132,10 @@ async function load() {
     if (step) {
       const input = document.getElementById('qty');
       const max = p.stockQty ?? 999;
-      input.value = String(Math.min(max, Math.max(min, (Number(input.value) || min) + Number(step.dataset.step))));
+      input.value = String(toWholePacks((Number(input.value) || min) + Number(step.dataset.step) * min, min, max)); // a whole pack at a time
     }
     if (e.target.closest('#add-btn')) {
-      const q = Math.max(min, Number(document.getElementById('qty').value) || min);
+      const q = toWholePacks(Number(document.getElementById('qty').value) || min, min, p.stockQty ?? null);
       addWithFeedback(p, q);
     }
   });

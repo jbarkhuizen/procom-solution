@@ -176,6 +176,8 @@ export function createOrder(input, db = getDb()) {
     // Live supplier stock (SMD API): never sell more than the warehouse holds.
     if (p.fulfilment === 'dropship' && p.supplier_stock_qty != null && quantity > p.supplier_stock_qty) throw new Error(`Only ${p.supplier_stock_qty} of "${p.name}" available right now.`);
     if (quantity < p.min_order_qty) throw new Error(`"${p.name}" has a minimum order quantity of ${p.min_order_qty}.`);
+    // Whole packs only (owner 2026-10-06): 12, 24, 36... for a pack of 12.
+    if (p.min_order_qty > 1 && quantity % p.min_order_qty !== 0) throw new Error(`"${p.name}" is sold in packs of ${p.min_order_qty} -- please order ${p.min_order_qty}, ${p.min_order_qty * 2}, ${p.min_order_qty * 3}...`);
     const unitCents = specialPriceCents(p, db) ?? p.price_cents; // a running special wins
     items.push({ p, quantity, unitCents, line: unitCents * quantity });
   }

@@ -169,7 +169,7 @@ export function planSmdChanges(cat, db = getDb()) {
   const supplier = findSmdSupplier(db);
   const products = db.prepare("SELECT * FROM products WHERE supplier_id = ? AND fulfilment = 'dropship'").all(supplier.id);
   const plan = { updates: [], media: [], newFeed: [], feedCost: [], pricedSkus: new Set(cat.prices.keys()) };
-  const stats = { listed: products.length, matched: 0, notInApi: 0, costUp: 0, costDown: 0, specials: 0, specialsEnded: 0, markedOut: 0, backInStock: 0, hidden: 0, unhidden: 0, lowStock: 0, descriptions: 0, photoSets: 0, newSkus: 0, newSkuCategories: {}, biggestChanges: [] };
+  const stats = { listed: products.length, matched: 0, notInApi: 0, costUp: 0, costDown: 0, specials: 0, specialsEnded: 0, markedOut: 0, backInStock: 0, hidden: 0, unhidden: 0, lowStock: 0, descriptions: 0, packSizes: 0, photoSets: 0, newSkus: 0, newSkuCategories: {}, biggestChanges: [] };
   const listed = new Set();
   const missing = [];
   for (const p of products) {
@@ -224,6 +224,12 @@ export function planSmdChanges(cat, db = getDb()) {
       if (enough && Math.floor(soh / Math.max(1, p.min_order_qty)) <= 5) stats.lowStock++;
     }
     if (info) {
+      // Pack size from SMD's name ("( Order in Qty of 12)"); SMD has no pack field.
+      const pack = parseMinOrderQty(info.name);
+      if (pack > 1 && pack !== p.min_order_qty) {
+        u.set.min_order_qty = pack;
+        stats.packSizes++;
+      }
       if (!p.description && info.long) {
         u.set.description = info.long.slice(0, 8000);
         stats.descriptions++;
