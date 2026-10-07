@@ -3,7 +3,7 @@
 // A drop leaves the list as soon as the price is back up; sold-out ones stay, greyed.
 import { addWithFeedback } from './site.js';
 import { api, esc, formatRand } from './api.js';
-import { productUrl, bindAddButtons } from './cards.js';
+import { productUrl, bindAddButtons, shipsFromIcon } from './cards.js';
 import { setHtml } from './dom.js';
 import { createLoadMore } from './load-more.js';
 
@@ -61,7 +61,7 @@ function row(p) {
     <td class="num"><s class="text-espresso/50">${formatRand(d.wasCents * pack)}</s></td>
     <td class="num"><strong>${formatRand(d.nowCents * pack)}</strong>${pack > 1 ? ` <span class="text-[0.7rem] text-espresso/55">per ${pack}</span>` : ''}</td>
     <td class="num font-semibold" style="color:#2e6e46">&minus;${formatRand(d.changeCents * pack)}<br>&minus;${Number(d.changePct)}%</td>
-    <td class="num"><div class="drop-stock"><span class="pill ${st.cls}">${esc(st.text)}</span><button type="button" data-add="${esc(p.id)}" ${sold ? 'disabled' : ''}
+    <td class="num"><div class="drop-stock"><span class="inline-flex items-center gap-1"><span class="pill ${st.cls}">${esc(st.text)}</span>${shipsFromIcon(p)}</span><button type="button" data-add="${esc(p.id)}" ${sold ? 'disabled' : ''}
       class="text-[0.7rem] font-semibold bg-charcoal text-cream rounded-full px-3 py-1.5 hover:bg-terracotta transition-colors disabled:opacity-40 disabled:cursor-not-allowed">${sold ? 'Sold out' : pack > 1 ? `Add ${pack} to cart` : 'Add to cart'}</button></div></td>
   </tr>`;
 }
