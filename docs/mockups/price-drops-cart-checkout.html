@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MOCKUP - Price drops: cart and checkout</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{--cream:#f7f3eb;--linen:#efe7d8;--charcoal:#1a1612;--terra:#c24b28;--line:rgb(26 22 18/.12)}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--charcoal);font-family:"DM Sans",system-ui,sans-serif;font-size:15px;line-height:1.45}
+h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-weight:600;margin:0}main{max-width:900px;margin:0 auto;padding:1.5rem}
+.note{background:#fff4d6;border:1px solid #e8d49a;color:#5b4a14;padding:.6rem .9rem;border-radius:6px;font-size:13px;margin:0 0 1rem}
+.box{background:#fffdf8;border:1px solid var(--line);border-radius:8px;padding:1rem;margin-bottom:1.2rem}
+.line{display:flex;gap:1rem;align-items:center;padding:.7rem 0;border-top:1px solid var(--line)}.line:first-of-type{border-top:0}
+.ph{width:56px;height:56px;border-radius:8px;background:linear-gradient(135deg,#efe7d8,#e2d8c4)}.grow{flex:1}.muted{color:rgb(59 50 43/.65);font-size:13px}
+.was{text-decoration:line-through;color:rgb(59 50 43/.55)}.btn{border:1px solid var(--charcoal);background:var(--charcoal);color:#fff;border-radius:999px;padding:.4rem .9rem;font-size:13px;font-weight:600}.btn.sec{background:transparent;color:var(--charcoal)}
+.warn{background:#fff4d6;border-left:4px solid #b7791f;padding:.6rem .8rem;border-radius:4px;font-size:14px;margin:.4rem 0}
+.bad{background:#fbe9e4;border-left:4px solid var(--terra);padding:.6rem .8rem;border-radius:4px;font-size:14px;margin:.4rem 0}
+.disc{background:#efe7d8;border-left:4px solid var(--terra);padding:.7rem 1rem;border-radius:4px;font-size:14px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:.05rem .5rem;background:rgb(31 122 69/.14);color:#1f7a45;margin-left:.4rem}
+</style></head><body><main>
+<p class="note"><strong>MOCKUP for approval, not live.</strong> What the customer sees when a price drop ends, or sells out, while the item is already in their cart, and the disclaimer at checkout.</p>
+
+<h2 style="margin-bottom:.6rem">1. Cart: the price changed while the item was in the cart</h2>
+<div class="box">
+  <div class="line"><div class="ph"></div><div class="grow"><strong>Creality Ender 3V3KE 3D Printer</strong><span class="tag">Price drop</span><div class="muted">ENDER-3V3KE &middot; 1 &times; </div>
+    <div class="warn"><strong>The price changed.</strong> This price drop has ended. It was R&nbsp;5,135.00 and is now <strong>R&nbsp;5,692.00</strong>. Please confirm to keep this item in your cart.</div></div>
+    <div style="text-align:right"><span class="was">R&nbsp;5,135.00</span><br><strong>R&nbsp;5,692.00</strong></div></div>
+  <div class="line"><div class="grow"></div><button class="btn sec">Remove item</button>&nbsp;<button class="btn">Confirm new price</button></div>
+  <p class="muted" style="margin:.2rem 0 0">&ldquo;Pay now&rdquo; stays switched off until the customer confirms or removes the item. The server always charges the current price, so nobody can pay an outdated one.</p>
+</div>
+
+<h2 style="margin-bottom:.6rem">2. Cart: the item sold out after it was added</h2>
+<div class="box">
+  <div class="line"><div class="ph"></div><div class="grow"><strong>Logitech M185 Wireless Mouse Grey</strong><span class="tag">Price drop</span><div class="muted">A-1 &middot; 2 &times;</div>
+    <div class="bad"><strong>Sold out.</strong> The supplier has no stock left right now. Remove it to carry on, or contact us if you would like to wait for stock.</div></div>
+    <div style="text-align:right"><strong>R&nbsp;218.00</strong></div></div>
+</div>
+
+<h2 style="margin-bottom:.6rem">3. Checkout: disclaimer (only when the cart holds a price-drop item)</h2>
+<div class="box">
+  <div class="line" style="border:0"><div class="grow"><strong>Order summary</strong><div class="muted">2 items &middot; Delivery R&nbsp;157.00</div></div><strong>R&nbsp;5,449.00</strong></div>
+  <div class="disc"><strong>Price drops are available while stock lasts.</strong> Prices and stock levels update with our supplier three times a day. If an item sells out before we can supply it, we will contact you and give you a full refund. If the price changes before you pay, you will see the new price at checkout.</div>
+  <p style="margin:.6rem 0 0"><button class="btn">Pay with Payfast</button></p>
+</div>
+</main></body></html>

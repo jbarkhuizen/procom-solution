@@ -1,0 +1,96 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MOCKUP - Price drops page (storefront)</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{--cream:#f7f3eb;--linen:#efe7d8;--charcoal:#1a1612;--espresso:#3b322b;--terra:#c24b28;--olive:#6b6a4f;--steel:#83898d;--ok:#1f7a45;--bad:#a51d1d;--warn:#a36b12;--line:rgb(26 22 18/.12)}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--charcoal);font-family:"DM Sans",system-ui,sans-serif;font-size:15px;line-height:1.45}
+h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-weight:600;letter-spacing:-.01em;margin:0}
+a{color:inherit}.muted{color:rgb(59 50 43/.6)}.num{text-align:right;white-space:nowrap}
+.note{background:#fff4d6;border:1px solid #e8d49a;color:#5b4a14;padding:.6rem .9rem;border-radius:6px;font-size:13px;margin:0 0 1rem}
+.btn{display:inline-block;border:1px solid var(--charcoal);background:var(--charcoal);color:#fff;border-radius:999px;padding:.45rem .95rem;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.sec{background:transparent;color:var(--charcoal)}.btn.sm{padding:.3rem .7rem;font-size:12px}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.3rem .8rem;font-size:13px;background:#fffdf8;margin:0 .35rem .4rem 0}.chip.on{background:var(--charcoal);color:#fff;border-color:var(--charcoal)}
+.badge{display:inline-block;border-radius:999px;padding:.1rem .55rem;font-size:12px;font-weight:600}
+.b-ok{background:rgb(31 122 69/.14);color:var(--ok)}.b-bad{background:rgb(178 34 34/.16);color:var(--bad)}.b-warn{background:rgb(163 107 18/.16);color:var(--warn)}.b-neutral{background:rgb(131 137 141/.2);color:#4d5256}
+.down{color:var(--ok);font-weight:700}.was{text-decoration:line-through;color:rgb(59 50 43/.55)}
+.photo{width:64px;height:64px;border-radius:8px;background:linear-gradient(135deg,#efe7d8,#e2d8c4);display:flex;align-items:center;justify-content:center}
+
+
+.disc{background:#efe7d8;border-left:4px solid var(--terra);padding:.7rem 1rem;border-radius:4px;font-size:14px;margin:0 0 1rem}
+.stk{font-size:12px;font-weight:600;border-radius:999px;padding:.1rem .55rem;white-space:nowrap}.stk.okc{background:rgb(31 122 69/.14);color:#1f7a45}.stk.low{background:rgb(163 107 18/.16);color:#a36b12}.stk.so{background:rgb(178 34 34/.16);color:#a51d1d}
+.soldrow{opacity:.55}.soldrow .plink{pointer-events:none}.btn.dis{background:#b9b2a8;border-color:#b9b2a8;cursor:not-allowed}
+.top{background:#fffdf8;border-bottom:1px solid var(--line);padding:.8rem 1.5rem;display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap}
+.logo{font-family:Fraunces,serif;font-size:20px;font-weight:600}.logo i{color:var(--terra)}
+.nav a{margin-right:1.1rem;text-decoration:none;font-size:14px}.nav a.on{color:var(--terra);font-weight:700}
+main{max-width:1180px;margin:0 auto;padding:1.5rem}
+.crumb{font-size:12px;margin-bottom:.4rem}.head{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:.7rem;margin-bottom:1rem}
+.head h1{font-size:2.3rem}.sub{margin:.2rem 0 0;color:rgb(59 50 43/.7)}
+table{width:100%;border-collapse:collapse;background:#fffdf8;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:.6rem .7rem;background:var(--linen);color:var(--espresso)}th.num{text-align:right}
+td{padding:.65rem .7rem;border-top:1px solid var(--line);vertical-align:middle}.sku{font-size:12px;color:rgb(59 50 43/.7);white-space:nowrap}
+.plink{font-weight:600;text-decoration:none;color:var(--charcoal)}.plink:hover{color:var(--terra);text-decoration:underline}.small{font-size:12px}
+.cards{display:none}.card{display:flex;gap:.8rem;background:#fffdf8;border:1px solid var(--line);border-radius:8px;padding:.7rem;margin-bottom:.6rem}.cbody{flex:1}.cprice{margin:.35rem 0 .5rem}
+.more{text-align:center;margin:1.2rem 0}
+.mobwrap{margin-top:2.5rem;border-top:2px dashed var(--line);padding-top:1.2rem}.phone{width:360px;max-width:100%;border:8px solid #2a2420;border-radius:26px;padding:.9rem;background:var(--cream)}
+@media(max-width:760px){table{display:none}.cards{display:block}.mobwrap{display:none}.head h1{font-size:1.8rem}}
+
+</style></head><body>
+<div class="top"><span class="logo">Procom <i>Solutions</i></span><nav class="nav"><a href="#">Shop</a><a href="#">Specials</a><a class="on" href="#">Price drops</a><a href="#">Contact</a></nav></div>
+<main>
+<p class="note"><strong>MOCKUP for approval, not live.</strong> Sample products and sample prices. The page sits straight under Specials in the menu.</p>
+<div class="disc"><strong>Price drops are available while stock lasts.</strong> Prices and stock levels update with our supplier three times a day. If an item sells out before we can supply it, we will contact you and give you a full refund. If the price changes before you pay, you will see the new price at checkout.</div>
+<div class="crumb muted"><a href="#">Home</a> / <span>Price drops</span></div>
+<div class="head"><div><h1>Price drops</h1><p class="sub">Prices that came down after our latest supplier update. Updated three times a day.</p></div><p class="muted" style="margin:0">5 products shown</p></div>
+<div><span class="chip on">All</span><span class="chip">3D Printers (2)</span><span class="chip">3D Printing Accessories (1)</span><span class="chip">Computer Accessories (1)</span><span class="chip">Luggage &amp; Travel (1)</span>
+&nbsp;&nbsp;<span class="muted small">Dropped in the last:</span> <span class="chip">24 hours</span><span class="chip on">7 days</span><span class="chip">30 days</span></div>
+<table><thead><tr><th style="width:80px"></th><th>SKU</th><th>Product</th><th class="num">Price was</th><th class="num">Price now</th><th class="num">Change</th><th class="num">Stock</th><th></th></tr></thead><tbody><tr class=""><td><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div></td><td class="sku">ENDER-3V3KE</td>
+        <td><a class="plink" href="#">Creality Ender 3V3KE 3D Printer 220x220x240 500mm/s with WiFi</a><div class="muted small">3D Printers</div></td>
+        <td class="num was">R 5,692.00</td><td class="num"><strong>R 5,135.00</strong></td><td class="num"><span class="down">&minus;R 557.00</span><br><span class="down">&minus;10%</span></td>
+        <td class="num"><span class="stk okc">14 in stock</span></td><td class="num"><button class="btn sm">Add to cart</button></td></tr><tr class=""><td><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div></td><td class="sku">4005010072</td>
+        <td><a class="plink" href="#">Creality Space Pi Filament Dryer</a><div class="muted small">3D Printing Accessories</div></td>
+        <td class="num was">R 1,074.00</td><td class="num"><strong>R 938.00</strong></td><td class="num"><span class="down">&minus;R 136.00</span><br><span class="down">&minus;13%</span></td>
+        <td class="num"><span class="stk okc">6 in stock</span></td><td class="num"><button class="btn sm">Add to cart</button></td></tr><tr class=""><td><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div></td><td class="sku">ENDER-5MAX</td>
+        <td><a class="plink" href="#">Creality Ender 5 Max 3D Printer 400x400x400 700mm/s</a><div class="muted small">3D Printers</div></td>
+        <td class="num was">R 15,812.00</td><td class="num"><strong>R 14,042.00</strong></td><td class="num"><span class="down">&minus;R 1,770.00</span><br><span class="down">&minus;11%</span></td>
+        <td class="num"><span class="stk low">Only 3 left</span></td><td class="num"><button class="btn sm">Add to cart</button></td></tr><tr class=""><td><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="10" y="14" width="28" height="28" rx="6"/><path d="M18 14v-2a6 6 0 0112 0v2M10 26h28"/></svg></div></td><td class="sku">QT-9210-SK</td>
+        <td><a class="plink" href="#">Quest 4-Piece Backpack Set Rainbow Swirl Sky</a><div class="muted small">Luggage &amp; Travel</div></td>
+        <td class="num was">R 393.00</td><td class="num"><strong>R 152.00</strong></td><td class="num"><span class="down">&minus;R 241.00</span><br><span class="down">&minus;61%</span></td>
+        <td class="num"><span class="stk okc">22 in stock</span></td><td class="num"><button class="btn sm">Add to cart</button></td></tr><tr class="soldrow"><td><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div></td><td class="sku">A-1</td>
+        <td><a class="plink" href="#">Logitech M185 Wireless Mouse Grey</a><div class="muted small">Computer Accessories</div></td>
+        <td class="num was">R 240.00</td><td class="num"><strong>R 218.00</strong></td><td class="num"><span class="down">&minus;R 22.00</span><br><span class="down">&minus;9%</span></td>
+        <td class="num"><span class="stk so">Sold out</span></td><td class="num"><button class="btn sm dis" disabled>Sold out</button></td></tr></tbody></table>
+<div class="cards"><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Creality Ender 3V3KE 3D Printer 220x220x240 500mm/s with WiFi</a><div class="muted small">SKU ENDER-3V3KE</div>
+          <div class="cprice"><span class="was">R 5,692.00</span> <strong>R 5,135.00</strong> <span class="down">&minus;10% (&minus;R 557.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk okc">14 in stock</span></div><button class="btn sm">Add to cart</button></div></div><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Creality Space Pi Filament Dryer</a><div class="muted small">SKU 4005010072</div>
+          <div class="cprice"><span class="was">R 1,074.00</span> <strong>R 938.00</strong> <span class="down">&minus;13% (&minus;R 136.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk okc">6 in stock</span></div><button class="btn sm">Add to cart</button></div></div><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Creality Ender 5 Max 3D Printer 400x400x400 700mm/s</a><div class="muted small">SKU ENDER-5MAX</div>
+          <div class="cprice"><span class="was">R 15,812.00</span> <strong>R 14,042.00</strong> <span class="down">&minus;11% (&minus;R 1,770.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk low">Only 3 left</span></div><button class="btn sm">Add to cart</button></div></div><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="10" y="14" width="28" height="28" rx="6"/><path d="M18 14v-2a6 6 0 0112 0v2M10 26h28"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Quest 4-Piece Backpack Set Rainbow Swirl Sky</a><div class="muted small">SKU QT-9210-SK</div>
+          <div class="cprice"><span class="was">R 393.00</span> <strong>R 152.00</strong> <span class="down">&minus;61% (&minus;R 241.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk okc">22 in stock</span></div><button class="btn sm">Add to cart</button></div></div><div class="card soldrow"><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Logitech M185 Wireless Mouse Grey</a><div class="muted small">SKU A-1</div>
+          <div class="cprice"><span class="was">R 240.00</span> <strong>R 218.00</strong> <span class="down">&minus;9% (&minus;R 22.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk so">Sold out</span></div><button class="btn sm dis" disabled>Sold out</button></div></div></div>
+<p class="muted small" style="margin:.8rem 0 0">Price drops are available while stock lasts. Stock and prices update three times a day. If an item sells out before we can supply it, we will refund you in full. See <a href="#">Delivery, Returns &amp; Refunds</a>.</p>
+<div class="more"><button class="btn sec">Load more</button></div>
+<div class="mobwrap"><h3 style="margin-bottom:.7rem">Phone view (the table turns into cards)</h3><div class="phone"><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Creality Ender 3V3KE 3D Printer 220x220x240 500mm/s with WiFi</a><div class="muted small">SKU ENDER-3V3KE</div>
+          <div class="cprice"><span class="was">R 5,692.00</span> <strong>R 5,135.00</strong> <span class="down">&minus;10% (&minus;R 557.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk okc">14 in stock</span></div><button class="btn sm">Add to cart</button></div></div><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Creality Space Pi Filament Dryer</a><div class="muted small">SKU 4005010072</div>
+          <div class="cprice"><span class="was">R 1,074.00</span> <strong>R 938.00</strong> <span class="down">&minus;13% (&minus;R 136.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk okc">6 in stock</span></div><button class="btn sm">Add to cart</button></div></div><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Creality Ender 5 Max 3D Printer 400x400x400 700mm/s</a><div class="muted small">SKU ENDER-5MAX</div>
+          <div class="cprice"><span class="was">R 15,812.00</span> <strong>R 14,042.00</strong> <span class="down">&minus;11% (&minus;R 1,770.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk low">Only 3 left</span></div><button class="btn sm">Add to cart</button></div></div><div class="card "><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="10" y="14" width="28" height="28" rx="6"/><path d="M18 14v-2a6 6 0 0112 0v2M10 26h28"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Quest 4-Piece Backpack Set Rainbow Swirl Sky</a><div class="muted small">SKU QT-9210-SK</div>
+          <div class="cprice"><span class="was">R 393.00</span> <strong>R 152.00</strong> <span class="down">&minus;61% (&minus;R 241.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk okc">22 in stock</span></div><button class="btn sm">Add to cart</button></div></div><div class="card soldrow"><div class="photo"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div><div class="cbody">
+          <a class="plink" href="#">Logitech M185 Wireless Mouse Grey</a><div class="muted small">SKU A-1</div>
+          <div class="cprice"><span class="was">R 240.00</span> <strong>R 218.00</strong> <span class="down">&minus;9% (&minus;R 22.00)</span></div>
+          <div style="margin-bottom:.4rem"><span class="stk so">Sold out</span></div><button class="btn sm dis" disabled>Sold out</button></div></div></div></div>
+</main></body></html>

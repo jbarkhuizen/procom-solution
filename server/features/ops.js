@@ -447,6 +447,7 @@ const SUITE_DESCRIPTIONS = {
   'server/features/newsletters.test.js': 'Newsletters: opt-in only, double opt-in, unsubscribe, daily sending limit.',
   'server/features/phase1.test.js': 'Accounts, invoices, promos and specials working together in one order.',
   'server/features/promos.test.js': 'Promo codes: validity, usage limits, discount never takes a sale below cost incl VAT.',
+  'server/features/pricedrops.test.js': 'Price drops page: which supplier-sync drops qualify (5% and R10), 7-day window, off the page the moment the price is back up, sold-out items greyed, hide/pin, admin figures.',
   'server/features/specials.test.js': 'Specials: sale prices, dates, never below cost incl VAT, struck-through normal price.',
   'server/api-run-log.test.js': 'API run log (Admin -> System): every Esquire / SMD run is logged with its status and a one-line overview; filters, summary and seeding from the report history.',
   'server/features/ops.test.js': 'Ops: off-site backup copy, version history, test runs and About this site (with rclone/git faked).',

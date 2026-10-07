@@ -28,6 +28,7 @@ const { startBackupSchedule, createBackup, listBackups } = await import('./backu
 const { escapeHtml } = await import('./util.js');
 const { startImageDownloads, resumePendingDownloads } = await import('./remote-images.js');
 const governance = await import('./features/governance.js');
+const { liveDropIds } = await import('./features/pricedrops.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -121,10 +122,11 @@ app.get('/api/products/:slug', wrap((req) => orNotFound(catalog.getPublicProduct
 // Cart refresh: current price/availability for ids held in the browser's cart.
 app.post('/api/cart/refresh', wrap((req) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 100).map(String) : [];
+  const drops = liveDropIds(ids); // products on the Price drops page right now (checkout shows the notice)
   return ids
     .map((id) => catalog.getProduct(id, { admin: false }))
     .filter(Boolean)
-    .map((p) => ({ id: p.id, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, inStock: p.inStock, stockQty: p.stockQty, minOrderQty: p.minOrderQty, quoteDelivery: p.quoteDelivery, active: true }));
+    .map((p) => ({ id: p.id, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, inStock: p.inStock, stockQty: p.stockQty, minOrderQty: p.minOrderQty, quoteDelivery: p.quoteDelivery, active: true, priceDrop: drops.has(p.id) }));
 }));
 app.get('/api/shipping-options', wrap(() => shipping.listShippingOptions({ activeOnly: true })));
 // Checkout's delivery choices for a cart: one group per supplier shipment.
@@ -378,7 +380,7 @@ admin.get('/backups', wrap(() => listBackups()));
 admin.post('/backups', wrap(async () => createBackup('manual')));
 
 // Feature modules (server/features/README.md) add their own routes.
-for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing', 'ops', 'governance']) {
+for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing', 'ops', 'governance', 'pricedrops']) {
   (await import(`./features/${name}.js`)).register({ app, admin, wrap, rateLimit, express, siteUrl: SITE_URL });
 }
 

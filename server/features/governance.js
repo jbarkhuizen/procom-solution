@@ -66,7 +66,7 @@ const AREAS = {
   products: 'Catalogue', categories: 'Catalogue', suppliers: 'Catalogue', feed: 'Catalogue', uploads: 'Catalogue',
   orders: 'Sales', messages: 'Sales', invoices: 'Sales',
   settings: 'Settings', shipping: 'Settings', admins: 'Settings', backups: 'Settings',
-  promos: 'Marketing', specials: 'Marketing', newsletters: 'Marketing', marketing: 'Marketing',
+  promos: 'Marketing', specials: 'Marketing', 'price-drops': 'Marketing', newsletters: 'Marketing', marketing: 'Marketing',
   finance: 'Finance', 'registered-users': 'Customers', clients: 'Customers',
   todos: 'System', 'audit-log': 'System', ops: 'System',
 };
@@ -113,6 +113,9 @@ const RULES = [
 
   ...crud('promos', 'Promo code', { created: 'saved', updated: 'saved' }),
   ...crud('specials', 'Special', { created: 'saved', updated: 'saved' }),
+  ['PUT', /^\/price-drops\/settings$/, 'Price drops settings saved'],
+  ['PATCH', new RegExp(`^/price-drops/${ID}$`), (b) => ('hidden' in (b || {}) ? (b.hidden ? 'Price drop hidden' : 'Price drop shown') : b?.pinned ? 'Price drop pinned' : 'Price drop unpinned')],
+  ['POST', /^\/price-drops\/bulk$/, (b) => `Price drops bulk: ${clean(b?.action, 20)}`],
 
   ['PUT', /^\/finance\/settings$/, 'Finance settings saved'],
   ...crud('finance/expenses', 'Expense'),

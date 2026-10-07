@@ -13,10 +13,11 @@ import * as financeSchema from './features/finance.schema.js';
 import * as marketingSchema from './features/marketing.schema.js';
 import * as opsSchema from './features/ops.schema.js';
 import * as governanceSchema from './features/governance.schema.js';
+import * as pricedropsSchema from './features/pricedrops.schema.js';
 
 // Feature modules' tables (server/features/README.md). Run after migrate(),
 // so their indexes may use columns the migrations add.
-const FEATURE_SCHEMAS = [accountsSchema, invoicesSchema, promosSchema, specialsSchema, analyticsSchema, newslettersSchema, financeSchema, marketingSchema, opsSchema, governanceSchema];
+const FEATURE_SCHEMAS = [accountsSchema, invoicesSchema, promosSchema, specialsSchema, analyticsSchema, newslettersSchema, financeSchema, marketingSchema, opsSchema, governanceSchema, pricedropsSchema];
 
 let db = null;
 
@@ -355,6 +356,11 @@ export const DEFAULT_SETTINGS = {
   supplierReportEmail: 'lapanzaonline@gmail.com',
   // 'every' = after each sync, 'daily' = one combined email at 19:00 SAST, 'off'.
   supplierReportMode: 'every',
+  // Price drops page (owner 2026-10-07): any drop of at least 5% and R10, kept 7 days, automatic.
+  priceDropsOn: true,
+  priceDropMinPct: 5,
+  priceDropMinRand: 10,
+  priceDropDays: 7,
   legalEntity: 'Lapanza (trading as Procom Solutions)',
   // Esquire API sync lists new items by itself only when this is on.
   esquireAutoList: false,

@@ -14,14 +14,14 @@ import { formatRand } from './util.js';
 export const ATTENTION = { dropPct: 50, risePct: 15, soldDays: 30 };
 
 export function snapshotPrices(supplierId, db = getDb()) {
-  const rows = db.prepare('SELECT id, price_cents, compare_at_cents, active, supplier_in_stock, supplier_stock_qty FROM products WHERE supplier_id = ?').all(supplierId);
+  const rows = db.prepare('SELECT id, price_cents, cost_cents, compare_at_cents, active, supplier_in_stock, supplier_stock_qty FROM products WHERE supplier_id = ?').all(supplierId);
   return new Map(rows.map((r) => [r.id, r]));
 }
 
 const onSpecial = (r) => Boolean(r && r.compare_at_cents && r.compare_at_cents > r.price_cents);
 
 export function diffPrices(before, supplierId, db = getDb()) {
-  const rows = db.prepare('SELECT id, sku, name, slug, category_id, price_cents, compare_at_cents, active, supplier_in_stock, supplier_stock_qty FROM products WHERE supplier_id = ?').all(supplierId);
+  const rows = db.prepare('SELECT id, sku, name, slug, category_id, price_cents, cost_cents, compare_at_cents, active, supplier_in_stock, supplier_stock_qty FROM products WHERE supplier_id = ?').all(supplierId);
   const cats = new Map(db.prepare('SELECT id, name FROM categories').all().map((c) => [c.id, c.name]));
   let sold = null; // product id -> units sold (paid orders, last N days); only read when something goes out of stock / hidden
   const sold30 = (id) => {
@@ -51,7 +51,7 @@ export function diffPrices(before, supplierId, db = getDb()) {
       out.specialsEnded++;
       out.specialsEndedList.push({ ...base, fromCents: b.price_cents, toCents: r.price_cents });
     }
-    if (r.price_cents < b.price_cents) out.priceDown.push({ ...base, fromCents: b.price_cents, toCents: r.price_cents });
+    if (r.price_cents < b.price_cents) out.priceDown.push({ ...base, fromCents: b.price_cents, toCents: r.price_cents, costFromCents: b.cost_cents, costToCents: r.cost_cents });
     else if (r.price_cents > b.price_cents) {
       out.priceUp++;
       out.priceUpList.push({ ...base, fromCents: b.price_cents, toCents: r.price_cents, specialEnded: wasSpecial && !onSpecial(r) });
