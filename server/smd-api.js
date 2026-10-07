@@ -12,6 +12,7 @@ import { storeProductImage, deleteUpload, resolveUpload } from './images.js';
 import { sendSmdReport } from './mailer.js';
 import { snapshotPrices, diffPrices } from './sync-report.js';
 import { recordApiRun } from './api-run-log.js';
+import { recordPriceDrops } from './features/pricedrops.js';
 import { nextRunAt } from './esquire.js';
 
 // SMD's live API (https://api.smdtechnologies.com/v1/, spec: "SMD API INFO"
@@ -341,6 +342,7 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
       report.autoListOn = Boolean(getSettings(db).smdApiAutoList);
       report.autoList = autoList({ list: 'smdapi', supplierId: planned.supplier.id, dryRun: check || !report.autoListOn }, db);
       if (before) report.changes = diffPrices(before, planned.supplier.id, db);
+      if (report.changes) noteDrops(report.changes, db);
       report.ok = true;
     } catch (err) {
       report.error = err.message;
@@ -355,6 +357,15 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
     running = null;
   });
   return running;
+}
+
+// Price drops page: record this run's drops and close the ones that ended. Never breaks a sync.
+function noteDrops(changes, db) {
+  try {
+    recordPriceDrops(changes, db);
+  } catch (err) {
+    console.error('Could not record price drops:', err.message);
+  }
 }
 
 function saveLastRun(db, r) {

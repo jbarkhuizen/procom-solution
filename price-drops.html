@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Price drops — Procom Solutions</title>
+<meta name="description" content="Prices that just came down at Procom Solutions, while stock lasts. Nationwide delivery.">
+<link rel="canonical" href="https://www.procomsolutions.co.za/price-drops.html">
+<meta property="og:title" content="Price drops — Procom Solutions">
+<meta property="og:type" content="website">
+<!-- @include head -->
+<script type="module" src="/src/js/price-drops.js"></script>
+<style>
+  .drops-wrap { overflow-x: auto; }
+  #drops { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  #drops th { text-align: left; font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.55rem 0.5rem; background: var(--color-linen); white-space: nowrap; }
+  #drops th.num, #drops td.num { text-align: right; white-space: nowrap; }
+  #drops td { padding: 0.55rem 0.5rem; border-top: 1px solid rgb(26 22 18 / 0.1); vertical-align: middle; }
+  #drops tr.sold-out td { opacity: 0.5; }
+  #drops tr.sold-out a { pointer-events: none; }
+  .drop-photo { width: 3.4rem; height: 3.4rem; display: flex; align-items: center; justify-content: center; }
+  .drop-photo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .drop-stock { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
+  @media (max-width: 1199px) {
+    #drops thead { display: none; }
+    #drops, #drops tbody { display: block; }
+    #drops tr { display: grid; grid-template-columns: 4rem 1fr; gap: 0.2rem 0.75rem; padding: 0.75rem; border: 1px solid rgb(26 22 18 / 0.12); border-radius: 4px; margin-bottom: 0.6rem; }
+    #drops td { display: block; border: 0; padding: 0; text-align: left !important; }
+    #drops td.c-photo { grid-row: 1 / 7; }
+    #drops td.c-sku { font-size: 0.7rem; }
+    .drop-stock { flex-direction: row; align-items: center; justify-content: flex-start; margin-top: 0.3rem; }
+  }
+</style>
+</head>
+<body class="font-sans antialiased" data-page="price-drops">
+<!-- @include shell-top -->
+
+<main id="main" class="flex-1 px-5 sm:px-8 lg:px-12 py-6 md:py-8">
+  <div class="mx-auto w-full max-w-7xl">
+    <nav class="text-xs text-espresso/50 mb-2" aria-label="Breadcrumb"><a href="/" class="hover:text-terracotta">Home</a> / <span class="text-espresso/80">Price drops</span></nav>
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-4 border-b border-charcoal/10 pb-3">
+      <div>
+        <h1 class="font-serif text-3xl md:text-[2.4rem] tracking-tight leading-tight">Price drops</h1>
+        <p class="text-sm text-espresso/65 mt-1">Prices that came down after our latest supplier update. Updated three times a day.</p>
+      </div>
+      <p class="text-sm text-espresso/60" id="result-count" aria-live="polite"></p>
+    </div>
+    <div class="border-l-4 border-terracotta bg-linen px-4 py-3 text-sm mb-5" role="note">
+      <strong>Price drops are available while stock lasts.</strong> Prices and stock levels update with our supplier three times a day. If an item sells out before we can supply it, we will contact you and give you a full refund. If the price changes before you pay, you will see the new price at checkout.
+    </div>
+    <nav id="drop-filters" class="flex flex-wrap gap-2 mb-5" aria-label="Filter price drops"></nav>
+    <div class="drops-wrap"><table id="drops">
+      <thead><tr><th style="width:4rem"></th><th>SKU</th><th>Product</th><th class="num">Price was</th><th class="num">Price now</th><th class="num">Change</th><th class="num">Stock</th></tr></thead>
+      <tbody id="grid"></tbody>
+    </table></div>
+    <div id="load-more" class="load-more" aria-live="polite"></div>
+    <p class="text-xs text-espresso/55 mt-4">Price drops are available while stock lasts. Stock and prices update three times a day. If an item sells out before we can supply it, we will refund you in full. See <a href="/returns.html" class="underline hover:text-terracotta">Delivery, Returns &amp; Refunds</a>.</p>
+  </div>
+</main>
+
+<!-- @include shell-bottom -->
+</body>
+</html>

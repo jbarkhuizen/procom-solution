@@ -18,6 +18,32 @@ function notice(message, tone = 'warn') {
   el.className = `rounded-sm border-2 p-4 text-sm mb-6 ${tone === 'warn' ? 'border-terracotta text-terracotta' : 'border-charcoal'}`;
 }
 
+// What changed in the cart since it was filled (cart.js refreshCart): prices up
+// or down, sold-out items (removed). A price that went UP must be confirmed
+// before paying -- the server always charges the current price anyway.
+let pricesToConfirm = false;
+function showCartChanges(changes) {
+  const el = document.getElementById('cart-changes');
+  const r = (c, pack) => esc(formatRand(c * pack));
+  const lines = changes.map((c) => {
+    if (c.kind === 'sold_out') return `<p><strong>Sold out:</strong> ${esc(c.name)} is no longer available and was removed from your cart.</p>`;
+    if (c.kind === 'price_up') return `<p><strong>The price changed:</strong> ${esc(c.name)} was ${r(c.from, c.pack)} and is now <strong>${r(c.to, c.pack)}</strong>.</p>`;
+    return `<p><strong>Good news:</strong> ${esc(c.name)} came down from ${r(c.from, c.pack)} to <strong>${r(c.to, c.pack)}</strong>.</p>`;
+  });
+  pricesToConfirm = changes.some((c) => c.kind === 'price_up');
+  setHtml(el, lines.join('') + (pricesToConfirm ? '<button type="button" id="confirm-prices" class="mt-3 bg-charcoal text-cream rounded-full px-5 py-2 text-xs font-semibold hover:bg-terracotta">Confirm new prices</button>' : ''));
+  el.classList.remove('hidden');
+  el.querySelector('#confirm-prices')?.addEventListener('click', () => {
+    pricesToConfirm = false;
+    el.querySelector('#confirm-prices').remove();
+  });
+}
+
+// The price-drop disclaimer shows while the cart holds a price-drop item.
+function syncDropNotice() {
+  document.getElementById('price-drop-notice').classList.toggle('hidden', !getCart().some((i) => i.priceDrop));
+}
+
 function formatKg(g) {
   return g >= 1000 ? `${(g / 1000).toFixed(g % 1000 ? 1 : 0)} kg` : `${g} g`;
 }
@@ -197,6 +223,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   document.getElementById('form-error').classList.add('hidden');
   const fd = new FormData(form);
+  if (pricesToConfirm) return showError('A price in your cart changed. Please confirm the new prices above before paying.');
   if (!fd.get('terms')) return showError('Please accept the Terms & Conditions to continue.');
   if (!plan.length || plan.some((g) => !chosen(g))) return showError(plan.length > 1 ? 'Please choose delivery or collection for each warehouse.' : 'Please choose a delivery or collection option.');
   const customer = Object.fromEntries(['firstName', 'lastName', 'email', 'phone', 'addressLine1', 'addressLine2', 'suburb', 'city', 'province', 'postalCode', 'pudoLocker'].map((k) => [k, String(fd.get(k) || '').trim()]));
@@ -231,8 +258,10 @@ async function init() {
     renderSummary();
   }).catch(() => {});
   if (new URLSearchParams(location.search).get('cancelled')) notice('Payment was cancelled — nothing was charged. Your cart is still here whenever you are ready.');
-  const { changed } = await refreshCart().catch(() => ({ changed: false }));
-  if (changed) notice('Some prices or availability in your cart changed since you added them. Please review your order below.');
+  const { changed, changes = [] } = await refreshCart().catch(() => ({ changed: false }));
+  if (changes.length) showCartChanges(changes);
+  else if (changed) notice('Some prices or availability in your cart changed since you added them. Please review your order below.');
+  syncDropNotice();
   if (!getCart().length) {
     form.classList.add('hidden');
     document.getElementById('empty').classList.remove('hidden');
@@ -245,6 +274,7 @@ async function init() {
   await loadPlan();
   window.addEventListener('cart:updated', () => {
     if (!getCart().length) location.reload();
+    syncDropNotice();
     loadPlan();
   });
 }

@@ -1,0 +1,81 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MOCKUP - Price drops (admin)</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{--cream:#f7f3eb;--linen:#efe7d8;--charcoal:#1a1612;--espresso:#3b322b;--terra:#c24b28;--olive:#6b6a4f;--steel:#83898d;--ok:#1f7a45;--bad:#a51d1d;--warn:#a36b12;--line:rgb(26 22 18/.12)}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--charcoal);font-family:"DM Sans",system-ui,sans-serif;font-size:15px;line-height:1.45}
+h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-weight:600;letter-spacing:-.01em;margin:0}
+a{color:inherit}.muted{color:rgb(59 50 43/.6)}.num{text-align:right;white-space:nowrap}
+.note{background:#fff4d6;border:1px solid #e8d49a;color:#5b4a14;padding:.6rem .9rem;border-radius:6px;font-size:13px;margin:0 0 1rem}
+.btn{display:inline-block;border:1px solid var(--charcoal);background:var(--charcoal);color:#fff;border-radius:999px;padding:.45rem .95rem;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.sec{background:transparent;color:var(--charcoal)}.btn.sm{padding:.3rem .7rem;font-size:12px}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.3rem .8rem;font-size:13px;background:#fffdf8;margin:0 .35rem .4rem 0}.chip.on{background:var(--charcoal);color:#fff;border-color:var(--charcoal)}
+.badge{display:inline-block;border-radius:999px;padding:.1rem .55rem;font-size:12px;font-weight:600}
+.b-ok{background:rgb(31 122 69/.14);color:var(--ok)}.b-bad{background:rgb(178 34 34/.16);color:var(--bad)}.b-warn{background:rgb(163 107 18/.16);color:var(--warn)}.b-neutral{background:rgb(131 137 141/.2);color:#4d5256}
+.down{color:var(--ok);font-weight:700}.was{text-decoration:line-through;color:rgb(59 50 43/.55)}
+.photo{width:64px;height:64px;border-radius:8px;background:linear-gradient(135deg,#efe7d8,#e2d8c4);display:flex;align-items:center;justify-content:center}
+
+.shell{display:grid;grid-template-columns:210px 1fr;min-height:100vh}.side{background:#fffdf8;border-right:1px solid var(--line);padding:1rem}
+.side .grp{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--terra);margin:1rem 0 .3rem}.side a{display:block;padding:.28rem .5rem;border-radius:6px;font-size:14px;text-decoration:none}.side a.on{background:var(--linen);font-weight:700}
+.content{padding:1.4rem;overflow:auto}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--terra)}
+.panel{background:#fffdf8;border:1px solid var(--line);border-radius:8px;padding:1rem;margin-bottom:1rem}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.8rem}.settings label{display:block;font-size:12px;color:rgb(59 50 43/.75)}.settings input,.settings select{width:100%;padding:.4rem .5rem;border:1px solid var(--line);border-radius:6px;font:inherit;background:#fff}
+table{border-collapse:collapse;width:100%;min-width:1700px}th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:.5rem .55rem;background:var(--linen);text-align:left;white-space:nowrap}th.num{text-align:right}
+th.g1{background:#dfe6ee;text-align:center}th.g2{background:#e9e3cf;text-align:center}td{padding:.55rem .55rem;border-top:1px solid var(--line);vertical-align:middle;font-size:13px}
+td.sup{background:rgb(223 230 238/.25)}td.my{background:rgb(233 227 207/.3)}tr.off td{opacity:.55}.photo.sm{width:42px;height:42px}.photo.sm svg{width:28px;height:28px}.small{font-size:12px}.bad{color:var(--bad);font-weight:700}
+.tw{overflow:auto}.bar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem}.legend{font-size:12px;display:flex;gap:1rem;margin:.2rem 0 .7rem}.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+</style></head><body><div class="shell">
+<aside class="side"><strong style="font-family:Fraunces,serif;font-size:18px">Procom <i style="color:var(--terra)">Admin</i></strong>
+<div class="grp">Advertise</div><a href="#">Adverts</a><a href="#">Calendar</a><a href="#">Specials</a><a class="on" href="#">Price drops <span class="badge b-warn">NEW</span></a><div class="grp">System</div><a href="#">API run log</a><a href="#">Audit log</a></aside>
+<div class="content">
+<p class="note"><strong>MOCKUP for approval, not live.</strong> Sample figures worked out with the real rules: supplier cost x 1.15 VAT, 10% markup, minimum profit R10, rounded up to the rand. Payfast fee shown is the worst case (Debit Card 3.5% + R2, plus VAT).</p>
+<div class="eyebrow">Advertise</div><h2 style="font-size:1.9rem;margin-bottom:.8rem">Price drops</h2>
+<div class="panel"><h3 style="font-size:1.1rem;margin-bottom:.6rem">Rules for the storefront page</h3><div class="settings">
+<div><label>Show the page</label><select><option>On</option><option>Off</option></select></div>
+<div><label>Smallest drop to show (%)</label><input value="5"></div>
+<div><label>and smallest drop (R)</label><input value="10"></div>
+<div><label>Keep a drop on the page for (days)</label><input value="7"></div>
+<div><label>New drops appear</label><select><option>Automatically after each supplier update</option></select></div>
+<div><label>Sold-out items</label><select><option>Show greyed out with &ldquo;Sold out&rdquo;</option></select></div>
+</div><p class="muted small" style="margin:.7rem 0 0">A drop comes off the page as soon as the price is back at (or above) the price it was, the 7 days are over, or you hide it. Checked live on every page view, not only after a supplier update. Prices come from the normal pricing rules: supplier cost + VAT, then 10% markup, never less than R10 profit before the Payfast fee.</p></div>
+<div class="bar"><span class="chip on">Current 6</span><span class="chip">On the page 5</span><span class="chip">Sold out 1</span><span class="chip">Hidden by me 1</span><span class="chip">Expired / back to normal (history)</span>
+<select style="padding:.35rem;border-radius:6px;border:1px solid var(--line)"><option>Supplier: All</option><option>SMD</option><option>Esquire</option></select>
+<select style="padding:.35rem;border-radius:6px;border:1px solid var(--line)"><option>Dropped: last 7 days</option><option>24 hours</option><option>30 days</option></select>
+<button class="btn sm sec">Hide selected</button><button class="btn sm sec">Show selected</button><button class="btn sm">Export CSV</button></div>
+<div class="legend"><span><i class="sw" style="background:#dfe6ee"></i>Supplier's prices (excl VAT unless stated)</span><span><i class="sw" style="background:#e9e3cf"></i>My prices (what customers pay)</span></div>
+<div class="panel tw" style="padding:0"><table><thead>
+<tr><th colspan="3"></th><th colspan="4" class="g1">SUPPLIER (SMD / Esquire)</th><th colspan="6" class="g2">MY PRICING</th><th colspan="4"></th></tr>
+<tr><th></th><th></th><th>Product</th><th class="num">Cost was</th><th class="num">Cost now</th><th class="num">Cost now incl VAT</th><th class="num">Cost change</th>
+<th class="num">Price was</th><th class="num">Price now</th><th class="num">Change R / %</th><th class="num">Payfast fee</th><th class="num">Profit R / %</th><th class="num">Floor</th><th class="num">Stock</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr class=""><td><input type="checkbox"></td><td><div class="photo sm"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div></td>
+        <td><strong>Creality Ender 3V3KE 3D Printer 220x220x240 500mm/s with WiFi</strong><div class="muted small">ENDER-3V3KE &middot; 3D Printers &middot; detected 07 Oct 06:30</div></td>
+        <td class="num sup">R 4,499.00</td><td class="num sup">R 4,059.00</td><td class="num sup">R 4,667.85</td><td class="num sup down">&minus;R 440.00<br>&minus;10%</td>
+        <td class="num my was">R 5,692.00</td><td class="num my"><strong>R 5,135.00</strong></td><td class="num my down">&minus;R 557.00<br>&minus;10%</td>
+        <td class="num my">R 208.98</td><td class="num my ">R 258.17<br><span class="muted small">5%</span></td><td class="num my">R 4,867.00</td>
+        <td class="num">14</td><td>14 Oct<br><span class="muted small">7 days</span></td><td><span class="badge b-ok">On the page</span></td><td><button class="btn sm sec">Hide</button> <button class="btn sm sec">Pin</button></td></tr><tr class=""><td><input type="checkbox"></td><td><div class="photo sm"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div></td>
+        <td><strong>Creality Space Pi Filament Dryer</strong><div class="muted small">4005010072 &middot; 3D Printing Accessories &middot; detected 07 Oct 06:30</div></td>
+        <td class="num sup">R 849.00</td><td class="num sup">R 741.00</td><td class="num sup">R 852.15</td><td class="num sup down">&minus;R 108.00<br>&minus;13%</td>
+        <td class="num my was">R 1,074.00</td><td class="num my"><strong>R 938.00</strong></td><td class="num my down">&minus;R 136.00<br>&minus;13%</td>
+        <td class="num my">R 40.05</td><td class="num my ">R 45.80<br><span class="muted small">5%</span></td><td class="num my">R 891.00</td>
+        <td class="num">6</td><td>14 Oct<br><span class="muted small">7 days</span></td><td><span class="badge b-ok">On the page</span></td><td><button class="btn sm sec">Hide</button> <button class="btn sm sec">Pin</button></td></tr><tr class=""><td><input type="checkbox"></td><td><div class="photo sm"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="8" y="6" width="32" height="6" rx="2"/><path d="M12 12v26M36 12v26M8 38h32"/><rect x="18" y="22" width="12" height="8" rx="1"/></svg></div></td>
+        <td><strong>Creality Ender 5 Max 3D Printer 400x400x400 700mm/s</strong><div class="muted small">ENDER-5MAX &middot; 3D Printers &middot; detected 07 Oct 06:30</div></td>
+        <td class="num sup">R 12,499.00</td><td class="num sup">R 11,100.00</td><td class="num sup">R 12,765.00</td><td class="num sup down">&minus;R 1,399.00<br>&minus;11%</td>
+        <td class="num my was">R 15,812.00</td><td class="num my"><strong>R 14,042.00</strong></td><td class="num my down">&minus;R 1,770.00<br>&minus;11%</td>
+        <td class="num my">R 567.49</td><td class="num my ">R 709.51<br><span class="muted small">5%</span></td><td class="num my">R 13,303.00</td>
+        <td class="num">3</td><td>14 Oct<br><span class="muted small">7 days</span></td><td><span class="badge b-ok">On the page</span></td><td><button class="btn sm sec">Hide</button> <button class="btn sm sec">Pin</button></td></tr><tr class=""><td><input type="checkbox"></td><td><div class="photo sm"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><rect x="10" y="14" width="28" height="28" rx="6"/><path d="M18 14v-2a6 6 0 0112 0v2M10 26h28"/></svg></div></td>
+        <td><strong>Quest 4-Piece Backpack Set Rainbow Swirl Sky</strong><div class="muted small">QT-9210-SK &middot; Luggage &amp; Travel &middot; detected 07 Oct 06:30</div></td>
+        <td class="num sup">R 310.00</td><td class="num sup">R 120.00</td><td class="num sup">R 138.00</td><td class="num sup down">&minus;R 190.00<br>&minus;61%</td>
+        <td class="num my was">R 393.00</td><td class="num my"><strong>R 152.00</strong></td><td class="num my down">&minus;R 241.00<br>&minus;61%</td>
+        <td class="num my">R 8.42</td><td class="num my ">R 5.58<br><span class="muted small">4%</span></td><td class="num my">R 147.00</td>
+        <td class="num">22</td><td>13 Oct<br><span class="muted small">7 days</span></td><td><span class="badge b-warn">On page &middot; big drop, check</span></td><td><button class="btn sm sec">Hide</button> <button class="btn sm sec">Pin</button></td></tr><tr class="off"><td><input type="checkbox"></td><td><div class="photo sm"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div></td>
+        <td><strong>TP-Link TL-SG1016 16-Port Gigabit Switch</strong><div class="muted small">TL-SG1016 &middot; Networking &middot; detected 07 Oct 06:30</div></td>
+        <td class="num sup">R 1,290.00</td><td class="num sup">R 1,190.00</td><td class="num sup">R 1,368.50</td><td class="num sup down">&minus;R 100.00<br>&minus;8%</td>
+        <td class="num my was">R 1,632.00</td><td class="num my"><strong>R 1,506.00</strong></td><td class="num my down">&minus;R 126.00<br>&minus;8%</td>
+        <td class="num my">R 62.92</td><td class="num my ">R 74.58<br><span class="muted small">5%</span></td><td class="num my">R 1,429.00</td>
+        <td class="num">9</td><td>13 Oct<br><span class="muted small">7 days</span></td><td><span class="badge b-neutral">Hidden by me</span></td><td><button class="btn sm sec">Show</button> <button class="btn sm sec">Pin</button></td></tr><tr class=""><td><input type="checkbox"></td><td><div class="photo sm"><svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="#83898d" stroke-width="2"><path d="M24 6l16 8v20l-16 8-16-8V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg></div></td>
+        <td><strong>Logitech M185 Wireless Mouse Grey</strong><div class="muted small">A-1 &middot; Computer Accessories &middot; detected 07 Oct 06:30</div></td>
+        <td class="num sup">R 189.00</td><td class="num sup">R 172.00</td><td class="num sup">R 197.80</td><td class="num sup down">&minus;R 17.00<br>&minus;9%</td>
+        <td class="num my was">R 240.00</td><td class="num my"><strong>R 218.00</strong></td><td class="num my down">&minus;R 22.00<br>&minus;9%</td>
+        <td class="num my">R 11.07</td><td class="num my ">R 9.13<br><span class="muted small">4%</span></td><td class="num my">R 209.00</td>
+        <td class="num">0</td><td>14 Oct<br><span class="muted small">7 days</span></td><td><span class="badge b-bad">Sold out (greyed)</span></td><td><button class="btn sm sec">Hide</button> <button class="btn sm sec">Pin</button></td></tr></tbody></table></div>
+<p class="muted small">Floor = supplier cost incl VAT + the Payfast fee. Profit = price now - cost incl VAT - Payfast fee. A row turns red if profit goes below zero (it never should, the floor stops it).</p>
+</div></div></body></html>

@@ -84,17 +84,24 @@ export async function refreshCart() {
   if (!res.ok) return { items, changed: false };
   const live = new Map((await res.json()).map((p) => [p.id, p]));
   let changed = false;
+  let dirty = false; // snapshot differs but nothing the customer needs to be told
+  const changes = []; // what the customer must be told: price up / down, sold out
   const next = [];
   for (const i of items) {
     const p = live.get(i.productId);
     if (!p || !p.inStock) {
       changed = true;
+      changes.push({ kind: 'sold_out', name: i.name });
       continue;
     }
-    if (p.priceCents !== i.priceCents) changed = true;
+    if (p.priceCents !== i.priceCents) {
+      changed = true;
+      changes.push({ kind: p.priceCents > i.priceCents ? 'price_up' : 'price_down', name: p.name, from: i.priceCents, to: p.priceCents, pack: Math.max(1, i.minOrderQty || 1) });
+    }
     if (Boolean(p.quoteDelivery) !== Boolean(i.quoteDelivery)) changed = true;
-    next.push({ ...i, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, minOrderQty: p.minOrderQty, maxQty: p.stockQty ?? null, quoteDelivery: Boolean(p.quoteDelivery) });
+    if (Boolean(p.priceDrop) !== Boolean(i.priceDrop)) dirty = true;
+    next.push({ ...i, name: p.name, slug: p.slug, priceCents: p.priceCents, image: p.image, weightG: p.weightG, minOrderQty: p.minOrderQty, maxQty: p.stockQty ?? null, quoteDelivery: Boolean(p.quoteDelivery), priceDrop: Boolean(p.priceDrop) });
   }
-  if (changed) write(next);
-  return { items: next, changed };
+  if (changed || dirty) write(next);
+  return { items: next, changed, changes };
 }

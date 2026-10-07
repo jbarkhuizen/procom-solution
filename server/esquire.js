@@ -6,6 +6,7 @@ import { ESQUIRE_LIST } from './esquire-rules.js';
 import { sendEsquireReport } from './mailer.js';
 import { snapshotPrices, diffPrices } from './sync-report.js';
 import { recordApiRun } from './api-run-log.js';
+import { recordPriceDrops } from './features/pricedrops.js';
 import { decryptSecret } from './vault.js';
 
 // Esquire's live product API, pulled on a schedule (3x a day) instead of an
@@ -136,6 +137,7 @@ export function syncEsquire({ trigger = 'manual', records = null, email = true, 
       // then shows what *would* be listed.
       report.autoList = autoList({ list: 'esquire', supplierId: supplier.id, dryRun: !report.autoListOn }, db);
       report.changes = diffPrices(before, supplier.id, db);
+      noteDrops(report.changes, db);
       report.ok = true;
     } catch (err) {
       report.error = err.message;
@@ -150,6 +152,15 @@ export function syncEsquire({ trigger = 'manual', records = null, email = true, 
     running = null;
   });
   return running;
+}
+
+// Price drops page: record this run's drops and close the ones that ended. Never breaks a sync.
+function noteDrops(changes, db) {
+  try {
+    recordPriceDrops(changes, db);
+  } catch (err) {
+    console.error('Could not record price drops:', err.message);
+  }
 }
 
 // Kept for the admin screen; small summary only.
