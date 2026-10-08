@@ -24,6 +24,7 @@ import { getDb } from '../db.js';
 import { getProduct, queryProducts } from '../catalog.js';
 import { getSettings } from '../settings.js';
 import { sendMail, layout } from '../mailer.js';
+import { addUtmToLinks } from './channels.js';
 import { escapeHtml, formatRand } from '../util.js';
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
@@ -385,7 +386,8 @@ function footer(unsubUrl, test) {
 // the body is rendered once per batch and personalised per recipient.
 export function buildCampaignEmail(campaign, { siteUrl = '', db = getDb(), test = false } = {}) {
   const body = renderContent(campaign, { siteUrl, db });
-  const html = layout(campaign.subject, `${body.html}${footer(UNSUB_PLACEHOLDER, test)}`);
+  // Links to the shop carry campaign tags so visits and orders show under this newsletter in Analytics.
+  const html = layout(campaign.subject, `${addUtmToLinks(body.html, siteUrl, campaign.subject)}${footer(UNSUB_PLACEHOLDER, test)}`);
   return { subject: `${test ? '[TEST] ' : ''}${campaign.subject}`, html, text: body.text, warnings: body.warnings };
 }
 

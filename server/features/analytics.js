@@ -22,6 +22,8 @@ import { getDb } from '../db.js';
 import { SESSION_COOKIE, getSession } from '../auth.js';
 import { getClientFromRequest } from './accounts.js';
 import { queryProducts } from '../catalog.js';
+import { classifyChannel, cleanTag, cleanRefPath, isSearchHost, CHANNELS } from './channels.js';
+import { geoFor, geoStatus, saveGeoCredentials, updateGeoDatabase, startGeoSchedule } from './geoip.js';
 
 export const RETENTION_MONTHS = 12;
 export const ONLINE_WINDOW_MS = 5 * 60 * 1000; // no beacon for 5 min = gone
@@ -115,10 +117,16 @@ const isObject = (b) => b && typeof b === 'object' && !Array.isArray(b);
 export function parseView(body, { ownHosts = [] } = {}) {
   if (!isObject(body)) invalid('Invalid body');
   const path = cleanPath(body.path);
+  const referrerHost = cleanReferrer(body.ref, ownHosts);
   return {
     visitorId: cleanVisitor(body.v),
     path,
-    referrerHost: cleanReferrer(body.ref, ownHosts),
+    referrerHost,
+    // The page on the referring site (never its query), kept for sites that are not search engines.
+    referrerPath: referrerHost && !isSearchHost(referrerHost) ? cleanRefPath(body.refPath) : '',
+    utmSource: cleanTag(body.utmSource),
+    utmMedium: cleanTag(body.utmMedium),
+    utmCampaign: cleanTag(body.utmCampaign),
     productSlug: path === '/product' ? optSlug(body.product) : '',
     categorySlug: optSlug(body.category),
     // Only shop searches: other pages have no ?q=.
@@ -184,13 +192,13 @@ function searchResultCount(q, db) {
   }
 }
 
-export function recordPageView(view, { device = 'desktop', loggedIn = false, now = new Date() } = {}, db = getDb()) {
+export function recordPageView(view, { device = 'desktop', loggedIn = false, now = new Date(), geo = {} } = {}, db = getDb()) {
   const ts = new Date(now);
   const searchResults = view.searchQuery ? searchResultCount(view.searchQuery, db) : null;
   db.prepare(
-    `INSERT INTO page_views (visitor_id, path, referrer_host, product_slug, category_slug, search_query, search_results, device, logged_in, day, created_at)
-     VALUES (@visitorId, @path, @referrerHost, @productSlug, @categorySlug, @searchQuery, @searchResults, @device, @loggedIn, @day, @createdAt)`,
-  ).run({ ...view, searchResults, device, loggedIn: loggedIn ? 1 : 0, day: sastDay(ts), createdAt: ts.toISOString() });
+    `INSERT INTO page_views (visitor_id, path, referrer_host, referrer_path, utm_source, utm_medium, utm_campaign, country, region, city, product_slug, category_slug, search_query, search_results, device, logged_in, day, created_at)
+     VALUES (@visitorId, @path, @referrerHost, @referrerPath, @utmSource, @utmMedium, @utmCampaign, @country, @region, @city, @productSlug, @categorySlug, @searchQuery, @searchResults, @device, @loggedIn, @day, @createdAt)`,
+  ).run({ referrerPath: '', utmSource: '', utmMedium: '', utmCampaign: '', country: geo.country || '', region: geo.region || '', city: geo.city || '', ...view, searchResults, device, loggedIn: loggedIn ? 1 : 0, day: sastDay(ts), createdAt: ts.toISOString() });
   touchVisitor(view.visitorId, { path: view.path, device, now: ts.getTime() });
 }
 
@@ -291,6 +299,69 @@ function periodTotals(from, to, db) {
 }
 
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+
+// Where visitors came from (owner 2026-10-08): channels with what each channel
+// achieved, campaign tags, referring pages and places. A visitor's channel is
+// the first thing in the range that brought them (a referrer or campaign tag),
+// else "Direct". Orders carry the channel recorded at checkout.
+export function sourcesSummary(from, to, db = getDb()) {
+  const range = [from, to];
+  const visitors = new Set(db.prepare('SELECT DISTINCT visitor_id FROM page_views WHERE day BETWEEN ? AND ?').all(...range).map((r) => r.visitor_id));
+  const channelOf = new Map();
+  for (const r of db.prepare("SELECT visitor_id, referrer_host, utm_source, utm_medium FROM page_views WHERE day BETWEEN ? AND ? AND (referrer_host != '' OR utm_source != '' OR utm_medium != '') ORDER BY id").all(...range)) {
+    if (!channelOf.has(r.visitor_id)) channelOf.set(r.visitor_id, classifyChannel({ host: r.referrer_host, utmSource: r.utm_source, utmMedium: r.utm_medium }).key);
+  }
+  const rows = new Map();
+  const row = (key) => rows.get(key) || rows.set(key, { key, label: CHANNELS[key] || key, visitors: 0, carts: 0, checkouts: 0, orders: 0, revenueCents: 0 }).get(key);
+  for (const v of visitors) row(channelOf.get(v) || 'direct').visitors++;
+  for (const e of db.prepare('SELECT DISTINCT visitor_id, event FROM analytics_events WHERE day BETWEEN ? AND ?').all(...range)) {
+    if (!visitors.has(e.visitor_id)) continue;
+    const r = row(channelOf.get(e.visitor_id) || 'direct');
+    if (e.event === 'add_to_cart') r.carts++;
+    if (e.event === 'checkout_start') r.checkouts++;
+  }
+  let untracked = { orders: 0, revenueCents: 0 };
+  for (const o of db.prepare(`SELECT source_channel AS ch, COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS cents FROM orders WHERE payment_status = 'paid' AND paid_at IS NOT NULL AND ${PAID_DAY} BETWEEN ? AND ? GROUP BY source_channel`).all(...range)) {
+    if (!o.ch) untracked = { orders: o.n, revenueCents: o.cents };
+    else {
+      const r = row(o.ch);
+      r.orders += o.n;
+      r.revenueCents += o.cents;
+    }
+  }
+  const channels = [...rows.values()].map((r) => ({ ...r, conversionRate: pct(r.orders, r.visitors) })).sort((a, b) => b.visitors - a.visitors || a.label.localeCompare(b.label));
+
+  const orderByCampaign = new Map(
+    db
+      .prepare(`SELECT source_detail AS d, COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS cents FROM orders WHERE payment_status = 'paid' AND paid_at IS NOT NULL AND source_detail != '' AND ${PAID_DAY} BETWEEN ? AND ? GROUP BY source_detail`)
+      .all(...range)
+      .map((r) => [r.d, r]),
+  );
+  const campaigns = db
+    .prepare(
+      `SELECT utm_campaign AS campaign, utm_source AS source, utm_medium AS medium, COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors
+       FROM page_views WHERE (utm_campaign != '' OR utm_source != '' OR utm_medium != '') AND day BETWEEN ? AND ?
+       GROUP BY utm_campaign, utm_source, utm_medium ORDER BY visitors DESC, views DESC LIMIT 15`,
+    )
+    .all(...range)
+    .map((r) => ({ ...r, orders: (r.campaign && orderByCampaign.get(r.campaign)?.n) || 0, revenueCents: (r.campaign && orderByCampaign.get(r.campaign)?.cents) || 0 }));
+
+  const referringPages = db
+    .prepare("SELECT referrer_host AS host, referrer_path AS path, COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors FROM page_views WHERE referrer_path != '' AND day BETWEEN ? AND ? GROUP BY host, path ORDER BY visitors DESC, views DESC LIMIT 15")
+    .all(...range);
+
+  const place = (col, extra = '') => db.prepare(`SELECT ${col}${extra}, COUNT(DISTINCT visitor_id) AS visitors, COUNT(*) AS views FROM page_views WHERE country != '' AND ${col} != '' AND day BETWEEN ? AND ? GROUP BY ${col}${extra} ORDER BY visitors DESC, views DESC LIMIT 15`).all(...range);
+  const located = db.prepare("SELECT COUNT(DISTINCT visitor_id) AS n FROM page_views WHERE country != '' AND day BETWEEN ? AND ?").get(...range).n;
+  const locations = {
+    countries: place('country'),
+    regions: place('region', ', country'),
+    cities: place('city', ', region, country'),
+    locatedVisitors: located,
+    unlocatedVisitors: Math.max(0, visitors.size - located),
+    geo: { installed: geoStatus(db).installed, loaded: geoStatus(db).loaded },
+  };
+  return { channels, untrackedOrders: untracked, campaigns, referringPages, locations };
+}
 
 export function analyticsSummary(query = {}, { now = new Date() } = {}, db = getDb()) {
   const { from, to, days } = resolveRange(query, now);
@@ -400,6 +471,7 @@ export function analyticsSummary(query = {}, { now = new Date() } = {}, db = get
     zeroResultSearches,
     referrers,
     directVisitors: direct,
+    sources: sourcesSummary(from, to, db),
     funnel: steps,
     devices,
     loggedIn,
@@ -453,7 +525,7 @@ export function register({ app, admin, wrap, rateLimit, siteUrl = '', limit = 12
 
   app.post('/api/analytics/view', limiter, beacon((req, device) => {
     const view = parseView(req.body, { ownHosts: [req.get('host'), siteHost] });
-    recordPageView(view, { device, loggedIn: isLoggedInCustomer(req) });
+    recordPageView(view, { device, loggedIn: isLoggedInCustomer(req), geo: geoFor(req.ip) }); // the IP is used for this lookup only, never stored
   }));
   app.post('/api/analytics/ping', limiter, beacon((req, device) => {
     if (!isObject(req.body)) invalid('Invalid body');
@@ -465,6 +537,18 @@ export function register({ app, admin, wrap, rateLimit, siteUrl = '', limit = 12
 
   admin.get('/analytics', wrap((req) => analyticsSummary(req.query || {})));
   admin.get('/analytics/online', wrap(() => onlineNow()));
+
+  // Visitor locations: MaxMind account (key encrypted, never returned) and database refresh.
+  admin.get('/analytics/geo', wrap(() => geoStatus()));
+  admin.put('/analytics/geo', wrap((req) => saveGeoCredentials(req.body || {})));
+  admin.post('/analytics/geo/update', wrap(async () => {
+    try {
+      return await updateGeoDatabase();
+    } catch (err) {
+      throw Object.assign(new Error(err.message), { status: 400 });
+    }
+  }));
+  if (pruneJob) startGeoSchedule();
 
   // Daily prune, first run a minute after start. unref'd: never keeps the
   // process (or a test run) alive.

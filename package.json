@@ -25,6 +25,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "fast-xml-parser": "^5.11.1",
+    "maxmind": "^5.0.7",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.5",
     "pdfjs-dist": "^6.3.289",

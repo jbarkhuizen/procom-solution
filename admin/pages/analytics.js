@@ -221,12 +221,147 @@ function devicesHtml(devices, h) {
     .join('')}</div>`;
 }
 
+// Where visitors came from (owner 2026-10-08): channels with results, campaign
+// tags, referring pages and places. Every value goes through h().
+const regionNames = (() => {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' });
+  } catch {
+    return null;
+  }
+})();
+const countryName = (code) => (regionNames && code ? regionNames.of(code) || code : code);
+
+function sourcesHtml(src, h, rand) {
+  const ch = src.channels.map(
+    (r) => `<tr><td class="an-name">${h(r.label)}</td><td class="num">${h(num(r.visitors))}</td><td class="num">${h(num(r.carts))}</td><td class="num">${h(num(r.checkouts))}</td><td class="num">${h(num(r.orders))}</td><td class="num">${r.orders ? rand(r.revenueCents) : '–'}</td><td class="num">${h(pctText(r.conversionRate))}</td></tr>`,
+  );
+  if (src.untrackedOrders.orders) ch.push(`<tr><td class="an-name muted">Not tracked (older orders, or the customer blocks analytics)</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">${h(num(src.untrackedOrders.orders))}</td><td class="num">${rand(src.untrackedOrders.revenueCents)}</td><td class="num">–</td></tr>`);
+  const camps = src.campaigns.map(
+    (r) => `<tr><td class="an-name">${h(r.campaign || '(no campaign name)')}</td><td>${h(r.source || '–')}</td><td>${h(r.medium || '–')}</td><td class="num">${h(num(r.visitors))}</td><td class="num">${h(num(r.views))}</td><td class="num">${h(num(r.orders))}</td></tr>`,
+  );
+  const pages = src.referringPages.map(
+    (r) => `<tr><td class="an-name">${h(r.host)}<span class="muted">${h(r.path)}</span></td><td class="num">${h(num(r.visitors))}</td><td class="num">${h(num(r.views))}</td></tr>`,
+  );
+  const L = src.locations;
+  const countries = L.countries.map((r) => `<tr><td class="an-name">${h(countryName(r.country))}</td><td class="num">${h(num(r.visitors))}</td><td class="num">${h(num(r.views))}</td></tr>`);
+  const regions = L.regions.map((r) => `<tr><td class="an-name">${h(r.region)} <span class="muted">${h(countryName(r.country))}</span></td><td class="num">${h(num(r.visitors))}</td><td class="num">${h(num(r.views))}</td></tr>`);
+  const cities = L.cities.map((r) => `<tr><td class="an-name">${h(r.city)} <span class="muted">${h(r.region)}${r.region ? ', ' : ''}${h(countryName(r.country))}</span></td><td class="num">${h(num(r.visitors))}</td><td class="num">${h(num(r.views))}</td></tr>`);
+  const geoNote = L.geo.loaded
+    ? `<p class="an-note">${h(num(L.locatedVisitors))} visitor${L.locatedVisitors === 1 ? '' : 's'} placed${L.unlocatedVisitors ? `, ${h(num(L.unlocatedVisitors))} without a known place (visits before locations were switched on, or an address the database does not know).` : '.'}</p>`
+    : '<p class="an-note">Locations are not switched on yet: enter your MaxMind account below and press <em>Download / update now</em>.</p>';
+  return `
+      <div class="panel" style="margin-bottom:1rem">
+        <div class="section-head"><h3>Where visitors come from</h3></div>
+        ${table(h, [['Channel'], ['Visitors', 'num'], ['Added to cart', 'num'], ['Started checkout', 'num'], ['Paid orders', 'num'], ['Revenue', 'num'], ['Orders ÷ visitors', 'num']], ch, 'No visits in this range.')}
+        <p class="an-note">A visitor counts under the first channel that brought them in this range (a link from another site, or a campaign link); everyone else is Direct. Orders count under the channel recorded at checkout (the last outside arrival in the 30 days before). Visitors from WhatsApp, Instagram or Facebook apps often show as Direct unless the link carries campaign tags — use the link builder below.</p>
+      </div>
+      <div class="an-grid">
+        <div class="panel"><div class="section-head"><h3>Campaign links</h3></div>
+          ${table(h, [['Campaign'], ['Source'], ['Medium'], ['Visitors', 'num'], ['Views', 'num'], ['Orders', 'num']], camps, 'No campaign links used in this range yet. Newsletters add them automatically; build others below.')}</div>
+        <div class="panel"><div class="section-head"><h3>Pages that sent visitors</h3></div>
+          ${table(h, [['Page on the other site'], ['Visitors', 'num'], ['Views', 'num']], pages, 'No links from pages on other sites in this range (search engines never show the page).')}</div>
+        <div class="panel"><div class="section-head"><h3>Countries</h3></div>
+          ${table(h, [['Country'], ['Visitors', 'num'], ['Views', 'num']], countries, 'No locations in this range yet.')}</div>
+        <div class="panel"><div class="section-head"><h3>Provinces / regions</h3></div>
+          ${table(h, [['Region'], ['Visitors', 'num'], ['Views', 'num']], regions, 'No locations in this range yet.')}</div>
+        <div class="panel"><div class="section-head"><h3>Cities</h3></div>
+          ${table(h, [['City'], ['Visitors', 'num'], ['Views', 'num']], cities, 'No locations in this range yet.')}${geoNote}</div>
+      </div>
+      <div class="an-grid">
+        <div class="panel"><div class="section-head"><h3>Campaign link builder</h3></div>
+          <p class="an-note" style="margin:0 0 .6rem">Make a link for a WhatsApp message, social post, advert or email you send yourself. Visits and orders from it then show under the name you give it.</p>
+          <div style="display:grid;gap:.5rem">
+            <label class="field"><span>Page</span><input id="lb-url" type="url" value="${h(location.origin)}/"></label>
+            <label class="field"><span>Where you share it (source) — e.g. whatsapp, facebook</span><input id="lb-source" type="text" placeholder="whatsapp"></label>
+            <label class="field"><span>Type (medium) — e.g. social, email, cpc</span><input id="lb-medium" type="text" placeholder="social"></label>
+            <label class="field"><span>Name (campaign) — e.g. october-specials</span><input id="lb-campaign" type="text" placeholder="october-specials"></label>
+            <input id="lb-out" type="text" readonly aria-label="Your campaign link" placeholder="Your link appears here">
+            <div><button class="btn" id="lb-copy" type="button">Copy link</button></div>
+          </div></div>
+        <div class="panel"><div class="section-head"><h3>Visitor locations (MaxMind)</h3></div>
+          <div id="geo-box"><p class="an-note">Loading…</p></div></div>
+      </div>`;
+}
+
 function onlineHtml(o, h) {
   return `<span class="an-live" aria-hidden="true"></span>${h(num(o.count))}`;
 }
 
 export default function register(routes, kit) {
-  const { $, h, rand, api, view, setTop, fail } = kit;
+  const { $, h, rand, api, view, setTop, fail, toast } = kit;
+
+  function wireLinkBuilder(root) {
+    const slug = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const build = () => {
+      const out = $('#lb-out', root);
+      try {
+        const u = new URL($('#lb-url', root).value);
+        for (const [k, id] of [['utm_source', 'lb-source'], ['utm_medium', 'lb-medium'], ['utm_campaign', 'lb-campaign']]) {
+          const v = slug($(`#${id}`, root).value);
+          if (v) u.searchParams.set(k, v);
+          else u.searchParams.delete(k);
+        }
+        out.value = u.href;
+      } catch {
+        out.value = '';
+      }
+    };
+    ['lb-url', 'lb-source', 'lb-medium', 'lb-campaign'].forEach((id) => $(`#${id}`, root).addEventListener('input', build));
+    $('#lb-copy', root).addEventListener('click', async () => {
+      build();
+      const out = $('#lb-out', root);
+      if (!out.value) return toast('Enter a full page address first', true);
+      try {
+        await navigator.clipboard.writeText(out.value);
+        toast('Link copied');
+      } catch {
+        out.select();
+        toast('Press Ctrl+C to copy');
+      }
+    });
+  }
+
+  // MaxMind account + database refresh (server/features/geoip.js). The licence key is never shown again.
+  async function wireGeo(root) {
+    const box = $('#geo-box', root);
+    if (!box) return;
+    const draw = (g) => {
+      kit.setHtml(box, `
+        <p class="an-note" style="margin:0 0 .6rem">${g.installed ? `Database installed (${h(g.sizeMb)} MB), updated ${h(g.updatedAt ? new Date(g.updatedAt).toLocaleDateString('en-ZA', { dateStyle: 'medium' }) : 'earlier')}. It refreshes itself about every 2 weeks.` : 'Not installed yet.'}
+          Visitor addresses are used once to find the city and are never stored. Free MaxMind account: <a href="https://www.maxmind.com/en/geolite2/signup" target="_blank" rel="noopener">create one</a>, then use <em>Manage license keys</em> in your MaxMind account.</p>
+        ${g.lastError ? `<p class="an-note" style="color:var(--danger)">${h(g.lastError)}</p>` : ''}
+        <div style="display:grid;gap:.5rem">
+          <label class="field"><span>MaxMind account ID</span><input id="geo-id" type="text" inputmode="numeric" value="${h(g.accountId)}"></label>
+          <label class="field"><span>Licence key ${g.hasKey ? '(saved: leave blank to keep it)' : ''}</span><input id="geo-key" type="password" autocomplete="off" placeholder="${g.hasKey ? '••••••••••••' : ''}"></label>
+          <div><button class="btn" id="geo-save" type="button">Save</button> <button class="btn btn-primary" id="geo-update" type="button">Download / update now</button></div>
+        </div>`);
+      const creds = () => ({ accountId: $('#geo-id', box).value, licenseKey: $('#geo-key', box).value });
+      $('#geo-save', box).addEventListener('click', async () => {
+        try {
+          draw(await api('/analytics/geo', { method: 'PUT', body: creds() }));
+          toast('Saved');
+        } catch (err) { fail(err); }
+      });
+      $('#geo-update', box).addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        e.target.textContent = 'Downloading… (about a minute)';
+        try {
+          await api('/analytics/geo', { method: 'PUT', body: creds() });
+          draw(await api('/analytics/geo/update', { method: 'POST' }));
+          toast('Location database installed');
+        } catch (err) {
+          fail(err);
+          try { draw(await api('/analytics/geo')); } catch { /* keep the form */ }
+        }
+      });
+    };
+    try {
+      draw(await api('/analytics/geo'));
+    } catch (err) {
+      fail(err);
+    }
+  }
 
   const query = () => (state.days === 'custom' ? new URLSearchParams({ from: state.from, to: state.to }) : new URLSearchParams({ days: state.days }));
 
@@ -312,9 +447,12 @@ export default function register(routes, kit) {
           ${table(h, [['Search'], ['Searches', 'num'], ['Visitors', 'num']], zero, 'Every search found something.')}
           <p class="an-note">Ideas for products to list, or words to add to product names.</p></div>
       </div>
-      <p class="mini-help">First-party and anonymous: a random visitor id in the browser, no cookies, no IP addresses, no third parties. Bots, your own admin browsing and browsers asking not to be tracked are left out. Raw data is kept ${h(s.retentionMonths)} months.</p>`);
+      ${sourcesHtml(s.sources, h, rand)}
+      <p class="mini-help">First-party and anonymous: a random visitor id in the browser, no cookies, no IP addresses stored (an address is used once to find the city, then forgotten), no third parties. Bots, your own admin browsing and browsers asking not to be tracked are left out. Raw data is kept ${h(s.retentionMonths)} months.</p>`);
 
     wireChart(root, s.daily);
+    wireLinkBuilder(root);
+    wireGeo(root);
 
     const reload = () => routes.analytics().catch(fail);
     root.querySelectorAll('[data-days]').forEach((b) =>

@@ -50,4 +50,18 @@ export const SQL = `
     checkout_start INTEGER NOT NULL DEFAULT 0
   );
 `;
-export const COLUMNS = [];
+// 2026-10-08 (owner): where visitors come from. Campaign tags and the referring
+// page come from the landing URL / referrer; the place is looked up from the IP
+// in memory (geoip.js) and only the place name is kept, never the IP. Orders keep
+// the channel that brought the customer (a label like 'google' or 'email', never a visitor id).
+export const COLUMNS = [
+  ['page_views', 'referrer_path', "TEXT NOT NULL DEFAULT ''"],
+  ['page_views', 'utm_source', "TEXT NOT NULL DEFAULT ''"],
+  ['page_views', 'utm_medium', "TEXT NOT NULL DEFAULT ''"],
+  ['page_views', 'utm_campaign', "TEXT NOT NULL DEFAULT ''"],
+  ['page_views', 'country', "TEXT NOT NULL DEFAULT ''"],
+  ['page_views', 'region', "TEXT NOT NULL DEFAULT ''"],
+  ['page_views', 'city', "TEXT NOT NULL DEFAULT ''"],
+  ['orders', 'source_channel', "TEXT NOT NULL DEFAULT ''"],
+  ['orders', 'source_detail', "TEXT NOT NULL DEFAULT ''"],
+];
