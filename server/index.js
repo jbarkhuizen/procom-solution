@@ -29,6 +29,7 @@ const { escapeHtml } = await import('./util.js');
 const { startImageDownloads, resumePendingDownloads } = await import('./remote-images.js');
 const governance = await import('./features/governance.js');
 const { liveDropIds } = await import('./features/pricedrops.js');
+const { markReturnSeen, startPaymentWatch } = await import('./payment-watch.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -52,15 +53,26 @@ app.use((req, res, next) => {
 });
 
 // Payfast ITN needs the exact raw body for signature verification -- register before the JSON parser.
+// We answer AFTER processing: a lost notice would leave a paid order "awaiting payment", so when Payfast
+// could not be asked, or something broke on our side, we answer 503 and Payfast sends the notice again.
 app.post('/api/payfast/itn', express.urlencoded({ extended: false, verify: (req, _res, buf) => (req.rawBody = buf.toString('utf8')) }), async (req, res) => {
-  res.status(200).end(); // Payfast wants a fast 200; work continues below.
+  let retry = false;
   try {
     const orderId = req.body.m_payment_id;
     const order = orderId && orders.getOrder(orderId);
-    if (!order) return console.error(`ITN for unknown order ${orderId}`);
+    if (!order) {
+      console.error(`ITN for unknown order ${orderId}`);
+      mailer.sendOwnerAlert('Payfast notice for an unknown order', `Payfast sent a payment notice for an order number we do not have (${String(orderId).slice(0, 60)}). Please check your Payfast dashboard.`);
+      return res.status(200).end();
+    }
     const result = await verifyItn(req.rawBody, req.body, order.totalCents, req.ip);
-    if (!result.valid) return orders.logOrderEvent(order.id, `Rejected Payfast notification (signature=${result.signatureValid}, confirmed=${result.serverConfirmed}, amount=${result.amountValid})`);
-    if (result.paymentStatus === 'COMPLETE') {
+    if (result.transient) {
+      retry = true;
+      orders.logOrderEvent(order.id, 'Payfast payment notice could not be verified just now; waiting for Payfast to send it again', 'system');
+    } else if (!result.valid) {
+      orders.logOrderEvent(order.id, `Rejected Payfast notification (signature=${result.signatureValid}, confirmed=${result.serverConfirmed}, amount=${result.amountValid})`);
+      mailer.sendOwnerAlert(`Payfast notice rejected for order ${order.orderNumber}`, `A payment notice for order ${order.orderNumber} was rejected (signature ok: ${result.signatureValid}, Payfast confirmed: ${result.serverConfirmed}, amount ok: ${result.amountValid}). If the customer paid, check your Payfast dashboard and mark the order as paid by hand.`);
+    } else if (result.paymentStatus === 'COMPLETE') {
       const { changed, order: paid } = orders.markOrderPaid(order.id, { pfPaymentId: result.pfPaymentId, feeCents: result.feeCents });
       if (changed) {
         mailer.sendOrderConfirmation(paid);
@@ -71,7 +83,9 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false, verify: (req,
     }
   } catch (err) {
     console.error('ITN handling failed:', err);
+    retry = true;
   }
+  res.status(retry ? 503 : 200).end();
 });
 
 app.use(express.json({ limit: '1mb' }));
@@ -142,6 +156,7 @@ app.post('/api/checkout', checkoutLimiter, wrap((req) => {
 }));
 app.get('/api/orders/:id/status', wrap((req) => {
   const o = orNotFound(orders.getOrder(req.params.id));
+  if (o.paymentStatus !== 'paid') markReturnSeen(o.id); // the customer is back from Payfast (payment-watch.js)
   return { orderNumber: o.orderNumber, status: o.status, statusLabel: o.statusLabel, paymentStatus: o.paymentStatus, totalCents: o.totalCents, email: o.email.replace(/^(.).*(@.*)$/, '$1***$2') };
 }));
 
@@ -379,6 +394,21 @@ admin.put('/admins/:id/password', wrap((req) => ({ ok: orNotFound(auth.resetAdmi
 admin.get('/backups', wrap(() => listBackups()));
 admin.post('/backups', wrap(async () => createBackup('manual')));
 
+// Payfast shows the payment as received but the notice never reached us: mark the order paid by hand
+// (same follow-up as a real notice: stock, invoice, emails to the customer and to you).
+admin.post('/orders/:id/mark-paid', wrap((req) => {
+  const o = orNotFound(orders.getOrder(req.params.id));
+  if (o.paymentStatus === 'paid') throw new Error('This order is already paid');
+  if (o.status === 'cancelled') throw new Error('This order was cancelled');
+  const { changed, order: paid } = orders.markOrderPaid(o.id, { pfPaymentId: 'marked by hand' });
+  orders.logOrderEvent(o.id, `Marked as paid by hand (${req.admin?.username || 'admin'}), after checking Payfast`, 'admin');
+  if (changed) {
+    mailer.sendOrderConfirmation(paid);
+    mailer.sendOwnerNewOrder(paid);
+  }
+  return { ok: true };
+}));
+
 // Feature modules (server/features/README.md) add their own routes.
 for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing', 'ops', 'governance', 'pricedrops']) {
   (await import(`./features/${name}.js`)).register({ app, admin, wrap, rateLimit, express, siteUrl: SITE_URL });
@@ -407,5 +437,7 @@ resumePendingDownloads();
 esquire.startEsquireSchedule();
 smdApi.startSmdSchedule();
 supplierDigest.startSupplierDigestSchedule();
+mailer.startMailOutbox();
+startPaymentWatch();
 smdApi.resumeMediaDownloads();
 app.listen(PORT, HOST, () => console.log(`Procom API on http://${HOST}:${PORT} (admin: /admin/, Payfast ${payfastMode()})`));

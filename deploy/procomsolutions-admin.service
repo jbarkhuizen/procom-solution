@@ -13,5 +13,17 @@ ExecStart=/usr/bin/node server/index.js
 Restart=on-failure
 RestartSec=3
 
+# Hardening (audit 2026-10-08). The app runs as `deploy`, which has passwordless sudo for the
+# deploy script: NoNewPrivileges stops the Node process (and anything it starts) from ever using
+# sudo or setuid programs, so a bug in the app cannot become root on this shared server.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
 [Install]
 WantedBy=multi-user.target

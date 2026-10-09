@@ -80,6 +80,8 @@ export default function register(routes, kit) {
         ${attention('#/orders/list/paid', d.collectionsWaiting.count, 'Collections waiting to be packed', 'warn')}
         ${attention('#/orders/list/paid', d.deliveryQuotesPending.count, 'Delivery quotes to send', 'warn')}
         ${attention('#/dashboard', d.lowMargin.count, 'Products priced below cost', 'danger')}
+        ${attention('#/orders/list/pending_payment', d.paymentsToCheck.count, 'Customers back from Payfast, payment not confirmed: check Payfast', 'danger')}
+        ${attention('#/dashboard', d.mailProblems.waiting + d.mailProblems.failed, 'Important emails that could not be sent yet (retrying)', 'danger')}
       </div>
 
       <div class="grid-2" style="align-items:start;margin-bottom:1rem">

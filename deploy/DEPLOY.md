@@ -271,6 +271,15 @@ rm -f data/procom.db-wal data/procom.db-shm
 sudo systemctl start procomsolutions-admin
 ```
 
+## Security headers (one-time edit of the live vhost)
+
+`deploy-app.sh` copies `deploy/nginx-security-headers.conf` to `/etc/nginx/procom-security-headers.conf` on every deploy,
+but the live vhost (`/etc/nginx/conf.d/procomsolutions.conf`) is certbot-managed and never overwritten, so the
+`include /etc/nginx/procom-security-headers.conf;` lines (HTTPS `server` block, `/uploads/`, `/assets/`, `/api/`,
+`/admin`, `/sitemap.xml`) plus `server_tokens off;` were added by hand once (2026-10-09), as in
+`deploy/nginx-procomsolutions.conf`. A new location that sets its own `add_header` must include the file too.
+Check: `curl -sI https://www.procomsolutions.co.za/ | grep -i -E 'strict|frame|nosniff|referrer|permissions|server'`.
+
 ## Troubleshooting
 
 - Service status and logs: `sudo systemctl status procomsolutions-admin`,

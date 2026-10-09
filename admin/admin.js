@@ -1177,6 +1177,11 @@ async function orderDetail(id) {
             ${o.customerNotes ? `<div><span>Notes</span><span>${h(o.customerNotes)}</span></div>` : ''}
           </div>
         </div>
+        ${o.paymentStatus !== 'paid' && o.status === 'pending_payment' ? `<div class="panel stack gap-3">
+          <div class="section-head"><h3>Payment not confirmed</h3></div>
+          <p class="mini-help">If your Payfast dashboard shows this payment as received, but the confirmation never reached the shop, mark it as paid here. The customer and you then get the usual order emails. Never mark an order as paid without checking Payfast first.</p>
+          <button type="button" class="btn small btn-primary" data-mark-paid>Payfast shows it as paid: mark as paid</button>
+        </div>` : ''}
         <form class="panel stack gap-3" id="oform">
           <div class="section-head"><h3>Fulfil</h3></div>
           <label class="field"><span>Status</span><select name="status">${options(Object.entries(STATUS).map(([value, [label]]) => ({ value, label })), o.status)}</select></label>
@@ -1190,6 +1195,17 @@ async function orderDetail(id) {
     </div>`);
 
   root.addEventListener('click', async (e) => {
+    const markPaid = e.target.closest('[data-mark-paid]');
+    if (markPaid) {
+      if (!confirm(`Have you checked in Payfast that order ${o.orderNumber} was really paid? The customer will get a payment confirmation email.`)) return;
+      markPaid.disabled = true;
+      try {
+        await api(`/orders/${o.id}/mark-paid`, { method: 'POST' });
+        toast('Marked as paid: emails sent');
+        orderDetail(o.id);
+      } catch (err) { markPaid.disabled = false; fail(err); }
+      return;
+    }
     const ready = e.target.closest('[data-collect-ready]');
     if (ready) {
       if (!confirm(`Email ${o.email} that order ${o.orderNumber} is ready for collection?`)) return;
