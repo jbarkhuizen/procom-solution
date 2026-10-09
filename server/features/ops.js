@@ -439,6 +439,7 @@ const SUITE_DESCRIPTIONS = {
   'server/smd-api.test.js': 'SMD live API: headers and paging, check mode, costs and specials, stock, descriptions, new SKUs, photos, schedule.',
   'server/smd-autolist.test.js': 'SMD auto-list: which store category each SMD row goes into, skipped rows, heavy items marked "delivery quoted".',
   'server/features/accounts.test.js': 'Customer accounts: register, email verification, login, password reset, saved details, linking orders.',
+  'server/features/analytics-sources.test.js': 'Analytics sources: channels (Google, Facebook, newsletter...), campaign tags, referring pages, visitor places from MaxMind (IP never stored), channel on orders.',
   'server/features/analytics.test.js': 'Own visitor statistics: what is stored (no IPs), bots and Do Not Track ignored, funnel and totals.',
   'server/features/finance.test.js': 'Dashboard and Financial overview: income, cost of goods, delivery, Payfast fees and expenses per month.',
   'server/features/invoices.test.js': 'Invoices: gap-free numbering when payment is confirmed, printable invoice, invoice history.',

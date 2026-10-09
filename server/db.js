@@ -35,6 +35,7 @@ export function openDb(file) {
   ensureSchema(conn);
   migrate(conn);
   for (const f of FEATURE_SCHEMAS) if (f.SQL) conn.exec(f.SQL);
+  migrate(conn); // columns on feature tables (page_views ...) now that those tables exist
   seedDefaults(conn);
   return conn;
 }
@@ -114,8 +115,9 @@ const COLUMN_MIGRATIONS = [
 
 export function migrate(conn) {
   for (const [table, column, def] of COLUMN_MIGRATIONS) {
-    const has = conn.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
-    if (!has) conn.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`).run();
+    const info = conn.prepare(`PRAGMA table_info(${table})`).all();
+    if (!info.length) continue; // a feature table that is created later (openDb migrates again after the feature tables exist)
+    if (!info.some((c) => c.name === column)) conn.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`).run();
   }
 }
 

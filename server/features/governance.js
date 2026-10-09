@@ -113,6 +113,8 @@ const RULES = [
 
   ...crud('promos', 'Promo code', { created: 'saved', updated: 'saved' }),
   ...crud('specials', 'Special', { created: 'saved', updated: 'saved' }),
+  ['PUT', /^\/analytics\/geo$/, 'Visitor location account saved'],
+  ['POST', /^\/analytics\/geo\/update$/, 'Visitor location database updated'],
   ['PUT', /^\/price-drops\/settings$/, 'Price drops settings saved'],
   ['PATCH', new RegExp(`^/price-drops/${ID}$`), (b) => ('hidden' in (b || {}) ? (b.hidden ? 'Price drop hidden' : 'Price drop shown') : b?.pinned ? 'Price drop pinned' : 'Price drop unpinned')],
   ['POST', /^\/price-drops\/bulk$/, (b) => `Price drops bulk: ${clean(b?.action, 20)}`],

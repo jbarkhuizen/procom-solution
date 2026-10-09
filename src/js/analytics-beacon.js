@@ -4,8 +4,10 @@
 // Privacy: no cookies, no third parties. A random visitor id is kept in
 // localStorage only to tell "one visitor, several pages" from "several
 // visitors"; it carries no personal information. We send the page path, the
-// referring site's host name (never the full URL), the product/category on
-// the page and the shop search. Nothing is sent when the browser asks not to
+// referring site's host name and page (never the full link or its query), any
+// campaign tags on the link (utm_source / utm_medium / utm_campaign), the
+// product/category on the page and the shop search. The server looks up a
+// city from the connection's IP in memory and keeps only the place name. Nothing is sent when the browser asks not to
 // be tracked (Do Not Track / Global Privacy Control), or after ?analytics=off
 // (?analytics=on switches it back) -- handy for the owner's own browsing.
 //
@@ -14,6 +16,8 @@
 const VISITOR_KEY = 'procom-visitor-id';
 const OPTOUT_KEY = 'procom-analytics-optout';
 const HEARTBEAT_MS = 45_000;
+const TOUCH_KEY = 'procom-first-touch'; // what brought the visitor, kept 30 days so an order can say which channel earned it
+const TOUCH_DAYS = 30;
 const ENDPOINT = '/api/analytics/';
 
 let visitorId = '';
@@ -76,6 +80,38 @@ function referrerHost() {
   }, '');
 }
 
+// Referring page (path only) and campaign tags of this landing.
+function landing() {
+  return safe(() => {
+    const q = new URLSearchParams(location.search);
+    const out = { utmSource: q.get('utm_source') || '', utmMedium: q.get('utm_medium') || '', utmCampaign: q.get('utm_campaign') || '' };
+    if (document.referrer) {
+      const u = new URL(document.referrer);
+      if (u.host !== location.host) out.refPath = u.pathname;
+    }
+    return out;
+  }, {});
+}
+
+// Remembers the last thing that brought the visitor (an outside site or a campaign link).
+function rememberTouch(host, l) {
+  safe(() => {
+    if (!host && !l.utmSource && !l.utmMedium && !l.utmCampaign) return;
+    localStorage.setItem(TOUCH_KEY, JSON.stringify({ at: Date.now(), host, utmSource: l.utmSource, utmMedium: l.utmMedium, utmCampaign: l.utmCampaign }));
+  });
+}
+
+// For checkout: { host, utmSource, utmMedium, utmCampaign } of the last arrival (empty = came direct),
+// or null when analytics is off (nothing is sent then).
+export function currentSource() {
+  return safe(() => {
+    if (!isEnabled()) return null;
+    const t = JSON.parse(localStorage.getItem(TOUCH_KEY) || 'null');
+    if (!t || Date.now() - t.at > TOUCH_DAYS * 86400_000) return {};
+    return { host: t.host || '', utmSource: t.utmSource || '', utmMedium: t.utmMedium || '', utmCampaign: t.utmCampaign || '' };
+  }, null);
+}
+
 function pageDetails() {
   return safe(() => {
     const q = new URLSearchParams(location.search);
@@ -100,7 +136,10 @@ export function track(event, data = {}) {
 
 function start() {
   if (!isEnabled()) return;
-  send('view', { ref: referrerHost(), ...pageDetails() });
+  const ref = referrerHost();
+  const arrival = landing();
+  rememberTouch(ref, arrival);
+  send('view', { ref, ...arrival, ...pageDetails() });
   // "Online now": a heartbeat while the tab is visible, plus one on return.
   const ping = () => safe(() => document.visibilityState === 'visible' && send('ping', {}));
   setInterval(ping, HEARTBEAT_MS);

@@ -7,6 +7,7 @@ import { priceAdjustments } from './features/promos.js';
 import { onOrderCreated } from './features/accounts.js';
 import { onOrderPaid } from './features/invoices.js';
 import { paymentMethodProblem } from './features/finance.js';
+import { classifyChannel, cleanTag } from './features/channels.js';
 
 export const DELIVERY_QUOTE_NAME = QUOTE_NAME;
 
@@ -136,6 +137,21 @@ export function deliveryPlanForCart(lines, db = getDb()) {
 
 // Builds the order from the DB, never from client-sent prices. The cart only
 // contributes product ids + quantities.
+// Which channel brought the customer (Analytics -> channels). The browser sends the
+// landing referrer / campaign tags only when the visitor allows analytics; it is
+// stored as a plain label ('google', 'email', ...), never a visitor id.
+export function orderSource(src) {
+  if (!src || typeof src !== 'object') return { sourceChannel: '', sourceDetail: '' };
+  const host = /^[a-z0-9.-]{1,120}$/.test(String(src.host || '').toLowerCase()) ? String(src.host).toLowerCase().replace(/^www\./, '') : '';
+  const utmSource = cleanTag(src.utmSource);
+  const utmMedium = cleanTag(src.utmMedium);
+  const utmCampaign = cleanTag(src.utmCampaign);
+  return {
+    sourceChannel: classifyChannel({ host, utmSource, utmMedium }).key,
+    sourceDetail: (utmCampaign || utmSource || host).slice(0, 80),
+  };
+}
+
 export function createOrder(input, db = getDb()) {
   const c = input.customer || {};
   const customer = {
@@ -220,10 +236,10 @@ export function createOrder(input, db = getDb()) {
     const orderNumber = nextOrderNumber(db);
     db.prepare(`INSERT INTO orders (id, order_number, status, payment_status, payment_method, first_name, last_name, email, phone,
       address_line1, address_line2, suburb, city, province, postal_code, pudo_locker, customer_notes,
-      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, collection, fulfilment_json, discount_cents, promo_code, created_at, updated_at)
+      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, collection, fulfilment_json, discount_cents, promo_code, source_channel, source_detail, created_at, updated_at)
       VALUES (@id, @orderNumber, 'pending_payment', 'pending', @paymentMethod, @firstName, @lastName, @email, @phone,
       @line1, @line2, @suburb, @city, @province, @postalCode, @pudoLocker, @notes,
-      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @collection, @shipments, @discount, @promoCode, @ts, @ts)`).run({
+      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @collection, @shipments, @discount, @promoCode, @sourceChannel, @sourceDetail, @ts, @ts)`).run({
       id,
       orderNumber,
       paymentMethod,
@@ -237,6 +253,7 @@ export function createOrder(input, db = getDb()) {
       subtotal,
       discount,
       promoCode: discount ? String(promo.promoCode || '') : '',
+      ...orderSource(input.source),
       total: subtotal - discount + ship.priceCents,
       weight,
       ts,

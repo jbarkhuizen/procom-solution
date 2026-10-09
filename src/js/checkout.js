@@ -4,7 +4,7 @@ import { getCart, cartSubtotal, cartWeight, refreshCart } from './cart.js';
 import { setHtml } from './dom.js';
 import { initPromo, promoPayload, promoDiscountCents } from './checkout-promo.js';
 import { initAccountCheckout } from './checkout-account.js';
-import { track } from './analytics-beacon.js';
+import { track, currentSource } from './analytics-beacon.js';
 
 const form = document.getElementById('checkout-form');
 const PREFS_KEY = 'procom-checkout-details';
@@ -238,6 +238,7 @@ form.addEventListener('submit', async (e) => {
         notes: fd.get('notes'),
         delivery: Object.fromEntries(plan.map((g) => [g.key, chosen(g).id])),
         ...promoPayload(),
+        source: currentSource() || undefined, // which channel brought the customer (only when analytics is allowed)
         paymentMethod: fd.get('paymentMethod'),
         items: getCart().map((i) => ({ productId: i.productId, quantity: i.quantity })),
       },
