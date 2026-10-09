@@ -234,8 +234,13 @@ document.getElementById('ship-options').addEventListener('click', (e) => {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   document.getElementById('form-error').classList.add('hidden');
-  const fd = new FormData(form);
   if (pricesToConfirm) return showError('A price in your cart changed. Please confirm the new prices above before paying.');
+  // The form has novalidate (we show our own messages), so ask the browser to check the required fields first.
+  if (!form.reportValidity()) return;
+  const fd = new FormData(form);
+  if (!document.getElementById('address-fields').classList.contains('hidden') && ['addressLine1', 'city', 'postalCode'].some((k) => !String(fd.get(k) || '').trim())) {
+    return showError('Please enter your delivery address: street, city and postal code.');
+  }
   if (!fd.get('terms')) return showError('Please accept the Terms & Conditions to continue.');
   if (!plan.length || plan.some((g) => !chosen(g))) return showError(plan.length > 1 ? 'Please choose delivery or collection for each warehouse.' : 'Please choose a delivery or collection option.');
   const customer = Object.fromEntries(['firstName', 'lastName', 'email', 'phone', 'addressLine1', 'addressLine2', 'suburb', 'city', 'province', 'postalCode', 'pudoLocker'].map((k) => [k, String(fd.get(k) || '').trim()]));

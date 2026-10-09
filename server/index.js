@@ -30,6 +30,7 @@ const { startImageDownloads, resumePendingDownloads } = await import('./remote-i
 const governance = await import('./features/governance.js');
 const { liveDropIds } = await import('./features/pricedrops.js');
 const { markReturnSeen, startPaymentWatch } = await import('./payment-watch.js');
+const { loginLocked, noteLogin } = await import('./login-guard.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -62,7 +63,8 @@ function afterPaid(paid) {
 
 // We answer AFTER processing: a lost notice would leave a paid order "awaiting payment", so when Payfast
 // could not be asked, or something broke on our side, we answer 503 and Payfast sends the notice again.
-app.post('/api/payfast/itn', express.urlencoded({ extended: false, verify: (req, _res, buf) => (req.rawBody = buf.toString('utf8')) }), async (req, res) => {
+// Generous, but not unlimited: every notice with a real order id costs an outbound call to Payfast.
+app.post('/api/payfast/itn', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false }), express.urlencoded({ extended: false, verify: (req, _res, buf) => (req.rawBody = buf.toString('utf8')) }), async (req, res) => {
   let retry = false;
   try {
     const orderId = req.body.m_payment_id;
@@ -146,7 +148,8 @@ app.get('/api/products', wrap((req) => {
 }));
 app.get('/api/products/:slug', wrap((req) => orNotFound(catalog.getPublicProductBySlug(req.params.slug))));
 // Cart refresh: current price/availability for ids held in the browser's cart.
-app.post('/api/cart/refresh', wrap((req) => {
+const cartLimiter = rateLimit({ windowMs: 60_000, limit: 90, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many requests, please slow down' } });
+app.post('/api/cart/refresh', cartLimiter, wrap((req) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 100).map(String) : [];
   const drops = liveDropIds(ids); // products on the Price drops page right now (checkout shows the notice)
   return ids
@@ -156,7 +159,7 @@ app.post('/api/cart/refresh', wrap((req) => {
 }));
 app.get('/api/shipping-options', wrap(() => shipping.listShippingOptions({ activeOnly: true })));
 // Checkout's delivery choices for a cart: one group per supplier shipment.
-app.post('/api/checkout/delivery', wrap((req) => orders.deliveryPlanForCart(req.body?.items)));
+app.post('/api/checkout/delivery', cartLimiter, wrap((req) => orders.deliveryPlanForCart(req.body?.items)));
 
 const checkoutLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
 const accounts = await import('./features/accounts.js');
@@ -259,9 +262,12 @@ app.post('/api/admin/setup', loginLimiter, wrap((req, res) => {
   return { ok: true, username: admin.username };
 }));
 app.post('/api/admin/login', loginLimiter, wrap((req, res) => {
+  if (loginLocked(req.body?.username)) throw Object.assign(new Error('Too many wrong passwords for this account. Try again in 15 minutes.'), { status: 429 });
   const a = auth.verifyLogin(req.body?.username, req.body?.password);
+  noteLogin(req.body?.username, Boolean(a));
   if (!a) {
-    governance.recordAudit({ action: 'admin.login_failed', actor: String(req.body?.username || '').slice(0, 60), req });
+    // People sometimes paste their password into the username box: keep only the first 3 characters in the log.
+    governance.recordAudit({ action: 'admin.login_failed', actor: `${String(req.body?.username || '').slice(0, 3)}…`, req });
     throw Object.assign(new Error('Incorrect username or password'), { status: 401 });
   }
   governance.recordAudit({ action: 'admin.login', actor: a.username, req });
@@ -282,7 +288,11 @@ function requireAdmin(req, res, next) {
   if (!s) return res.status(401).json({ error: 'Please sign in' });
   if (req.method !== 'GET') {
     const origin = req.get('origin');
-    if (origin && new URL(origin).host !== req.get('host')) return res.status(403).json({ error: 'Cross-origin request blocked' });
+    let originHost = null;
+    try {
+      originHost = origin ? new URL(origin).host : null;
+    } catch { /* "null" and other junk origins are blocked below */ }
+    if (origin && originHost !== req.get('host')) return res.status(403).json({ error: 'Cross-origin request blocked' });
   }
   req.admin = s;
   next();

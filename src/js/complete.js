@@ -2,7 +2,11 @@ import './site.js';
 import { api, formatRand } from './api.js';
 import { clearCart } from './cart.js';
 
-const id = new URLSearchParams(location.search).get('order') || sessionStorage.getItem('procom-pending-order');
+let stored = null;
+try {
+  stored = sessionStorage.getItem('procom-pending-order');
+} catch { /* storage blocked */ }
+const id = new URLSearchParams(location.search).get('order') || stored;
 const $ = (x) => document.getElementById(x);
 
 // Payfast's ITN usually lands within seconds of the redirect, but not
@@ -15,8 +19,13 @@ async function poll(attempt = 0) {
   let o;
   try {
     o = await api(`/api/orders/${encodeURIComponent(id)}/status`);
-  } catch {
-    $('c-body').textContent = 'We could not find that order. If you were charged, please contact us with your Payfast reference.';
+  } catch (err) {
+    // A busy moment (429) or a bad connection is not "order not found": do not alarm someone who has just paid.
+    if (err.status === 404) $('c-body').textContent = 'We could not find that order. If you were charged, please contact us with your Payfast reference.';
+    else {
+      $('c-body').textContent = 'We could not check your order just now. Please wait a moment: if you paid, your confirmation email is on its way.';
+      if (attempt < 5) setTimeout(() => poll(attempt + 1), 4000);
+    }
     return;
   }
   $('c-card').classList.remove('hidden');

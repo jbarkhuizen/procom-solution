@@ -8,7 +8,7 @@
 // unpaid 15 minutes later the owner gets one email, the order gets an event, and
 // the dashboard shows it until the order is paid or cancelled.
 import { getDb } from './db.js';
-import { logOrderEvent } from './orders.js';
+import { logOrderEvent, cancelAbandonedOrders } from './orders.js';
 import { sendOwnerAlert } from './mailer.js';
 import { formatRand } from './util.js';
 
@@ -48,7 +48,14 @@ export async function checkUnconfirmedPayments({ db = getDb(), now = Date.now(),
 }
 
 export function startPaymentWatch() {
-  const run = () => checkUnconfirmedPayments().catch((err) => console.error('Payment watch failed:', err.message));
+  const run = () => {
+    checkUnconfirmedPayments().catch((err) => console.error('Payment watch failed:', err.message));
+    try {
+      cancelAbandonedOrders();
+    } catch (err) {
+      console.error('Cleaning up unpaid orders failed:', err.message);
+    }
+  };
   setInterval(run, 5 * 60_000).unref?.();
   setTimeout(run, 60_000).unref?.();
 }

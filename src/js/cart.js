@@ -6,7 +6,8 @@ const KEY = 'procom-cart';
 function read() {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) || '[]');
-    return Array.isArray(v) ? v : [];
+    // A damaged entry (null, no price or quantity) would break every page that totals the cart: drop it.
+    return Array.isArray(v) ? v.filter((i) => i && typeof i === 'object' && i.productId && Number.isFinite(i.priceCents) && Number.isFinite(i.quantity) && i.quantity > 0) : [];
   } catch {
     return [];
   }
@@ -56,7 +57,13 @@ export function addToCart(product, quantity = 1) {
     });
   const line = items.find((i) => i.productId === product.id);
   line.quantity = toWholePacks(line.quantity, line.minOrderQty, line.maxQty);
+  if (line.quantity < (line.minOrderQty || 1)) {
+    // Stock holds less than one pack: nothing to add (a zero-quantity line would sit in the cart).
+    write(items.filter((i) => i.productId !== product.id));
+    return false;
+  }
   write(items);
+  return true;
 }
 
 export function setQuantity(productId, quantity) {

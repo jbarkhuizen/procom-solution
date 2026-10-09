@@ -1,0 +1,20 @@
+{
+  "memories": [],
+  "manual_memories": [],
+  "realtime_memories": [
+    {
+      "type": "claude_response",
+      "content": "PR #76 is merged and deployed, and the nginx request limits are now live.\n\n- **Deploy and health:** the deploy workflow passed. The shop returns ok with Payfast live, lapanza3d.co.za returns 200, and ",
+      "added_at": "2026-10-09T08:25:23.952915",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "fix the low priority audit items",
+      "added_at": "2026-10-09T08:25:23.952937",
+      "source": "realtime_capture"
+    }
+  ],
+  "created_at": "2026-10-09T08:25:23.908490",
+  "updated_at": "2026-10-09T08:25:23.952940"
+}

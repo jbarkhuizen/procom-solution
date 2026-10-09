@@ -10,7 +10,7 @@ export async function api(path, { method = 'GET', body } = {}) {
   } catch {
     /* non-JSON error page */
   }
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(data?.error || `Request failed (${res.status})`), { status: res.status });
   return data;
 }
 

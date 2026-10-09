@@ -177,8 +177,10 @@ export function createOrder(input, db = getDb()) {
   if (!lines.length) throw new Error('Your cart is empty');
   const merged = new Map();
   for (const l of lines) {
-    const q = clampInt(l.quantity, 1, 999, 0);
-    if (!l.productId || !q) continue;
+    if (!l.productId) continue;
+    // Never silently change what the customer asked for (audit 2026-10-08).
+    if (!Number.isInteger(Number(l.quantity)) || Number(l.quantity) < 1 || Number(l.quantity) > 999) throw new Error('The quantity of each item must be a whole number from 1 to 999');
+    const q = Number(l.quantity);
     merged.set(l.productId, (merged.get(l.productId) || 0) + q);
   }
 
@@ -348,6 +350,17 @@ export function cancelOrder(id, { refundCents = null, reason = '', actor = 'admi
   return getOrder(id, db);
 }
 
+// Checkouts that were never paid (the customer left Payfast without paying) are cancelled after 14 days so
+// "Awaiting payment" only shows live ones. Returns how many.
+export function cancelAbandonedOrders(db = getDb(), now = Date.now(), days = 14) {
+  const rows = db.prepare("SELECT id FROM orders WHERE status = 'pending_payment' AND payment_status != 'paid' AND created_at < ?").all(new Date(now - days * 86400_000).toISOString());
+  for (const r of rows) {
+    db.prepare("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?").run(new Date(now).toISOString(), r.id);
+    logOrderEvent(r.id, `Never paid: cancelled automatically after ${days} days`, 'system', db);
+  }
+  return rows.length;
+}
+
 export function listOrders(opts = {}, db = getDb()) {
   const where = [];
   const params = {};
@@ -390,6 +403,7 @@ export function updateOrder(id, patch, actor = 'admin', db = getDb()) {
   if (patch.status !== undefined && patch.status !== o.status) {
     if (!ORDER_STATUSES.includes(patch.status)) throw new Error('Unknown status');
     if (o.status === 'cancelled') throw new Error('A cancelled order cannot be reopened. Place a new order instead.');
+    if (patch.status === 'pending_payment' && o.payment_status === 'paid') throw new Error('A paid order cannot go back to awaiting payment.');
     if (patch.status === 'cancelled' && o.payment_status === 'paid') throw new Error('This order is paid: use "Cancel and refund" so the stock and the refund are recorded.');
     if (patch.status !== 'cancelled' && o.payment_status !== 'paid' && patch.status !== 'pending_payment') {
       throw new Error('This order has not been paid yet');

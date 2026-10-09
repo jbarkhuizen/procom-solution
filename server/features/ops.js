@@ -453,6 +453,7 @@ const SUITE_DESCRIPTIONS = {
   'server/api-run-log.test.js': 'API run log (Admin -> System): every Esquire / SMD run is logged with its status and a one-line overview; filters, summary and seeding from the report history.',
   'server/order-safety.test.js': 'Orders: cancel and refund (stock back, refund and lost Payfast fee recorded), paid-twice/oversold/paid-after-cancel orders flagged, supplier stock goes down with sales.',
   'server/hardening.test.js': 'Hardening: photo-download guard refuses every spelling of an internal address, only real photo formats are accepted (no SVG).',
+  'server/low-fixes.test.js': 'Small safety fixes: hashed admin sessions, password length cap, search wildcards, supplier delete guard, strict quantities, paid orders cannot go back, abandoned checkouts cancelled, labelled backups kept.',
   'server/payment-safety.test.js': 'Payment safety: Payfast notices retried only when Payfast could not be asked, important emails queued and retried, customers back from Payfast with an unconfirmed payment flagged once.',
   'server/features/ops.test.js': 'Ops: off-site backup copy, version history, test runs and About this site (with rclone/git faked).',
 };

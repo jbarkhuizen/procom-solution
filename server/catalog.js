@@ -334,10 +334,11 @@ export function queryProducts(opts = {}, db = getDb()) {
       // Model numbers are written many ways ("K1-C", "K1 C", "K1C"): also match the
       // name/SKU with spaces and punctuation removed, for terms of 3+ letters/digits.
       const compact = compactSearch(t);
-      const loose = compact.length >= 3 ? ` OR ${COMPACT_SQL('p.name')} LIKE @qc${i} OR ${COMPACT_SQL('p.sku')} LIKE @qc${i}` : '';
-      where.push(`(p.name LIKE @q${i} OR p.brand LIKE @q${i} OR p.sku LIKE @q${i} OR p.supplier_code LIKE @q${i}${loose})`);
-      params[`q${i}`] = `%${t}%`;
-      if (loose) params[`qc${i}`] = `%${compact}%`;
+      const loose = compact.length >= 3 ? ` OR ${COMPACT_SQL('p.name')} LIKE @qc${i} ESCAPE '\\' OR ${COMPACT_SQL('p.sku')} LIKE @qc${i} ESCAPE '\\'` : '';
+      where.push(`(p.name LIKE @q${i} ESCAPE '\\' OR p.brand LIKE @q${i} ESCAPE '\\' OR p.sku LIKE @q${i} ESCAPE '\\' OR p.supplier_code LIKE @q${i} ESCAPE '\\'${loose})`);
+      const like = (v) => v.replace(/[\\%_]/g, (c) => `\\${c}`); // a typed % or _ is a plain character, not a wildcard
+      params[`q${i}`] = `%${like(t)}%`;
+      if (loose) params[`qc${i}`] = `%${like(compact)}%`;
     });
   }
   if (opts.fulfilment) {
@@ -665,5 +666,9 @@ export function saveSupplier(data, id = null, db = getDb()) {
 }
 
 export function deleteSupplier(id, db = getDb()) {
+  // Deleting a supplier would also delete its price-list items and leave its products without a supplier (they would
+  // silently fall back to store-wide delivery): refuse while products still use it.
+  const n = db.prepare('SELECT COUNT(*) n FROM products WHERE supplier_id = ?').get(id).n;
+  if (n) throw new Error(`This supplier still has ${n} product${n === 1 ? '' : 's'} in the shop. Move or delete those first.`);
   return db.prepare('DELETE FROM suppliers WHERE id = ?').run(id).changes > 0;
 }
