@@ -33,6 +33,8 @@
 import { randomUUID } from 'crypto';
 import { getDb } from '../db.js';
 import { getSettings } from '../settings.js';
+import { paymentsToCheck } from '../payment-watch.js';
+import { mailOutboxStats } from '../mailer.js';
 
 // ------------------------------------------------------------ settings
 
@@ -610,6 +612,8 @@ export function getDashboard({ now = new Date() } = {}, db = getDb()) {
     series30: days,
     monthToDate: financeTotals(`${today.slice(0, 7)}-01`, today, db),
     ordersToProcess: { count: toProcess.length, items: toProcess.slice(0, 8) },
+    paymentsToCheck: paymentsToCheck(db),
+    mailProblems: mailOutboxStats(db),
     collectionsWaiting: { count: collections.length, items: collections.slice(0, 8) },
     deliveryQuotesPending: { count: quotes.length, items: quotes.slice(0, 8) },
     lowMargin,

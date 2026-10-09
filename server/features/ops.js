@@ -451,6 +451,7 @@ const SUITE_DESCRIPTIONS = {
   'server/features/pricedrops.test.js': 'Price drops page: which supplier-sync drops qualify (5% and R10), 7-day window, off the page the moment the price is back up, sold-out items greyed, hide/pin, admin figures.',
   'server/features/specials.test.js': 'Specials: sale prices, dates, never below cost incl VAT, struck-through normal price.',
   'server/api-run-log.test.js': 'API run log (Admin -> System): every Esquire / SMD run is logged with its status and a one-line overview; filters, summary and seeding from the report history.',
+  'server/payment-safety.test.js': 'Payment safety: Payfast notices retried only when Payfast could not be asked, important emails queued and retried, customers back from Payfast with an unconfirmed payment flagged once.',
   'server/features/ops.test.js': 'Ops: off-site backup copy, version history, test runs and About this site (with rclone/git faked).',
 };
 

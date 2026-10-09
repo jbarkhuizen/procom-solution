@@ -39,6 +39,63 @@ export async function sendMail({ to, subject, html, replyTo, headers, attachment
   }
 }
 
+// ---- Important emails that must not be lost (audit 2026-10-08): if the first try
+// fails the message waits in mail_outbox and is retried (5 min, 10 min, ... up to
+// 6 h between tries, 12 tries in all). Only when mail is switched on at all.
+const OUTBOX_MAX_TRIES = 12;
+const outboxDelayMs = (attempts) => Math.min(2 ** (attempts - 1) * 5 * 60_000, 6 * 3600_000);
+
+export async function sendMailReliable(opts, { kind = 'mail', ref = '' } = {}) {
+  if (!getTransport()) return sendMail(opts); // mail is off (dev/test): nothing to retry
+  if (await sendMail(opts)) return true;
+  try {
+    getDb()
+      .prepare("INSERT INTO mail_outbox (kind, ref, to_addr, reply_to, subject, html, attempts, next_try_at, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'pending', ?)")
+      .run(kind, String(ref), String(opts.to), String(opts.replyTo || ''), String(opts.subject), String(opts.html), new Date(Date.now() + outboxDelayMs(1)).toISOString(), new Date().toISOString());
+    console.error(`Mail "${opts.subject}" could not be sent; queued for retry`);
+  } catch (err) {
+    console.error('Could not queue the failed mail:', err.message);
+  }
+  return false;
+}
+
+// Retries what is due. Returns { sent, failed, retried }.
+export async function processMailOutbox({ db = getDb(), now = Date.now() } = {}) {
+  const out = { sent: 0, failed: 0, retried: 0 };
+  const due = db.prepare("SELECT * FROM mail_outbox WHERE status = 'pending' AND next_try_at <= ? ORDER BY id LIMIT 10").all(new Date(now).toISOString());
+  for (const m of due) {
+    const ok = await sendMail({ to: m.to_addr, subject: m.subject, html: m.html, replyTo: m.reply_to || undefined });
+    if (ok) {
+      db.prepare("UPDATE mail_outbox SET status = 'sent', sent_at = ? WHERE id = ?").run(new Date(now).toISOString(), m.id);
+      out.sent++;
+    } else if (m.attempts + 1 > OUTBOX_MAX_TRIES) {
+      db.prepare("UPDATE mail_outbox SET status = 'failed', attempts = attempts + 1 WHERE id = ?").run(m.id);
+      out.failed++;
+    } else {
+      db.prepare('UPDATE mail_outbox SET attempts = attempts + 1, next_try_at = ? WHERE id = ?').run(new Date(now + outboxDelayMs(m.attempts + 1)).toISOString(), m.id);
+      out.retried++;
+    }
+  }
+  db.prepare("DELETE FROM mail_outbox WHERE status != 'pending' AND created_at < ?").run(new Date(now - 60 * 86400_000).toISOString());
+  return out;
+}
+
+export function mailOutboxStats(db = getDb()) {
+  const r = db.prepare("SELECT SUM(status = 'pending') AS waiting, SUM(status = 'failed') AS failed FROM mail_outbox").get();
+  return { waiting: r.waiting || 0, failed: r.failed || 0 };
+}
+
+export function startMailOutbox() {
+  setInterval(() => processMailOutbox().catch((err) => console.error('Mail outbox failed:', err.message)), 5 * 60_000).unref?.();
+}
+
+// Plain-text alert to the owner (Site settings -> owner notification email); retried like any important mail.
+export function sendOwnerAlert(subject, text) {
+  const s = getSettings();
+  if (!s.ownerNotifyEmail) return false;
+  return sendMailReliable({ to: s.ownerNotifyEmail, subject: `Procom Solutions: ${subject}`, html: layout('Needs your attention', `<p style="white-space:pre-line">${escapeHtml(text)}</p>`) }, { kind: 'owner-alert' });
+}
+
 export function layout(title, body) {
   const s = getSettings();
   return `<!doctype html><html><body style="margin:0;background:#f7f3eb;font-family:Arial,sans-serif;color:#1a1612">
@@ -97,7 +154,7 @@ export function sendOrderConfirmation(order) {
      ${order.deliveryQuote ? `<p style="background:#efe7d8;padding:12px;border-radius:4px"><strong>Delivery quote to follow:</strong> your order includes large items, so delivery wasn't charged at checkout. We'll contact you within 1 business day with the courier cost to your address, before anything ships.</p>` : ''}
      ${itemsTable(order)}`,
   );
-  return sendMail({ to: order.email, subject: `Procom Solutions — order ${order.orderNumber} confirmed`, html });
+  return sendMailReliable({ to: order.email, subject: `Procom Solutions — order ${order.orderNumber} confirmed`, html }, { kind: 'order-confirmation', ref: order.orderNumber });
 }
 
 export function sendOwnerNewOrder(order) {
@@ -113,7 +170,7 @@ export function sendOwnerNewOrder(order) {
      ${itemsTable(order, { withSupplier: true })}
      ${dropship.length ? `<p style="margin-top:16px"><strong>${dropship.length} line(s) to order from ${escapeHtml(suppliers.join(' and '))}.</strong> Open the order in admin for the supplier order sheet${suppliers.length > 1 ? 's (one per supplier)' : ''}.</p>` : ''}`,
   );
-  return sendMail({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${suppliers.length ? ` — ${suppliers.join(' + ')}` : ''}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}${order.collection ? ' — COLLECTION' : ''}${ownCourierShipments(order).length ? ' — OWN COURIER' : ''}`, html, replyTo: order.email });
+  return sendMailReliable({ to: s.ownerNotifyEmail, subject: `New order ${order.orderNumber} — ${formatRand(order.totalCents)}${suppliers.length ? ` — ${suppliers.join(' + ')}` : ''}${order.deliveryQuote ? ' — DELIVERY QUOTE NEEDED' : ''}${order.collection ? ' — COLLECTION' : ''}${ownCourierShipments(order).length ? ' — OWN COURIER' : ''}`, html, replyTo: order.email }, { kind: 'owner-new-order', ref: order.orderNumber });
 }
 
 export function sendShippedNotice(order) {

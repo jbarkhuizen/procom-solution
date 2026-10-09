@@ -97,20 +97,23 @@ function postForm(hostname, urlPath, body) {
 }
 
 // Signature + server-to-server validate + amount are hard gates.
-export async function verifyItn(rawBody, parsedBody, expectedCents, sourceIp) {
+export async function verifyItn(rawBody, parsedBody, expectedCents, sourceIp, { post = postForm } = {}) {
   const config = getConfig();
   const { signature, ...fields } = parsedBody;
   const signatureValid = buildSignature(Object.entries(fields), config.passphrase, { skipEmpty: false }) === signature;
-  let serverConfirmed = false;
+  let answer = null; // 'VALID' | 'INVALID' | null when Payfast could not be asked
   try {
-    serverConfirmed = (await postForm(URLS[config.mode].host, '/eng/query/validate', rawBody)) === 'VALID';
+    answer = await post(URLS[config.mode].host, '/eng/query/validate', rawBody);
   } catch (err) {
     console.error('Payfast validate call failed:', err.message);
   }
+  const serverConfirmed = answer === 'VALID';
   const amountValid = Math.round(Number(fields.amount_gross) * 100) === Number(expectedCents);
   console.log(`Payfast ITN from ${sourceIp || '?'} for ${fields.m_payment_id}: signature=${signatureValid} server=${serverConfirmed} amount=${amountValid}`);
   return {
     valid: signatureValid && serverConfirmed && amountValid,
+    // We could not get an answer from Payfast (timeout, outage): the notice itself looked fine, so ask Payfast to send it again.
+    transient: signatureValid && amountValid && answer !== 'VALID' && answer !== 'INVALID',
     signatureValid,
     serverConfirmed,
     amountValid,

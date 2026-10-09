@@ -74,6 +74,28 @@ export const SQL = `
     figures_json TEXT NOT NULL DEFAULT '[]'  -- [[label, value], ...] shown when a row is opened
   );
   CREATE INDEX IF NOT EXISTS idx_api_run_log_started ON api_run_log (started_at);
+
+  -- Important emails (new order notice to the owner, order confirmation to the customer) that
+  -- could not be sent are kept here and retried with a growing pause (mailer.js).
+  CREATE TABLE IF NOT EXISTS mail_outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL DEFAULT 'mail',
+    ref TEXT NOT NULL DEFAULT '',
+    to_addr TEXT NOT NULL,
+    reply_to TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL,
+    html TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    next_try_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending | sent | failed
+    created_at TEXT NOT NULL,
+    sent_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_mail_outbox_status ON mail_outbox (status, next_try_at);
 `;
 
-export const COLUMNS = [];
+export const COLUMNS = [
+  // Checkout-complete page seen for an unpaid order / owner alerted about it (server/payment-watch.js).
+  ['orders', 'payment_return_seen_at', 'TEXT'],
+  ['orders', 'payment_alerted_at', 'TEXT'],
+];
