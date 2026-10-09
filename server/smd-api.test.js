@@ -156,6 +156,8 @@ test('products missing from the API are hidden (owner rule), shown again when ba
   assert.equal(row('J').active, 1, 'back in the API: shown again');
   assert.equal(row('K').active, 0, 'hidden by the admin: stays hidden');
 
+  // (this part is about the missing-products rule, not the truncated-response guard: lower the guard baseline)
+  db.prepare("INSERT INTO settings (key, value) VALUES ('smdApiGoodPriceCount', '6') ON CONFLICT(key) DO UPDATE SET value = excluded.value").run();
   r = await run({ products: [], prices: ['A', 'B', 'C', 'D', 'E', 'F'].map((c) => price(c, '100.00')), stock: [], media: [] });
   assert.equal(r.stats.missingNotMarked, true, 'many more missing at once: API response looks incomplete');
   assert.equal(r.stats.hidden, 0);
@@ -211,6 +213,7 @@ test('new SMD products: pack size from the name, listed only when auto-list is o
   assert.equal(db.prepare('SELECT COUNT(*) n FROM products').get().n, 0);
 
   updateSettings({ smdApiAutoList: true }, db);
+  db.prepare("INSERT INTO settings (key, value) VALUES ('smdApiGoodPriceCount', '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(); // (not about the truncated-response guard)
   r = await run(data(false)); // B withdrawn by SMD before auto-list was switched on
   assert.equal(r.autoList.created, 1);
   const p = row('LNL-1');

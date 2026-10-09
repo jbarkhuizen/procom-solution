@@ -27,7 +27,9 @@ const API_URL = 'https://api.esquire.co.za/api/DataFeed';
 const TIMEOUT_MS = 120_000;
 // A feed with far fewer products than last time is treated as a glitch, not
 // as thousands of products going out of stock at once.
-const MIN_SHARE_OF_PREVIOUS = 0.5;
+// A feed with fewer products than this share of the last run is treated as truncated (audit 2026-10-08: 50% was far too
+// weak -- a feed missing 45% would have hidden or sold out nearly half the Esquire range).
+const MIN_SHARE_OF_PREVIOUS = 0.8;
 
 export const NO_LOGIN = 'Esquire login not set: enter the portal username and password in Admin → Suppliers → Esquire';
 
@@ -234,7 +236,7 @@ export function startEsquireSchedule() {
       } catch (err) {
         console.error('Esquire sync check failed:', err.message);
       }
-      (ready ? syncEsquire({ trigger: 'scheduled' }) : Promise.resolve()).finally(plan);
+      (ready ? syncEsquire({ trigger: 'scheduled' }) : Promise.resolve()).catch((err) => console.error('Scheduled Esquire sync failed unexpectedly:', err)).finally(plan);
     }, at - Date.now()).unref();
   };
   plan();

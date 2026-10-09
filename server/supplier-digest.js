@@ -4,7 +4,7 @@
 // mailer.js records each run in sync_report_runs (sent = 0 while waiting).
 import { getDb } from './db.js';
 import { getSettings } from './settings.js';
-import { sendMail, layout, reportMode, reportRecipients, changesHtml } from './mailer.js';
+import { sendMail, layout, reportMode, reportRecipients, changesHtml, mailConfigured } from './mailer.js';
 import { mergeChanges, buildDigestDocx } from './sync-report.js';
 import { nextRunAt } from './esquire.js';
 import { escapeHtml } from './util.js';
@@ -53,9 +53,11 @@ export async function sendSupplierDigest({ now = new Date(), db = getDb(), force
     console.error('Daily supplier document failed:', err.message);
   }
   const ok = await sendMail({ to: reportRecipients(getSettings(db)), subject: `Supplier updates ${dateLabel} — ${counts}`, html: layout('Supplier updates — daily', body), attachments });
-  // Marked sent even when mail is down: the next day's email starts fresh.
-  const ids = runs.map((r) => r.id);
-  db.prepare(`UPDATE sync_report_runs SET sent = 1 WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
+  // Only marked sent when the email went out; otherwise the next try (or tomorrow's email) still includes these runs.
+  if (ok || !mailConfigured()) {
+    const ids = runs.map((r) => r.id);
+    db.prepare(`UPDATE sync_report_runs SET sent = 1 WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
+  }
   db.prepare('DELETE FROM sync_report_runs WHERE started_at < ?').run(new Date(now.getTime() - 30 * DAY_MS).toISOString());
   return { sent: ok, runs: runs.length, sections: sections.map((s) => s.supplier) };
 }

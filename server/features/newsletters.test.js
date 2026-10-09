@@ -188,10 +188,20 @@ test('failed sends retry, then give up; mail returning false counts as a failure
   const c = await approvedCampaign();
   nl.queueCampaign(c.id, { db });
   const bad = async () => false;
-  for (let i = 0; i < 3; i++) await nl.runSendBatch({ db, mail: bad, siteUrl: SITE });
+  let t = Date.now();
+  const t0 = t;
+  const usedBefore = nl.usageSummary(db, t0).used; // the test email already counts
+  await nl.runSendBatch({ db, mail: bad, siteUrl: SITE, now: () => t });
+  await nl.runSendBatch({ db, mail: bad, siteUrl: SITE, now: () => t + 60_000 }); // too soon: the retry waits
+  assert.equal(nl.listCampaignRecipients(c.id, db)[0].attempts, 1, 'a retry waits attempts x 10 minutes');
+  for (let i = 0; i < 6; i++) {
+    t += 3600_000;
+    await nl.runSendBatch({ db, mail: bad, siteUrl: SITE, now: () => t });
+  }
   const r = nl.listCampaignRecipients(c.id, db)[0];
   assert.equal(r.status, 'failed');
-  assert.equal(r.attempts, 3);
+  assert.equal(r.attempts, 6);
+  assert.equal(nl.usageSummary(db, t0).used, usedBefore, 'failed sends do not use up the daily cap');
   assert.equal(nl.getCampaign(c.id, db).status, 'sent');
   nl.retryFailed(c.id, db);
   await nl.runSendBatch({ db, mail: fakeMail, siteUrl: SITE });

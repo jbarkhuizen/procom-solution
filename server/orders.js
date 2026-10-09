@@ -41,6 +41,7 @@ function rowToOrder(r, items = [], events = []) {
     status: r.status,
     statusLabel: STATUS_LABELS[r.status] || r.status,
     paymentStatus: r.payment_status,
+    attention: r.attention || '',
     paymentMethod: r.payment_method,
     pfPaymentId: r.pf_payment_id,
     firstName: r.first_name,
@@ -281,19 +282,70 @@ export function markOrderPaid(id, { pfPaymentId = '', feeCents = null } = {}, db
   if (!o) return { changed: false, order: null };
   if (o.payment_status === 'paid') return { changed: false, order: getOrder(id, db) };
   const ts = new Date().toISOString();
+  const notes = [];
   const tx = db.transaction(() => {
     db.prepare("UPDATE orders SET payment_status = 'paid', status = CASE WHEN status = 'pending_payment' THEN 'paid' ELSE status END, pf_payment_id = ?, payfast_fee_cents = ?, paid_at = ?, updated_at = ? WHERE id = ?")
       .run(pfPaymentId, Number.isInteger(feeCents) && feeCents >= 0 ? feeCents : null, ts, ts, id);
     // Own-stock items leave inventory at payment time (not at checkout, so
-    // abandoned Payfast sessions never hold stock hostage).
-    for (const it of db.prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ? AND fulfilment = 'stock'").all(id)) {
+    // abandoned Payfast sessions never hold stock hostage). If the shelf no
+    // longer holds what was ordered (someone else paid first) the order is flagged.
+    for (const it of db.prepare("SELECT oi.product_id, oi.quantity, oi.name, p.stock_qty FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND oi.fulfilment = 'stock'").all(id)) {
+      if (it.stock_qty != null && it.stock_qty < it.quantity) notes.push(`${it.name}: ${it.quantity} ordered but only ${Math.max(0, it.stock_qty)} in stock`);
       db.prepare('UPDATE products SET stock_qty = MAX(0, stock_qty - ?), updated_at = ? WHERE id = ?').run(it.quantity, ts, it.product_id);
     }
+    // Supplier items: the live supplier count drops by what was sold (the next supplier update puts the real number back),
+    // and an item the supplier no longer has in stock is flagged.
+    for (const it of db.prepare("SELECT oi.product_id, oi.quantity, oi.name, p.supplier_in_stock, p.supplier_stock_qty FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND oi.fulfilment = 'dropship'").all(id)) {
+      if (it.supplier_in_stock === 0) notes.push(`${it.name}: the supplier showed it out of stock when it was paid`);
+      else if (it.supplier_stock_qty != null && it.supplier_stock_qty < it.quantity) notes.push(`${it.name}: ${it.quantity} ordered but the supplier showed only ${Math.max(0, it.supplier_stock_qty)}`);
+      if (it.supplier_stock_qty != null) db.prepare('UPDATE products SET supplier_stock_qty = MAX(0, supplier_stock_qty - ?) WHERE id = ?').run(it.quantity, it.product_id);
+    }
+    if (o.status === 'cancelled') notes.push('This order was cancelled before the payment arrived: refund the customer or reopen the order');
     logOrderEvent(id, `Payment received via Payfast${pfPaymentId ? ` (pf ${pfPaymentId})` : ''}`, 'payfast', db);
+    if (notes.length) {
+      db.prepare('UPDATE orders SET attention = ? WHERE id = ?').run(notes.join('; ').slice(0, 1000), id);
+      for (const n of notes) logOrderEvent(id, `Needs attention: ${n}`, 'system', db);
+    }
   });
   tx();
   onOrderPaid(getOrder(id, db), db);
   return { changed: true, order: getOrder(id, db) };
+}
+
+// Puts a note on a paid order that needs the owner's eyes (shown on the order and the dashboard).
+export function flagOrder(id, note, db = getDb()) {
+  const o = db.prepare('SELECT attention FROM orders WHERE id = ?').get(id);
+  if (!o) return;
+  db.prepare('UPDATE orders SET attention = ? WHERE id = ?').run([o.attention, note].filter(Boolean).join('; ').slice(0, 1000), id);
+  logOrderEvent(id, `Needs attention: ${note}`, 'system', db);
+}
+
+// Cancels an order. A paid order also puts own-stock items back on the shelf and records the refund
+// (the money itself goes back to the customer in the Payfast dashboard). `refundCents` defaults to the whole total.
+export function cancelOrder(id, { refundCents = null, reason = '', actor = 'admin' } = {}, db = getDb()) {
+  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  if (!o) return null;
+  if (o.status === 'cancelled') throw new Error('This order is already cancelled');
+  const ts = new Date().toISOString();
+  const paid = o.payment_status === 'paid';
+  let refund = 0;
+  if (paid) {
+    refund = refundCents == null || refundCents === '' ? o.total_cents : Math.round(Number(refundCents));
+    if (!Number.isInteger(refund) || refund < 0 || refund > o.total_cents) throw new Error('The refund must be between R0 and the order total');
+  }
+  const tx = db.transaction(() => {
+    if (paid) {
+      for (const it of db.prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ? AND fulfilment = 'stock'").all(id)) {
+        db.prepare('UPDATE products SET stock_qty = stock_qty + ?, updated_at = ? WHERE id = ?').run(it.quantity, ts, it.product_id);
+      }
+      db.prepare('INSERT INTO order_refunds (order_id, amount_cents, fee_lost_cents, reason, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(id, refund, o.payfast_fee_cents || 0, str(reason, 300), actor, ts);
+    }
+    db.prepare("UPDATE orders SET status = 'cancelled', attention = '', updated_at = ? WHERE id = ?").run(ts, id);
+    logOrderEvent(id, paid ? `Order cancelled; refund of R ${(refund / 100).toFixed(2)} recorded${reason ? ` (${str(reason, 300)})` : ''}. Return the money in your Payfast dashboard.` : 'Order cancelled', actor, db);
+  });
+  tx();
+  return getOrder(id, db);
 }
 
 export function listOrders(opts = {}, db = getDb()) {
@@ -337,11 +389,17 @@ export function updateOrder(id, patch, actor = 'admin', db = getDb()) {
   const set = {};
   if (patch.status !== undefined && patch.status !== o.status) {
     if (!ORDER_STATUSES.includes(patch.status)) throw new Error('Unknown status');
+    if (o.status === 'cancelled') throw new Error('A cancelled order cannot be reopened. Place a new order instead.');
+    if (patch.status === 'cancelled' && o.payment_status === 'paid') throw new Error('This order is paid: use "Cancel and refund" so the stock and the refund are recorded.');
     if (patch.status !== 'cancelled' && o.payment_status !== 'paid' && patch.status !== 'pending_payment') {
       throw new Error('This order has not been paid yet');
     }
     set.status = patch.status;
     changes.push(`Status: ${STATUS_LABELS[o.status]} → ${STATUS_LABELS[patch.status]}`);
+  }
+  if (patch.attention === '' && o.attention) {
+    set.attention = '';
+    changes.push('Attention note dismissed');
   }
   for (const [key, col, label] of [
     ['trackingNumber', 'tracking_number', 'Tracking number'],
@@ -412,13 +470,14 @@ export function supplierOrderSheet(order) {
 
 export function dashboardStats(db = getDb()) {
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
-  const paid30 = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(total_cents),0) total FROM orders WHERE payment_status = 'paid' AND paid_at >= ?").get(since);
+  const paid30 = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(total_cents),0) total FROM orders WHERE payment_status = 'paid' AND status != 'cancelled' AND paid_at >= ?").get(since);
   const cost30 = db
     .prepare("SELECT COALESCE(SUM(oi.unit_cost_cents * oi.quantity),0) c FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.payment_status = 'paid' AND o.paid_at >= ?")
     .get(since).c;
   const shipping30 = db.prepare("SELECT COALESCE(SUM(shipping_cents),0) s FROM orders WHERE payment_status = 'paid' AND paid_at >= ?").get(since).s;
   return {
     ordersToProcess: db.prepare("SELECT COUNT(*) n FROM orders WHERE status IN ('paid','ordered')").get().n,
+    ordersNeedingAttention: db.prepare("SELECT COUNT(*) n FROM orders WHERE attention != '' AND payment_status = 'paid'").get().n,
     awaitingPayment: db.prepare("SELECT COUNT(*) n FROM orders WHERE status = 'pending_payment' AND created_at >= ?").get(since).n,
     paidOrders30: paid30.n,
     revenue30Cents: paid30.total,

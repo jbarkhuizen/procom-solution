@@ -42,6 +42,14 @@ test('after every update (default): emailed at once and recorded as sent', async
   assert.equal((await digest.sendSupplierDigest({ db })).reason, 'not in daily mode');
 });
 
+test('a failed update is emailed at once even in daily mode, and not repeated in the digest', async () => {
+  updateSettings({ supplierReportMode: 'daily' }, db);
+  await mailer.sendSmdReport({ trigger: 'scheduled', check: false, ok: false, error: 'SMD sent no prices -- skipped', startedAt: '2026-10-05T04:30:00.000Z', seconds: 2 });
+  assert.equal(logged.length, 1, 'sent at once, not held until 19:00');
+  assert.match(logged[0], /SMD sync FAILED/);
+  assert.deepEqual(runs(), [{ supplier: 'SMD', sent: 1 }], 'recorded and marked sent: the digest will not repeat it');
+});
+
 test('off: nothing is emailed', async () => {
   updateSettings({ supplierReportMode: 'off' }, db);
   await mailer.sendSmdReport(smdReport('2026-10-05T04:30:00.000Z', ch('A', 12700, 10200)));

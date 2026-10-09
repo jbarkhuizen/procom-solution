@@ -284,6 +284,12 @@ function orderFigures(row, ctx) {
 
 // Paid orders whose payment falls in [fromYmd, toYmd] (SAST, inclusive),
 // cancelled ones included (callers split them out).
+// Paid orders that need the owner's eyes (item gone, paid after cancellation, paid twice ...).
+function attentionOrders(db) {
+  const rows = db.prepare("SELECT id, order_number, first_name, last_name, attention FROM orders WHERE attention != '' AND payment_status = 'paid' ORDER BY paid_at DESC").all();
+  return { count: rows.length, items: rows.slice(0, 8).map((o) => ({ id: o.id, orderNumber: o.order_number, customer: `${o.first_name} ${o.last_name}`.trim(), note: o.attention })) };
+}
+
 function paidOrders(fromYmd, toYmd, db) {
   return db.prepare(`SELECT o.*, ${PAID_AT} AS paid_when,
       (SELECT COALESCE(SUM(unit_cost_cents * quantity), 0) FROM order_items WHERE order_id = o.id) AS cost_excl_cents,
@@ -309,6 +315,8 @@ function addOrder(t, row, ctx) {
   if (row.status === 'cancelled') {
     t.cancelledOrders += 1;
     t.cancelledCents += row.total_cents;
+    // The money went back to the customer but Payfast keeps its fee: that is a real cost.
+    t.payfastFeesCents += orderFigures(row, ctx).payfastFeesCents;
     return;
   }
   const f = orderFigures(row, ctx);
@@ -589,12 +597,20 @@ export function getDashboard({ now = new Date() } = {}, db = getDb()) {
   const quotes = open.filter((o) => o.delivery_quote && o.status === 'paid').map((o) => ({ id: o.id, orderNumber: o.order_number, customer: `${o.first_name} ${o.last_name}`.trim(), paidAt: o.paid_at }));
   const toProcess = open.filter((o) => o.status === 'paid').map((o) => ({ id: o.id, orderNumber: o.order_number, customer: `${o.first_name} ${o.last_name}`.trim(), paidAt: o.paid_at }));
 
-  // Live products priced below what they cost us (cost incl VAT).
-  const lowMarginSql = 'FROM products WHERE active = 1 AND cost_cents > 0 AND price_cents < CAST(ROUND(cost_cents * ?) AS INTEGER)';
+  // Live products priced below break-even: cost incl VAT plus the Payfast fee on that price (audit 2026-10-08:
+  // a very low markup on an expensive item can lose money once the fee is counted). Informational: nothing is repriced.
+  const feeRow = ctx.fees.pricing;
+  const feeVat = ctx.fees.addVat ? ctx.vat : 1;
+  const breakEven = (cost) => Math.ceil((Math.ceil(cost * ctx.vat - 1e-9) + feeRow.fixedCents * feeVat) / (1 - (feeRow.pct / 100) * feeVat) - 1e-9);
+  const lowRows = db
+    .prepare('SELECT id, name, sku, price_cents, cost_cents, price_mode FROM products WHERE active = 1 AND cost_cents > 0 AND price_cents < cost_cents * ? * 1.1 + 800')
+    .all(ctx.vat)
+    .map((p) => ({ ...p, floor: breakEven(p.cost_cents) }))
+    .filter((p) => p.price_cents < p.floor)
+    .sort((x, y) => x.price_cents - x.floor - (y.price_cents - y.floor));
   const lowMargin = {
-    count: db.prepare(`SELECT COUNT(*) n ${lowMarginSql}`).get(ctx.vat).n,
-    items: db.prepare(`SELECT id, name, sku, price_cents, cost_cents, price_mode ${lowMarginSql} ORDER BY (price_cents - cost_cents * ?) LIMIT 10`).all(ctx.vat, ctx.vat)
-      .map((p) => ({ id: p.id, name: p.name, sku: p.sku, priceCents: p.price_cents, costInclVatCents: Math.round(p.cost_cents * ctx.vat), manual: p.price_mode === 'manual' })),
+    count: lowRows.length,
+    items: lowRows.slice(0, 10).map((p) => ({ id: p.id, name: p.name, sku: p.sku, priceCents: p.price_cents, costInclVatCents: Math.round(p.cost_cents * ctx.vat), breakEvenCents: p.floor, manual: p.price_mode === 'manual' })),
   };
 
   const topProducts = db.prepare(`SELECT COALESCE(oi.product_id, oi.sku) AS key, oi.product_id AS productId, MAX(oi.name) AS name, SUM(oi.quantity) AS quantity, SUM(oi.line_total_cents) AS revenueCents
@@ -613,6 +629,7 @@ export function getDashboard({ now = new Date() } = {}, db = getDb()) {
     monthToDate: financeTotals(`${today.slice(0, 7)}-01`, today, db),
     ordersToProcess: { count: toProcess.length, items: toProcess.slice(0, 8) },
     paymentsToCheck: paymentsToCheck(db),
+    ordersAttention: attentionOrders(db),
     mailProblems: mailOutboxStats(db),
     collectionsWaiting: { count: collections.length, items: collections.slice(0, 8) },
     deliveryQuotesPending: { count: quotes.length, items: quotes.slice(0, 8) },

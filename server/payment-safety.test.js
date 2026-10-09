@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 afterEach(() => mailer.useTransport(null));
 
-const fields = { m_payment_id: 'o1', amount_gross: '100.00', payment_status: 'COMPLETE', pf_payment_id: '555' };
+const fields = { m_payment_id: 'o1', merchant_id: '10000100', amount_gross: '100.00', payment_status: 'COMPLETE', pf_payment_id: '555' };
 const signed = (extra = {}) => {
   const f = { ...fields, ...extra };
   return { ...f, signature: payfast.buildSignature(Object.entries(f), '', { skipEmpty: false }) };
@@ -37,6 +37,8 @@ test('Payfast notice: only "could not ask Payfast" is retried; a real refusal is
   assert.equal(odd.transient, true, 'an empty answer is also treated as "try again"');
   const badAmount = await verify(signed(), async () => { throw new Error('x'); }, 99999);
   assert.deepEqual([badAmount.valid, badAmount.transient], [false, false], 'a wrong amount is never retried');
+  const otherMerchant = await verify(signed({ merchant_id: '99999999' }), async () => 'VALID');
+  assert.deepEqual([otherMerchant.valid, otherMerchant.merchantValid, otherMerchant.transient], [false, false, false], 'a payment on another merchant account never marks an order paid');
   const badSig = await verify({ ...signed(), signature: 'nope' }, async () => { throw new Error('x'); });
   assert.deepEqual([badSig.valid, badSig.transient], [false, false], 'a forged notice is never retried');
 });

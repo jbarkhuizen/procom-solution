@@ -58,9 +58,9 @@ export default function register(routes, kit) {
       : '<p class="muted">No sales in the last 30 days.</p>';
 
     const low = d.lowMargin.items.length
-      ? `<table class="catalog"><thead><tr><th>Product</th><th class="num">Price</th><th class="num">Cost incl VAT</th></tr></thead><tbody>${d.lowMargin.items.map((p) => `<tr><td><a href="#/products/${h(encodeURIComponent(p.id))}">${h(p.name)}</a>${p.manual ? ' <span class="badge neutral">manual price</span>' : ''}</td><td class="num money-up">${rand(p.priceCents)}</td><td class="num">${rand(p.costInclVatCents)}</td></tr>`).join('')}</tbody></table>
+      ? `<table class="catalog"><thead><tr><th>Product</th><th class="num">Price</th><th class="num">Cost incl VAT</th><th class="num">Break-even</th></tr></thead><tbody>${d.lowMargin.items.map((p) => `<tr><td><a href="#/products/${h(encodeURIComponent(p.id))}">${h(p.name)}</a>${p.manual ? ' <span class="badge neutral">manual price</span>' : ''}</td><td class="num money-up">${rand(p.priceCents)}</td><td class="num">${rand(p.costInclVatCents)}</td><td class="num">${rand(p.breakEvenCents)}</td></tr>`).join('')}</tbody></table>
          ${d.lowMargin.count > d.lowMargin.items.length ? `<p class="mini-help">+ ${h(d.lowMargin.count - d.lowMargin.items.length)} more</p>` : ''}`
-      : '<p class="muted" style="margin:0">None — every live product sells above what it costs us.</p>';
+      : '<p class="muted" style="margin:0">None: every live product sells above cost plus the Payfast fee.</p>';
 
     const links = [
       ['#/orders', 'Orders'], ['#/feed', 'Warehouse feed'], ['#/products', 'Products'], ['#/categories', 'Categories'],
@@ -79,7 +79,8 @@ export default function register(routes, kit) {
         ${attention('#/orders/list/paid', d.ordersToProcess.count, 'Orders to process (paid, not ordered yet)', 'warn')}
         ${attention('#/orders/list/paid', d.collectionsWaiting.count, 'Collections waiting to be packed', 'warn')}
         ${attention('#/orders/list/paid', d.deliveryQuotesPending.count, 'Delivery quotes to send', 'warn')}
-        ${attention('#/dashboard', d.lowMargin.count, 'Products priced below cost', 'danger')}
+        ${attention('#/dashboard', d.lowMargin.count, 'Products priced below cost + Payfast fee', 'danger')}
+        ${attention('#/orders/list/paid', d.ordersAttention.count, 'Paid orders that need attention (item gone, paid twice ...)', 'danger')}
         ${attention('#/orders/list/pending_payment', d.paymentsToCheck.count, 'Customers back from Payfast, payment not confirmed: check Payfast', 'danger')}
         ${attention('#/dashboard', d.mailProblems.waiting + d.mailProblems.failed, 'Important emails that could not be sent yet (retrying)', 'danger')}
       </div>
@@ -115,7 +116,7 @@ export default function register(routes, kit) {
       </div>
 
       <div class="panel table-wrap" id="dash-low" style="margin-bottom:1rem">
-        <div class="section-head"><h3>Products priced below cost</h3><span class="muted">live products whose price is under supplier cost + VAT</span></div>
+        <div class="section-head"><h3>Products priced below break-even</h3><span class="muted">live products whose price is under supplier cost + VAT + the Payfast fee on that price</span></div>
         ${low}
       </div>
 

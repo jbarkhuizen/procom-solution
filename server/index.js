@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { createHash } from 'crypto';
+import crypto, { createHash } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
@@ -10,7 +10,7 @@ import rateLimit from 'express-rate-limit';
 if (fs.existsSync('.env')) process.loadEnvFile('.env');
 
 const { getDb } = await import('./db.js');
-const { uploadsDir } = await import('./paths.js');
+const { uploadsDir, dataDir } = await import('./paths.js');
 const auth = await import('./auth.js');
 const catalog = await import('./catalog.js');
 const feed = await import('./feed.js');
@@ -53,6 +53,13 @@ app.use((req, res, next) => {
 });
 
 // Payfast ITN needs the exact raw body for signature verification -- register before the JSON parser.
+// What follows a confirmed payment: emails to the customer and the owner, and an alert when the order needs attention.
+function afterPaid(paid) {
+  mailer.sendOrderConfirmation(paid);
+  mailer.sendOwnerNewOrder(paid);
+  if (paid.attention) mailer.sendOwnerAlert(`Order ${paid.orderNumber} needs attention`, paid.attention);
+}
+
 // We answer AFTER processing: a lost notice would leave a paid order "awaiting payment", so when Payfast
 // could not be asked, or something broke on our side, we answer 503 and Payfast sends the notice again.
 app.post('/api/payfast/itn', express.urlencoded({ extended: false, verify: (req, _res, buf) => (req.rawBody = buf.toString('utf8')) }), async (req, res) => {
@@ -74,9 +81,12 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false, verify: (req,
       mailer.sendOwnerAlert(`Payfast notice rejected for order ${order.orderNumber}`, `A payment notice for order ${order.orderNumber} was rejected (signature ok: ${result.signatureValid}, Payfast confirmed: ${result.serverConfirmed}, amount ok: ${result.amountValid}). If the customer paid, check your Payfast dashboard and mark the order as paid by hand.`);
     } else if (result.paymentStatus === 'COMPLETE') {
       const { changed, order: paid } = orders.markOrderPaid(order.id, { pfPaymentId: result.pfPaymentId, feeCents: result.feeCents });
-      if (changed) {
-        mailer.sendOrderConfirmation(paid);
-        mailer.sendOwnerNewOrder(paid);
+      if (changed) afterPaid(paid);
+      else if (paid && paid.pfPaymentId && result.pfPaymentId && String(paid.pfPaymentId) !== String(result.pfPaymentId)) {
+        // Payfast confirmed a SECOND payment for an order that was already paid: the customer may have paid twice.
+        const note = `A second payment (Payfast ${result.pfPaymentId}) arrived for this order. The customer may have paid twice: check Payfast and refund one`;
+        orders.flagOrder(order.id, note);
+        mailer.sendOwnerAlert(`Order ${order.orderNumber} may have been paid twice`, note);
       }
     } else {
       orders.logOrderEvent(order.id, `Payfast status: ${result.paymentStatus}`, 'payfast');
@@ -97,9 +107,11 @@ const wrap = (fn) => async (req, res) => {
     if (out !== undefined && !res.headersSent) res.json(out);
   } catch (err) {
     if (!res.headersSent) {
-      const status = err.status || 400;
+      // Programming/database errors (TypeError, SQLite ...) are logged, never shown to visitors: they leak table and column names.
+      const internal = err instanceof TypeError || err instanceof RangeError || err instanceof ReferenceError || err instanceof SyntaxError || err?.name === 'SqliteError' || String(err?.code || '').startsWith('SQLITE');
+      const status = internal ? 500 : err.status || 400;
       if (status >= 500) console.error(err);
-      res.status(status).json({ error: err.message || 'Something went wrong' });
+      res.status(status).json({ error: status >= 500 ? 'Something went wrong on our side. Please try again in a moment.' : err.message || 'Something went wrong' });
     }
   }
 };
@@ -216,11 +228,31 @@ const ADMIN_VERSION = adminFingerprint();
 app.get('/api/admin/session', (req, res) => {
   const s = auth.getSession(req.cookies[auth.SESSION_COOKIE]);
   res.set('Cache-Control', 'no-store');
-  res.json({ needsSetup: !auth.hasAnyAdmin(), authenticated: Boolean(s), username: s?.username || null, adminVersion: ADMIN_VERSION });
+  res.json({ needsSetup: !auth.hasAnyAdmin(), setupCodeRequired: !auth.hasAnyAdmin() && Boolean(setupCode()), authenticated: Boolean(s), username: s?.username || null, adminVersion: ADMIN_VERSION });
 });
+
+// First-run admin setup (audit 2026-10-08): if the database is ever wiped or restored wrongly, the first visitor to
+// /admin must not become the admin. In production the setup needs a code that only exists on the server
+// (data/.setup-token, created when no admin exists; read it with: cat /opt/procomsolutions/app/data/.setup-token).
+function setupCode() {
+  if (process.env.NODE_ENV !== 'production' || auth.hasAnyAdmin()) return '';
+  const file = path.join(dataDir(), '.setup-token');
+  try {
+    const t = fs.readFileSync(file, 'utf8').trim();
+    if (t) return t;
+  } catch { /* create below */ }
+  const t = crypto.randomBytes(16).toString('hex');
+  fs.mkdirSync(dataDir(), { recursive: true });
+  fs.writeFileSync(file, t, { mode: 0o600 });
+  console.log(`No admin account exists: first-run setup needs the code in ${file}`);
+  return t;
+}
 app.post('/api/admin/setup', loginLimiter, wrap((req, res) => {
   // Only possible while no admin exists -- same first-run flow as lapanza3d.
   if (auth.hasAnyAdmin()) throw Object.assign(new Error('Setup already completed'), { status: 403 });
+  const code = setupCode();
+  const given = String(req.body?.setupCode || '').trim();
+  if (code && !(given.length === code.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(code)))) throw Object.assign(new Error('The setup code is wrong. It is in the file data/.setup-token on the server.'), { status: 403 });
   const admin = auth.createAdmin(req.body || {});
   governance.recordAudit({ action: 'admin.setup', actor: admin.username, req });
   setSessionCookie(req, res, auth.createSession(admin.id));
@@ -326,14 +358,14 @@ admin.post('/feed/smd-autolist', wrap((req) => smdAutolist.autoList({ list: req.
 admin.get('/feed/esquire', wrap(() => esquire.esquireStatus()));
 admin.post('/feed/esquire/sync', wrap(() => {
   if (!esquire.esquireConfigured()) throw new Error(esquire.NO_LOGIN);
-  esquire.syncEsquire({ trigger: 'manual' });
+  esquire.syncEsquire({ trigger: 'manual' }).catch((err) => console.error('Esquire sync failed unexpectedly:', err));
   return { started: true };
 }));
 // SMD API: status, read-only connection check, sync now, schedule switch.
 admin.get('/feed/smd-api', wrap(() => smdApi.smdStatus()));
 admin.post('/feed/smd-api/run', wrap((req) => {
   if (!smdApi.smdConfigured()) throw new Error(smdApi.NO_ACCESS);
-  smdApi.syncSmd({ trigger: 'manual', check: req.body?.check !== false });
+  smdApi.syncSmd({ trigger: 'manual', check: req.body?.check !== false }).catch((err) => console.error('SMD sync failed unexpectedly:', err));
   return { started: true };
 }));
 admin.put('/feed/smd-api/autolist', wrap((req) => {
@@ -402,11 +434,14 @@ admin.post('/orders/:id/mark-paid', wrap((req) => {
   if (o.status === 'cancelled') throw new Error('This order was cancelled');
   const { changed, order: paid } = orders.markOrderPaid(o.id, { pfPaymentId: 'marked by hand' });
   orders.logOrderEvent(o.id, `Marked as paid by hand (${req.admin?.username || 'admin'}), after checking Payfast`, 'admin');
-  if (changed) {
-    mailer.sendOrderConfirmation(paid);
-    mailer.sendOwnerNewOrder(paid);
-  }
+  if (changed) afterPaid(paid);
   return { ok: true };
+}));
+
+// Cancel an order. A paid one also restores own stock and records the refund (the money is returned in the Payfast dashboard).
+admin.post('/orders/:id/cancel', wrap((req) => {
+  const o = orders.cancelOrder(req.params.id, { refundCents: req.body?.refundCents, reason: req.body?.reason, actor: req.admin?.username || 'admin' });
+  return orNotFound(o);
 }));
 
 // Feature modules (server/features/README.md) add their own routes.
@@ -439,5 +474,15 @@ smdApi.startSmdSchedule();
 supplierDigest.startSupplierDigestSchedule();
 mailer.startMailOutbox();
 startPaymentWatch();
+
+// A stray rejected promise must not take the whole shop down (Node's default); log it and tell the owner at most once an hour.
+let lastCrashAlert = 0;
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled promise rejection:', err);
+  if (Date.now() - lastCrashAlert > 3600_000) {
+    lastCrashAlert = Date.now();
+    mailer.sendOwnerAlert('The shop hit an unexpected error', `Something failed in the background (${String(err?.message || err).slice(0, 200)}). The shop kept running. If this repeats, tell your developer.`);
+  }
+});
 smdApi.resumeMediaDownloads();
 app.listen(PORT, HOST, () => console.log(`Procom API on http://${HOST}:${PORT} (admin: /admin/, Payfast ${payfastMode()})`));

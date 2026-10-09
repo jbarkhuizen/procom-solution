@@ -6,6 +6,8 @@ import { uploadsDir } from './paths.js';
 
 export const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
+const FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif', 'avif']);
+const MAX_PIXELS = 100_000_000; // ~10000 x 10000: a decompression bomb is refused
 
 export function isAllowedImage(mimetype) {
   return ALLOWED.has(mimetype);
@@ -18,7 +20,10 @@ export async function storeProductImage(buffer, subdir = 'products') {
   const dir = path.join(uploadsDir(), subdir);
   fs.mkdirSync(dir, { recursive: true });
   const name = `${randomUUID()}.webp`;
-  await sharp(buffer, { failOn: 'error' })
+  // Only ordinary photo formats: sharp would also decode SVG (an XML renderer, a bigger attack surface) and PDFs.
+  const meta = await sharp(buffer, { limitInputPixels: MAX_PIXELS }).metadata();
+  if (!FORMATS.has(meta.format)) throw new Error('Only JPEG, PNG, WebP, GIF or AVIF images are accepted');
+  await sharp(buffer, { failOn: 'error', limitInputPixels: MAX_PIXELS })
     .rotate()
     .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
     .flatten({ background: '#ffffff' })

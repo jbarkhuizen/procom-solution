@@ -280,6 +280,17 @@ but the live vhost (`/etc/nginx/conf.d/procomsolutions.conf`) is certbot-managed
 `deploy/nginx-procomsolutions.conf`. A new location that sets its own `add_header` must include the file too.
 Check: `curl -sI https://www.procomsolutions.co.za/ | grep -i -E 'strict|frame|nosniff|referrer|permissions|server'`.
 
+## Request limits (one-time edit of the live vhost)
+
+`deploy-app.sh` also copies `deploy/nginx-limits.conf` to `/etc/nginx/conf.d/procom-limits.conf` (the `limit_req_zone`). The live vhost
+needs, as in `deploy/nginx-procomsolutions.conf`: `client_max_body_size 1m;` in the `server` block, `limit_req zone=procom_api burst=60 nodelay;`
+in `location /api/`, and a `location ^~ /api/admin/ { client_max_body_size 64m; ... }` copy of the `/api/` proxy block (pricelist and photo uploads).
+
+## First admin account after a wipe
+
+In production `/admin` asks for a **setup code** when no admin exists. It is created at that moment in `data/.setup-token`:
+`cat /opt/procomsolutions/app/data/.setup-token`.
+
 ## Troubleshooting
 
 - Service status and logs: `sudo systemctl status procomsolutions-admin`,

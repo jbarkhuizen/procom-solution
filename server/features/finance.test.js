@@ -170,7 +170,7 @@ test('Instant EFT is refused while it is switched off, or outside its order limi
 test('cancelled orders are excluded even when paid, and reported separately', () => {
   const keep = paid({ delivery: { [smdId()]: 'courier' }, items: [{ productId: smdProduct().id, quantity: 1 }] });
   const gone = paid({ delivery: { [smdId()]: 'courier' }, items: [{ productId: smdProduct().id, quantity: 3 }] });
-  orders.updateOrder(gone.id, { status: 'cancelled' });
+  orders.cancelOrder(gone.id);
   orders.createOrder({ customer, delivery: { [smdId()]: 'courier' }, items: [{ productId: smdProduct().id, quantity: 1 }] }); // never paid
   const t = totals();
   assert.equal(t.orders, 1);
@@ -262,7 +262,7 @@ test('dashboard: sales windows, work queues, low-margin products and top sellers
   const old = paid({ delivery: { [smd]: 'courier' }, items: [{ productId: mouse.id, quantity: 9 }] }, '2026-07-01T07:00:00.000Z');
   orders.updateOrder(old.id, { status: 'ordered' });
   const cancelled = paid({ delivery: { [smd]: 'collect' }, items: [{ productId: mouse.id, quantity: 1 }] }, '2026-09-28T08:00:00.000Z');
-  orders.updateOrder(cancelled.id, { status: 'cancelled' });
+  orders.cancelOrder(cancelled.id);
   const quote = paid({ items: [{ productId: product({ name: 'Printer', quoteDelivery: '1' }).id, quantity: 1 }] }, '2026-09-27T07:00:00.000Z');
   assert.equal(quote.deliveryQuote, true);
   // Priced by hand below cost incl VAT (R100 x 1.15 = R115).
