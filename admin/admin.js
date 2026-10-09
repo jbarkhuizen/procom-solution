@@ -115,6 +115,7 @@ async function siteSettings(force = false) {
 // ============================================================== auth
 
 let needsSetup = false;
+let setupCodeRequired = false;
 
 function showLogin() {
   $('#shell').classList.add('hidden');
@@ -124,6 +125,7 @@ function showLogin() {
     ? 'First run — choose the username and password you will use to manage Procom Solutions. Minimum 10 characters.'
     : 'Manage products, warehouse pricelists, categories and orders.';
   $('#setup-email').classList.toggle('hidden', !needsSetup);
+  $('#setup-code').classList.toggle('hidden', !(needsSetup && setupCodeRequired));
   $('#login-submit').textContent = needsSetup ? 'Create account' : 'Sign in';
   $('#login-form [name="password"]').setAttribute('autocomplete', needsSetup ? 'new-password' : 'current-password');
 }
@@ -1177,6 +1179,18 @@ async function orderDetail(id) {
             ${o.customerNotes ? `<div><span>Notes</span><span>${h(o.customerNotes)}</span></div>` : ''}
           </div>
         </div>
+        ${o.attention ? `<div class="panel stack gap-3" style="border-color:var(--danger)">
+          <div class="section-head"><h3 style="color:var(--danger)">Needs your attention</h3></div>
+          <p style="margin:0">${h(o.attention)}</p>
+          <button type="button" class="btn small" data-dismiss-attention>Done: dismiss this note</button>
+        </div>` : ''}
+        ${o.paymentStatus === 'paid' && o.status !== 'cancelled' ? `<div class="panel stack gap-3">
+          <div class="section-head"><h3>Cancel and refund</h3></div>
+          <p class="mini-help">Records the refund, puts own-stock items back on the shelf and cancels the order. Pay the customer back in your Payfast dashboard (Payfast keeps its fee, which the Financial overview then counts as a cost).</p>
+          <label class="field"><span>Refund amount (R)</span><input id="refund-amount" type="number" min="0" step="0.01" value="${(o.totalCents / 100).toFixed(2)}"></label>
+          <label class="field"><span>Reason</span><input id="refund-reason" type="text" maxlength="300" placeholder="e.g. supplier is out of stock"></label>
+          <button type="button" class="btn small" data-cancel-refund>Cancel order and record refund</button>
+        </div>` : ''}
         ${o.paymentStatus !== 'paid' && o.status === 'pending_payment' ? `<div class="panel stack gap-3">
           <div class="section-head"><h3>Payment not confirmed</h3></div>
           <p class="mini-help">If your Payfast dashboard shows this payment as received, but the confirmation never reached the shop, mark it as paid here. The customer and you then get the usual order emails. Never mark an order as paid without checking Payfast first.</p>
@@ -1195,6 +1209,27 @@ async function orderDetail(id) {
     </div>`);
 
   root.addEventListener('click', async (e) => {
+    const dismiss = e.target.closest('[data-dismiss-attention]');
+    if (dismiss) {
+      try {
+        await api(`/orders/${o.id}`, { method: 'PUT', body: { attention: '' } });
+        orderDetail(o.id);
+      } catch (err) { fail(err); }
+      return;
+    }
+    const cancelRefund = e.target.closest('[data-cancel-refund]');
+    if (cancelRefund) {
+      const amount = Number($('#refund-amount', root).value);
+      if (!Number.isFinite(amount) || amount < 0) return toast('Enter the refund amount', true);
+      if (!confirm(`Cancel order ${o.orderNumber} and record a refund of R ${amount.toFixed(2)}? This cannot be undone.`)) return;
+      cancelRefund.disabled = true;
+      try {
+        await api(`/orders/${o.id}/cancel`, { method: 'POST', body: { refundCents: Math.round(amount * 100), reason: $('#refund-reason', root).value } });
+        toast('Order cancelled and refund recorded: now pay the customer back in Payfast');
+        orderDetail(o.id);
+      } catch (err) { cancelRefund.disabled = false; fail(err); }
+      return;
+    }
     const markPaid = e.target.closest('[data-mark-paid]');
     if (markPaid) {
       if (!confirm(`Have you checked in Payfast that order ${o.orderNumber} was really paid? The customer will get a payment confirmation email.`)) return;
@@ -1538,6 +1573,7 @@ function watchVersion(version) {
     const s = await (await fetch('/api/admin/session')).json();
     watchVersion(s.adminVersion);
     needsSetup = s.needsSetup;
+    setupCodeRequired = Boolean(s.setupCodeRequired);
     if (!s.authenticated) return showLogin();
     showShell();
     route();

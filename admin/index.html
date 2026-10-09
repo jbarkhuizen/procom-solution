@@ -24,6 +24,7 @@
         <p class="muted" id="login-intro">Manage products, warehouse pricelists, categories and orders.</p>
         <form id="login-form" class="stack gap-3">
           <label class="field"><span>Username or email</span><input name="username" required autocomplete="username" /></label>
+          <label class="field hidden" id="setup-code"><span>Setup code (from the server)</span><input name="setupCode" type="text" autocomplete="off" /></label>
           <label class="field hidden" id="setup-email"><span>Email (optional)</span><input name="email" type="email" autocomplete="email" /></label>
           <label class="field"><span>Password</span><input type="password" name="password" required autocomplete="current-password" minlength="10" /></label>
           <button type="submit" class="btn btn-primary" id="login-submit">Sign in</button>

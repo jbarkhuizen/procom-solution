@@ -9,6 +9,19 @@
 // finance_delivery_costs -- optional per-order override of what delivery
 //                       really cost us (default: the fee the customer paid).
 export const SQL = `
+  -- A refund recorded when a paid order is cancelled (the money itself is returned in the
+  -- Payfast dashboard). fee_lost_cents = the Payfast fee we paid on that order, which Payfast keeps.
+  CREATE TABLE IF NOT EXISTS order_refunds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    fee_lost_cents INTEGER NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_order_refunds_order ON order_refunds (order_id);
+
 CREATE TABLE IF NOT EXISTS finance_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

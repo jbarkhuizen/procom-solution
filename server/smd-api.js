@@ -43,7 +43,8 @@ const MAX_PAGES = 400;
 const PAGE_CONCURRENCY = 3;
 const MAX_PHOTOS = 4;
 const THUMB_MAX_PX = 300; // SMD's spreadsheet photos are ~113 px
-const MIN_SHARE_OF_PREVIOUS = 0.5;
+// Fewer prices than this share of the last GOOD run = truncated response, run skipped (was 50%).
+const MIN_SHARE_OF_PREVIOUS = 0.8;
 
 export const NO_ACCESS = 'SMD API access not set: enter the API token and Client access key in Admin → Suppliers → SMD';
 
@@ -324,9 +325,10 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
       if (!findSmdSupplier(db)) throw new Error('No supplier named "SMD..." in Admin -> Suppliers');
       const cat = catalogue || (await fetchSmdCatalogue({ fetchImpl, db }));
       report.api = { products: cat.products.size, prices: cat.prices.size, stock: cat.stock.size, photoSkus: cat.media.size, pages: cat.pages || null };
-      const prev = lastRun(db);
-      if (!check && prev?.ok && !prev.check && prev.api?.prices && cat.prices.size < prev.api.prices * MIN_SHARE_OF_PREVIOUS) {
-        throw new Error(`SMD sent only ${cat.prices.size} prices (last run ${prev.api.prices}) -- skipped so nothing is marked out of stock by mistake`);
+      // The baseline is the last GOOD sync (not just the last run): a failed run or a connection check must not switch the guard off.
+      const goodPrices = Number(db.prepare("SELECT value FROM settings WHERE key = 'smdApiGoodPriceCount'").get()?.value) || 0;
+      if (!check && goodPrices && cat.prices.size < goodPrices * MIN_SHARE_OF_PREVIOUS) {
+        throw new Error(`SMD sent only ${cat.prices.size} prices (last good run ${goodPrices}) -- skipped so nothing is marked out of stock by mistake`);
       }
       if (!cat.prices.size) throw new Error('SMD sent no prices -- skipped');
       const planned = planSmdChanges(cat, db);
@@ -343,6 +345,7 @@ export function syncSmd({ trigger = 'manual', check = false, email = true, fetch
       report.autoList = autoList({ list: 'smdapi', supplierId: planned.supplier.id, dryRun: check || !report.autoListOn }, db);
       if (before) report.changes = diffPrices(before, planned.supplier.id, db);
       if (report.changes) noteDrops(report.changes, db);
+      if (!check) db.prepare("INSERT INTO settings (key, value) VALUES ('smdApiGoodPriceCount', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(cat.prices.size));
       report.ok = true;
     } catch (err) {
       report.error = err.message;
@@ -503,7 +506,7 @@ export function startSmdSchedule() {
       } catch (err) {
         console.error('SMD sync check failed:', err.message);
       }
-      (ready ? syncSmd({ trigger: 'scheduled' }) : Promise.resolve()).finally(plan);
+      (ready ? syncSmd({ trigger: 'scheduled' }) : Promise.resolve()).catch((err) => console.error('Scheduled SMD sync failed unexpectedly:', err)).finally(plan);
     }, at - Date.now()).unref();
   };
   plan();

@@ -55,6 +55,7 @@ sudo systemctl restart procomsolutions-admin
 
 # Security headers file included by the vhost (the live vhost is certbot-managed and edited by hand once).
 sudo cp deploy/nginx-security-headers.conf /etc/nginx/procom-security-headers.conf
+sudo cp deploy/nginx-limits.conf /etc/nginx/conf.d/procom-limits.conf
 
 if [ ! -f /etc/nginx/conf.d/procomsolutions.conf ]; then
   echo "==> Installing nginx vhost (first run)"

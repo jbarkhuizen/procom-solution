@@ -98,4 +98,6 @@ export const COLUMNS = [
   // Checkout-complete page seen for an unpaid order / owner alerted about it (server/payment-watch.js).
   ['orders', 'payment_return_seen_at', 'TEXT'],
   ['orders', 'payment_alerted_at', 'TEXT'],
+  // A paid order that needs the owner's eyes (item no longer available, paid after cancellation, paid twice...). '' = fine.
+  ['orders', 'attention', "TEXT NOT NULL DEFAULT ''"],
 ];

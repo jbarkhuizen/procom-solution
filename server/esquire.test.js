@@ -68,7 +68,7 @@ test('prices are stored excl VAT and the summary becomes the description when li
 
 test('items leaving the feed go out of stock and come back; an admin choice is kept', async () => {
   updateSettings({ esquireAutoList: true }, db);
-  const others = ['D', 'E', 'F'].map((c) => rec(c, 115));
+  const others = ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'].map((c) => rec(c, 115)); // enough that A and B leaving stays above the 80% guard
   await sync([rec('A', 115), rec('B', 115), rec('C', 115), ...others]);
   // Admin marks C out of stock by hand (supplier phoned).
   catalog.saveProduct({ supplierInStock: false }, product('C').id, db);

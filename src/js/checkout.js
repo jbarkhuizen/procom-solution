@@ -93,7 +93,9 @@ function renderShipping() {
         <div class="collect-slot"></div>
       </div>`;
       })
-      .join('') || '<p class="text-sm text-espresso/60">Loading delivery options…</p>',
+      .join('') || (planFailed
+        ? '<p class="text-sm text-terracotta mb-2">We could not load the delivery options just now (a slow connection, or the shop is busy).</p><button type="button" id="retry-plan" class="text-sm font-semibold underline">Try again</button>'
+        : '<p class="text-sm text-espresso/60">Loading delivery options…</p>'),
   );
   syncDeliveryFields();
 }
@@ -214,10 +216,20 @@ form.addEventListener('change', (e) => {
   if (e.target.name?.startsWith('ship-')) syncDeliveryFields();
 });
 
+// planFailed: the delivery lookup itself failed (not "no option covers this weight"): say so and offer a retry
+// instead of showing "Loading..." for ever.
+let planFailed = false;
 async function loadPlan() {
-  plan = await api('/api/checkout/delivery', { method: 'POST', body: { items: getCart().map((i) => ({ productId: i.productId, quantity: i.quantity })) } }).catch(() => []);
+  planFailed = false;
+  plan = await api('/api/checkout/delivery', { method: 'POST', body: { items: getCart().map((i) => ({ productId: i.productId, quantity: i.quantity })) } }).catch(() => {
+    planFailed = true;
+    return [];
+  });
   renderShipping();
 }
+document.getElementById('ship-options').addEventListener('click', (e) => {
+  if (e.target.closest('#retry-plan')) loadPlan();
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -244,13 +256,23 @@ form.addEventListener('submit', async (e) => {
       },
     });
     saveDetails(customer);
-    sessionStorage.setItem('procom-pending-order', res.orderId);
+    try {
+      sessionStorage.setItem('procom-pending-order', res.orderId);
+    } catch { /* storage blocked: the payment page still works, the return page just cannot pre-fill */ }
     submitToPayfast(res.payfast);
   } catch (err) {
     showError(err.message);
     btn.disabled = false;
     btn.textContent = 'Pay securely with Payfast';
   }
+});
+
+// Coming back with the browser's Back button from Payfast restores the page as it was left (button disabled): reset it.
+window.addEventListener('pageshow', (e) => {
+  if (!e.persisted) return;
+  const btn = document.getElementById('pay-btn');
+  btn.disabled = false;
+  btn.textContent = 'Pay securely with Payfast';
 });
 
 async function init() {

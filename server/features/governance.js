@@ -111,6 +111,7 @@ const RULES = [
   ['PUT', new RegExp(`^/admins/${ID}/password$`), 'Admin password reset'],
   ['POST', /^\/backups$/, 'Backup created'],
   ['POST', new RegExp(`^/orders/${ID}/mark-paid$`), 'Order marked as paid by hand'],
+  ['POST', new RegExp(`^/orders/${ID}/cancel$`), 'Order cancelled (refund recorded if it was paid)'],
 
   ...crud('promos', 'Promo code', { created: 'saved', updated: 'saved' }),
   ...crud('specials', 'Special', { created: 'saved', updated: 'saved' }),

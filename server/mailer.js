@@ -80,6 +80,9 @@ export async function processMailOutbox({ db = getDb(), now = Date.now() } = {})
   return out;
 }
 
+// True when mail is switched on at all (Gmail login set); in dev/test nothing is ever sent.
+export const mailConfigured = () => Boolean(getTransport());
+
 export function mailOutboxStats(db = getDb()) {
   const r = db.prepare("SELECT SUM(status = 'pending') AS waiting, SUM(status = 'failed') AS failed FROM mail_outbox").get();
   return { waiting: r.waiting || 0, failed: r.failed || 0 };
@@ -240,6 +243,18 @@ async function deliverSyncReport(label, report, { subject, html, summaryRows, do
     } catch (err) {
       console.error('Could not record the sync report:', err.message);
     }
+    // sync_report_runs is only pruned by the daily digest, so prune here too (30 days).
+    try {
+      getDb().prepare('DELETE FROM sync_report_runs WHERE started_at < ?').run(new Date(Date.now() - 30 * 86400_000).toISOString());
+    } catch { /* next run */ }
+  }
+  // A failed sync means stale prices and stock: say so at once even when the daily digest is on (the owner chose
+  // "off" on purpose, so that stays off).
+  if (mode === 'daily' && !report.ok && !report.check) {
+    try {
+      getDb().prepare('UPDATE sync_report_runs SET sent = 1 WHERE supplier = ? AND started_at = ?').run(label, report.startedAt);
+    } catch { /* the digest will still mention it */ }
+    return sendMailReliable({ to: reportRecipients(s), subject, html }, { kind: 'sync-failure', ref: label });
   }
   if (mode !== 'every') return false;
   const attachments = report.check ? undefined : await reportAttachment(label, report, summaryRows, { ...docx, previousRows });

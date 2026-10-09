@@ -38,7 +38,7 @@ const nowIso = (now = Date.now()) => new Date(now).toISOString();
 
 const CONFIRM_TTL_MS = 7 * 24 * 60 * 60 * 1000; // confirmation link: 7 days
 const CONFIRM_RESEND_MS = 10 * 60 * 1000; // at most one confirmation email per address per 10 min
-const MAX_ATTEMPTS = 3; // per recipient, then 'failed'
+const MAX_ATTEMPTS = 6; // per recipient, then 'failed'; each retry waits attempts x 10 minutes, so a short Gmail outage never fails anyone
 const MAX_BLOCKS = 40;
 const MAX_PRODUCTS_PER_BLOCK = 12;
 const SAST_OFFSET_MS = 2 * 60 * 60 * 1000; // South Africa: UTC+2, no DST
@@ -565,7 +565,9 @@ export async function runSendBatch({ db = getDb(), mail = sendMail, siteUrl = ''
     const remaining = Math.max(0, s.dailyCap - usedToday(db, now()));
     if (!remaining) return { skipped: 'cap', sent: 0, failed: 0 };
     const batch = db.prepare(`SELECT r.* FROM newsletter_recipients r JOIN newsletter_campaigns c ON c.id = r.campaign_id
-        WHERE r.status = 'queued' AND c.status = 'sending' ORDER BY c.queued_at, r.id LIMIT ?`).all(Math.min(s.batchSize, remaining));
+        WHERE r.status = 'queued' AND c.status = 'sending'
+          AND (r.attempts = 0 OR r.attempted_at IS NULL OR (julianday(?) - julianday(r.attempted_at)) * 1440 >= r.attempts * 10)
+        ORDER BY c.queued_at, r.id LIMIT ?`).all(new Date(now()).toISOString(), Math.min(s.batchSize, remaining));
     const rendered = new Map();
     const broken = new Set();
     let sent = 0;
@@ -615,6 +617,7 @@ export async function runSendBatch({ db = getDb(), mail = sendMail, siteUrl = ''
       } else {
         const attempts = r.attempts + 1;
         db.prepare('UPDATE newsletter_recipients SET status = ?, error = ? WHERE id = ?').run(attempts >= MAX_ATTEMPTS ? 'failed' : 'queued', error, r.id);
+        db.prepare('UPDATE newsletter_daily_usage SET attempts = MAX(0, attempts - 1) WHERE day = ?').run(sastDay(ts)); // a failed send does not use up the daily cap
         failed++;
       }
     }

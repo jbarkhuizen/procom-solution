@@ -100,7 +100,10 @@ function postForm(hostname, urlPath, body) {
 export async function verifyItn(rawBody, parsedBody, expectedCents, sourceIp, { post = postForm } = {}) {
   const config = getConfig();
   const { signature, ...fields } = parsedBody;
-  const signatureValid = buildSignature(Object.entries(fields), config.passphrase, { skipEmpty: false }) === signature;
+  const expectedSig = buildSignature(Object.entries(fields), config.passphrase, { skipEmpty: false });
+  const signatureValid = typeof signature === 'string' && signature.length === expectedSig.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig));
+  // The notice must be for OUR Payfast merchant account: a payment on someone else's account must never mark an order paid.
+  const merchantValid = Boolean(config.merchantId) && String(fields.merchant_id || '') === String(config.merchantId);
   let answer = null; // 'VALID' | 'INVALID' | null when Payfast could not be asked
   try {
     answer = await post(URLS[config.mode].host, '/eng/query/validate', rawBody);
@@ -111,10 +114,11 @@ export async function verifyItn(rawBody, parsedBody, expectedCents, sourceIp, { 
   const amountValid = Math.round(Number(fields.amount_gross) * 100) === Number(expectedCents);
   console.log(`Payfast ITN from ${sourceIp || '?'} for ${fields.m_payment_id}: signature=${signatureValid} server=${serverConfirmed} amount=${amountValid}`);
   return {
-    valid: signatureValid && serverConfirmed && amountValid,
+    valid: signatureValid && merchantValid && serverConfirmed && amountValid,
     // We could not get an answer from Payfast (timeout, outage): the notice itself looked fine, so ask Payfast to send it again.
-    transient: signatureValid && amountValid && answer !== 'VALID' && answer !== 'INVALID',
+    transient: signatureValid && merchantValid && amountValid && answer !== 'VALID' && answer !== 'INVALID',
     signatureValid,
+    merchantValid,
     serverConfirmed,
     amountValid,
     paymentStatus: fields.payment_status,
