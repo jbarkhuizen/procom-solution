@@ -29,16 +29,21 @@ export function listBackups() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+// Only the automatic and manual backups are pruned (newest 30). A backup the owner or a script made on purpose
+// (e.g. procom-...-pre-pricing.db) is never deleted by the schedule.
+const ROUTINE = /-(scheduled|startup|manual)\.db$/;
 function prune() {
   const dir = backupsDir();
-  for (const b of listBackups().slice(KEEP)) fs.unlinkSync(path.join(dir, b.file));
+  for (const b of listBackups().filter((x) => ROUTINE.test(x.file)).slice(KEEP)) fs.unlinkSync(path.join(dir, b.file));
 }
 
 export function startBackupSchedule() {
   if (process.env.DISABLE_BACKUPS === '1') return;
-  const latest = listBackups()[0];
-  if (!latest || Date.now() - Date.parse(latest.createdAt) > DAY_MS) {
-    createBackup('startup').catch((err) => console.error('Backup failed:', err.message));
-  }
-  setInterval(() => createBackup('scheduled').catch((err) => console.error('Backup failed:', err.message)), DAY_MS).unref();
+  // Checked every hour against the newest backup's age, so frequent deploys (each restart) never push the next backup back.
+  const due = (reason) => {
+    const latest = listBackups()[0];
+    if (!latest || Date.now() - Date.parse(latest.createdAt) > DAY_MS) createBackup(reason).catch((err) => console.error('Backup failed:', err.message));
+  };
+  due('startup');
+  setInterval(() => due('scheduled'), 60 * 60 * 1000).unref();
 }

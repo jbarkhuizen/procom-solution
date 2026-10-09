@@ -111,16 +111,30 @@ test('minimum order subtotal', () => {
   assert.equal(check('MIN300', [{ productId: p.id, quantity: 3 }]).ok, true);
 });
 
-test('max total uses count paid orders only', () => {
+test('max total uses: paid orders count, and an order waiting for payment holds a use for 20 minutes', () => {
   const p = product();
   code({ code: 'ONCE', maxUses: 1 });
   const items = [{ productId: p.id, quantity: 1 }];
-  order(items, { promoCode: 'ONCE' }); // unpaid: doesn't count
+  const waiting = order(items, { promoCode: 'ONCE' }); // unpaid but fresh: reserves the use
+  assert.match(check('ONCE', items).message, /fully redeemed/, 'a burst of unpaid checkouts cannot all use the last use');
+  assert.equal(promos.promoUses('ONCE', db, Date.now() + 25 * 60_000), 0, 'after 20 minutes an abandoned checkout lets go of it');
+  db.prepare("UPDATE orders SET created_at = ? WHERE id = ?").run(new Date(Date.now() - 30 * 60_000).toISOString(), waiting.id);
   assert.equal(check('ONCE', items).ok, true);
   paidOrder(items, { promoCode: 'ONCE' });
   assert.equal(promos.promoUses('once'), 1);
   assert.match(check('ONCE', items).message, /fully redeemed/);
   assert.throws(() => order(items, { promoCode: 'ONCE' }), /fully redeemed/);
+});
+
+test('per-customer limit sees one mailbox through plus tags and gmail dots', () => {
+  assert.equal(promos.normalEmail('J.o.hn+sale@Gmail.com'), 'john@gmail.com');
+  assert.equal(promos.normalEmail('ann+x@example.com'), 'ann@example.com');
+  assert.equal(promos.normalEmail('a.nn@example.com'), 'a.nn@example.com', 'dots only count for gmail');
+  const p = product();
+  code({ code: 'ONEEACH', maxUsesPerEmail: 1 });
+  const items = [{ productId: p.id, quantity: 1 }];
+  paidOrder(items, { promoCode: 'ONEEACH', customer: { ...customer, email: 'jo.hn@gmail.com' } });
+  assert.match(check('ONEEACH', items, 'john+again@gmail.com').message, /already used/);
 });
 
 test('max uses per customer email (case-insensitive)', () => {

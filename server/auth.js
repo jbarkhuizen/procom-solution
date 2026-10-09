@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomBytes, randomUUID, createHash } from 'crypto';
 import { getDb } from './db.js';
 
 export const SESSION_COOKIE = 'procom_admin_session';
@@ -52,15 +52,20 @@ export function resetAdminPassword(id, password, db = getDb()) {
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 11);
 export function verifyLogin(identifier, password, db = getDb()) {
   const id = String(identifier || '').trim();
+  if (String(password || '').length > 200 || id.length > 200) return null; // bcrypt on a megabyte of text is a cheap way to burn CPU
   const row = db.prepare('SELECT id, username, password_hash FROM admins WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)').get(id, id);
   const ok = bcrypt.compareSync(String(password || ''), row ? row.password_hash : DUMMY_HASH);
   return row && ok ? { id: row.id, username: row.username } : null;
 }
 
+// Sessions are stored as a SHA-256 of the cookie token (audit 2026-10-08): a copy of the database or a backup then
+// holds nothing that can be replayed as a login. The cookie keeps the raw token.
+const hashToken = (t) => createHash('sha256').update(String(t)).digest('hex');
+
 export function createSession(adminId, db = getDb()) {
   const token = randomBytes(32).toString('hex');
   db.prepare('DELETE FROM admin_sessions WHERE created_at < ?').run(Date.now() - SESSION_TTL_MS);
-  db.prepare('INSERT INTO admin_sessions (token, admin_id, created_at) VALUES (?, ?, ?)').run(token, adminId, Date.now());
+  db.prepare('INSERT INTO admin_sessions (token, admin_id, created_at) VALUES (?, ?, ?)').run(hashToken(token), adminId, Date.now());
   return token;
 }
 
@@ -68,15 +73,15 @@ export function getSession(token, db = getDb()) {
   if (!token) return null;
   const row = db
     .prepare('SELECT s.token, s.created_at, a.id AS admin_id, a.username FROM admin_sessions s JOIN admins a ON a.id = s.admin_id WHERE s.token = ?')
-    .get(token);
+    .get(hashToken(token));
   if (!row) return null;
   if (Date.now() - row.created_at >= SESSION_TTL_MS) {
-    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(hashToken(token));
     return null;
   }
   return { adminId: row.admin_id, username: row.username };
 }
 
 export function destroySession(token, db = getDb()) {
-  if (token) db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+  if (token) db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(hashToken(token));
 }

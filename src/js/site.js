@@ -174,7 +174,7 @@ export function toast(message) {
 }
 
 export function addWithFeedback(product, quantity) {
-  addToCart(product, quantity || product.minOrderQty || 1);
+  if (addToCart(product, quantity || product.minOrderQty || 1) === false) return toast('Sorry, there is not enough stock to add this item.');
   toast(`Added to cart — ${product.name.slice(0, 40)}${product.name.length > 40 ? '…' : ''}`);
   openCart(true);
 }

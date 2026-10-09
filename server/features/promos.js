@@ -24,14 +24,29 @@ class PromoError extends Error {}
 
 // ------------------------------------------------------------------ usage
 
-export function promoUses(code, db = getDb()) {
-  return db.prepare("SELECT COUNT(*) n FROM orders WHERE promo_code = ? COLLATE NOCASE AND payment_status = 'paid'").get(code).n;
+// A code with a use limit is "reserved" by an order that is waiting for its payment for up to 20 minutes, so a burst of
+// unpaid checkouts cannot all use the last few uses (audit 2026-10-08). Paid orders always count.
+const RESERVE_MS = 20 * 60_000;
+
+export function promoUses(code, db = getDb(), now = Date.now()) {
+  return db
+    .prepare("SELECT COUNT(*) n FROM orders WHERE promo_code = ? COLLATE NOCASE AND (payment_status = 'paid' OR (status = 'pending_payment' AND created_at >= ?))")
+    .get(code, new Date(now - RESERVE_MS).toISOString()).n;
+}
+
+// jo.hn+sale@gmail.com and john@gmail.com are one mailbox: the per-customer limit compares the real address.
+export function normalEmail(email) {
+  const [local = '', domain = ''] = String(email || '').trim().toLowerCase().split('@');
+  const base = local.split('+')[0];
+  return `${/^(gmail|googlemail)\.com$/.test(domain) ? base.replace(/\./g, '') : base}@${domain}`;
 }
 
 export function promoUsesByEmail(code, email, db = getDb()) {
+  const want = normalEmail(email);
   return db
-    .prepare("SELECT COUNT(*) n FROM orders WHERE promo_code = ? COLLATE NOCASE AND payment_status = 'paid' AND lower(trim(email)) = lower(trim(?))")
-    .get(code, email).n;
+    .prepare("SELECT email FROM orders WHERE promo_code = ? COLLATE NOCASE AND payment_status = 'paid'")
+    .all(code)
+    .filter((r) => normalEmail(r.email) === want).length;
 }
 
 function usageStats(db) {

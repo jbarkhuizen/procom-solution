@@ -21,6 +21,29 @@ function setMeta(p) {
   document.title = `${p.name} — Procom Solutions`;
   const desc = (p.shortDescription || p.description || `${p.brand} ${p.name}`).slice(0, 155);
   document.querySelector('meta[name="description"]')?.setAttribute('content', desc);
+  // Canonical address and social-preview tags for this product (the page itself is one file for every product).
+  const url = `${location.origin}/product.html?p=${encodeURIComponent(p.slug)}`;
+  const meta = (attr, key, content) => {
+    let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+    if (!el) {
+      el = document.createElement('meta');
+      el.setAttribute(attr, key);
+      document.head.appendChild(el);
+    }
+    el.setAttribute('content', content);
+  };
+  let canon = document.head.querySelector('link[rel="canonical"]');
+  if (!canon) {
+    canon = document.createElement('link');
+    canon.rel = 'canonical';
+    document.head.appendChild(canon);
+  }
+  canon.href = url;
+  meta('property', 'og:type', 'product');
+  meta('property', 'og:title', `${p.name} — Procom Solutions`);
+  meta('property', 'og:description', desc);
+  meta('property', 'og:url', url);
+  if (p.images[0]) meta('property', 'og:image', location.origin + p.images[0]);
   const ld = document.createElement('script');
   ld.type = 'application/ld+json';
   ld.textContent = JSON.stringify({
@@ -60,8 +83,11 @@ async function load() {
   let data;
   try {
     data = await api(`/api/products/${encodeURIComponent(slug)}`);
-  } catch {
-    setHtml(root, `<div class="text-center py-24"><h1 class="font-serif text-3xl mb-3">Product not found</h1><p class="text-espresso/60 mb-6">It may have sold out or been removed.</p><a href="/shop.html" class="inline-flex bg-charcoal text-cream rounded-full px-5 py-2.5 text-sm font-semibold hover:bg-terracotta">Back to the shop</a></div>`);
+  } catch (err) {
+    // Only a 404 means "not found"; a slow connection or a busy shop must not look like a removed product.
+    setHtml(root, err.status === 404
+      ? `<div class="text-center py-24"><h1 class="font-serif text-3xl mb-3">Product not found</h1><p class="text-espresso/60 mb-6">It may have sold out or been removed.</p><a href="/shop.html" class="inline-flex bg-charcoal text-cream rounded-full px-5 py-2.5 text-sm font-semibold hover:bg-terracotta">Back to the shop</a></div>`
+      : `<div class="text-center py-24"><h1 class="font-serif text-3xl mb-3">We could not load this product</h1><p class="text-espresso/60 mb-6">The connection is slow or the shop is busy. Please try again.</p><button type="button" onclick="location.reload()" class="inline-flex bg-charcoal text-cream rounded-full px-5 py-2.5 text-sm font-semibold hover:bg-terracotta">Try again</button></div>`);
     return;
   }
   const { product: p, breadcrumb, related } = data;
