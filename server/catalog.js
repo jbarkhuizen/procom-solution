@@ -3,6 +3,7 @@ import { specialPriceCents } from './features/specials.js';
 import { getDb } from './db.js';
 import { getSettings } from './settings.js';
 import { effectiveMarkupPct, computeRetailCents, marginCents } from './pricing.js';
+import { getFinanceSettings } from './features/finance.js';
 import { uniqueSlug, parseJsonArray, clampInt, parseRandToCents } from './util.js';
 import { encryptSecret, decryptSecret } from './vault.js';
 
@@ -389,14 +390,45 @@ export function retailForCost(productRow, costCents, db = getDb()) {
   return priceFor({ ...productRow, cost_cents: costCents }, db);
 }
 
-function priceFor(fields, db) {
-  const settings = getSettings(db);
+// Payfast fee that is built into every auto price (Site settings "Add the Payfast fee to every price"), or null.
+// `force` lets the preview ask what prices would be with the switch on.
+export function pricingFee(db, settings = getSettings(db), force = false) {
+  if (!force && !settings.priceIncludesPayfastFee) return null;
+  const fees = getFinanceSettings(db).payfastFees;
+  const r = fees.pricing;
+  return { pct: r.pct, fixedCents: r.fixedCents, vatFactor: fees.addVat ? 1 + (Number(settings.vatRatePct) || 0) / 100 : 1, name: r.name };
+}
+
+function priceFor(fields, db, ctx = null) {
+  const settings = ctx?.settings || getSettings(db);
+  const fee = ctx ? ctx.fee : pricingFee(db, settings);
   const markup = effectiveMarkupPct({
     productMarkup: fields.markup_pct,
     categoryChain: categoryChain(fields.category_id, db),
     defaultMarkup: settings.defaultMarkupPct,
   });
-  return computeRetailCents(fields.cost_cents, markup, settings.vatRatePct, Math.round((Number(settings.minProfitRand) || 0) * 100));
+  return computeRetailCents(fields.cost_cents, markup, settings.vatRatePct, Math.round((Number(settings.minProfitRand) || 0) * 100), fee);
+}
+
+// What switching "Add the Payfast fee to every price" on would do to the live auto-priced shop (nothing is changed).
+export function previewFeePricing(db = getDb()) {
+  const settings = getSettings(db);
+  const ctx = { settings, fee: pricingFee(db, settings, true) };
+  const rows = db.prepare("SELECT id, name, sku, cost_cents, price_cents, category_id, markup_pct FROM products WHERE price_mode = 'auto' AND cost_cents > 0").all();
+  let changed = 0;
+  let sumPct = 0;
+  let sumRand = 0;
+  const samples = [];
+  for (const r of rows) {
+    const next = priceFor(r, db, ctx);
+    if (next === r.price_cents) continue;
+    changed++;
+    sumPct += r.price_cents > 0 ? ((next - r.price_cents) / r.price_cents) * 100 : 0;
+    sumRand += next - r.price_cents;
+    samples.push({ name: r.name, sku: r.sku, fromCents: r.price_cents, toCents: next });
+  }
+  samples.sort((a, b) => b.toCents - b.fromCents - (a.toCents - a.fromCents));
+  return { products: rows.length, changed, avgPct: changed ? Math.round((sumPct / changed) * 10) / 10 : 0, avgCents: changed ? Math.round(sumRand / changed) : 0, fee: ctx.fee && { name: ctx.fee.name, pct: ctx.fee.pct, fixedCents: ctx.fee.fixedCents }, samples: samples.slice(0, 5) };
 }
 
 function normaliseSpecs(specs) {
@@ -504,11 +536,13 @@ export function repriceProducts({ ids = null } = {}, db = getDb()) {
     ? db.prepare(`SELECT * FROM products WHERE price_mode = 'auto' AND id IN (${ids.map(() => '?').join(',') || "''"})`).all(...ids)
     : db.prepare("SELECT * FROM products WHERE price_mode = 'auto'").all();
   const upd = db.prepare('UPDATE products SET price_cents = ?, updated_at = ? WHERE id = ?');
+  const settings = getSettings(db);
+  const ctx = { settings, fee: pricingFee(db, settings) }; // read once, not per product
   let changed = 0;
   const ts = now();
   const tx = db.transaction(() => {
     for (const r of rows) {
-      const price = priceFor(r, db);
+      const price = priceFor(r, db, ctx);
       if (price !== r.price_cents) {
         upd.run(price, ts, r.id);
         changed++;

@@ -418,10 +418,11 @@ admin.put('/shipping/:id', wrap((req) => orNotFound(shipping.saveShippingOption(
 admin.delete('/shipping/:id', wrap((req) => ({ ok: orNotFound(shipping.deleteShippingOption(req.params.id)) })));
 
 admin.get('/settings', wrap(() => settings.getSettings()));
+admin.get('/pricing/fee-preview', wrap(() => catalog.previewFeePricing()));
 admin.put('/settings', wrap((req) => {
   const before = settings.getSettings();
   const after = settings.updateSettings(req.body || {});
-  const repriced = before.defaultMarkupPct !== after.defaultMarkupPct || before.vatRatePct !== after.vatRatePct || before.minProfitRand !== after.minProfitRand ? catalog.repriceProducts() : 0;
+  const repriced = before.defaultMarkupPct !== after.defaultMarkupPct || before.vatRatePct !== after.vatRatePct || before.minProfitRand !== after.minProfitRand || Boolean(before.priceIncludesPayfastFee) !== Boolean(after.priceIncludesPayfastFee) ? catalog.repriceProducts() : 0;
   return { ...after, repriced };
 }));
 

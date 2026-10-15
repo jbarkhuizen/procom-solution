@@ -61,7 +61,7 @@ export function validateSettings(s) {
 }
 
 export default function register(routes, kit) {
-  const { $, $$, h, api, toast, fail, view, setTop, siteSettings } = kit;
+  const { $, $$, h, rand, api, toast, fail, view, setTop, siteSettings } = kit;
 
   routes.settings = async () => {
     setTop('Settings', 'Site settings');
@@ -97,7 +97,9 @@ export default function register(routes, kit) {
 
         ${section('Pricing & VAT', 'Auto price = supplier cost excl VAT × (1 + VAT) × (1 + markup), rounded up to the next rand. A product or category markup overrides the default.', `
           ${field('defaultMarkupPct', 'Default markup %', 'On supplier cost incl VAT. Changing it reprices every auto-priced product that has no product or category markup of its own.', { type: 'number', attrs: 'step="0.5" min="0" max="300"' })}
-          ${field('minProfitRand', 'Minimum profit per item (R)', 'Every auto-priced item sells for at least cost incl VAT + this amount, so cheap items still cover the Payfast fee (about R2.30 + 4% per card payment). Changing it reprices every auto-priced product.', { type: 'number', attrs: 'step="1" min="0" max="1000"' })}
+          ${field('minProfitRand', 'Minimum profit per item (R)', 'Every auto-priced item sells for at least cost incl VAT + this amount, so cheap items still cover the Payfast fee (about R2.30 + 4% per card payment). With "Add the Payfast fee" ticked below, this is what you keep after the fee. Changing it reprices every auto-priced product.', { type: 'number', attrs: 'step="1" min="0" max="1000"' })}
+          <label class="field checkbox"><input type="checkbox" name="priceIncludesPayfastFee" ${s.priceIncludesPayfastFee ? 'checked' : ''}><span>Add the Payfast fee to every auto price</span></label>
+          <p class="mini-help" style="margin-top:-0.4rem">When ticked, each auto price is raised so that after Payfast takes its fee (the dearest payment method switched on in Financial overview, incl. VAT) you still keep the markup and the minimum profit above. Products with a fixed (manual) price are not touched. Ticking or unticking reprices the live shop. If you later change the Payfast fees in Financial overview, save these settings again to reprice.</p>
           <div id="margin-check" class="panel" style="padding:0.75rem 0.9rem;box-shadow:none" aria-live="polite"></div>
           ${field('vatRatePct', 'VAT rate %', 'Supplier prices include VAT that we pay as a cost. South Africa: 15%.', { type: 'number', attrs: 'step="0.5" min="0" max="30"' })}
           <label class="field checkbox"><input type="checkbox" name="vatRegistered" ${s.vatRegistered ? 'checked' : ''}><span>Business is VAT-registered</span></label>
@@ -142,7 +144,8 @@ export default function register(routes, kit) {
     const read = () => {
       const fd = Object.fromEntries(new FormData(form));
       delete fd.vatRegistered;
-      return { ...fd, vatRegistered: form.vatRegistered.checked };
+      delete fd.priceIncludesPayfastFee;
+      return { ...fd, vatRegistered: form.vatRegistered.checked, priceIncludesPayfastFee: form.priceIncludesPayfastFee.checked };
     };
     const initial = JSON.stringify(read());
 
@@ -207,6 +210,18 @@ export default function register(routes, kit) {
       }
       const repricing = Number(body.defaultMarkupPct) !== Number(s.defaultMarkupPct) || Number(body.vatRatePct) !== Number(s.vatRatePct) || Number(body.minProfitRand) !== Number(s.minProfitRand);
       if (repricing && !confirm('Changing the default markup or VAT rate reprices every auto-priced product without its own or a category markup. Prices on the live shop change immediately. Continue?')) return;
+      if (Boolean(body.priceIncludesPayfastFee) !== Boolean(s.priceIncludesPayfastFee)) {
+        // Show what it does to the live shop before anything changes.
+        let text = body.priceIncludesPayfastFee ? 'The Payfast fee will be added to every auto price.' : 'The Payfast fee will no longer be added to auto prices.';
+        if (body.priceIncludesPayfastFee) {
+          try {
+            const pv = await api('/pricing/fee-preview');
+            text += `\n\n${pv.changed} of ${pv.products} auto-priced products change, on average +${rand(pv.avgCents)} (${pv.avgPct}%).${pv.fee ? ` Fee used: ${pv.fee.name}, ${pv.fee.pct}% + ${rand(pv.fee.fixedCents)} + VAT.` : ''}`;
+            if (pv.samples.length) text += `\n\nBiggest rises:\n${pv.samples.map((x) => `${x.name.slice(0, 40)}: ${rand(x.fromCents)} → ${rand(x.toCents)}`).join('\n')}`;
+          } catch { /* the confirm still works without numbers */ }
+        }
+        if (!confirm(`${text}\n\nPrices on the live shop change immediately. Continue?`)) return;
+      }
       try {
         const r = await api('/settings', { method: 'PUT', body });
         await siteSettings(true); // refresh the admin-wide cache (dashboard etc.)

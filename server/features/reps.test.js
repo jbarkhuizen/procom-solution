@@ -12,6 +12,7 @@ const orders = await import('../orders.js');
 const reps = await import('./reps.js');
 const promos = await import('./promos.js');
 const finance = await import('./finance.js');
+const settingsMod = await import('../settings.js');
 
 let db;
 beforeEach(() => {
@@ -211,4 +212,39 @@ test('monthly statement goes out once, only when something happened', async () =
   assert.equal(db.prepare('SELECT COUNT(*) n FROM rep_statements WHERE rep_id = ?').get(r.id).n, 1);
   const again = await reps.processReps({ now: firstOfNext, db });
   assert.equal(again.statements, 0);
+});
+
+test('with the Payfast fee built into prices, Arnold earns about half of the markup profit (R100 cost item)', () => {
+  const { updateSettings } = settingsMod;
+  const r = arnold();
+  finance.updateFinanceSettings({ payfastFees: { methods: finance.DEFAULT_PAYFAST_METHODS.map((m) => ({ key: m.key, pct: m.pct, fixedCents: m.fixedCents })) } }, db);
+  const measure = (on) => {
+    updateSettings({ priceIncludesPayfastFee: on }, db);
+    catalog.repriceProducts({}, db);
+    const p = db.prepare("SELECT * FROM products WHERE name = 'Test Mouse'").get();
+    const o = order(p, { promoCode: '3DBYTED' }, { ...customer, email: `${on}@example.com` });
+    // Payfast takes the card fee on what the customer paid.
+    const fee = Math.round((o.totalCents * 0.032 + 200) * 1.15);
+    orders.markOrderPaid(o.id, { feeCents: fee }, db);
+    return { price: p.price_cents, commission: commissions(r.id).at(-1).commission_cents };
+  };
+  product();
+  const before = measure(false);
+  const after = measure(true);
+  assert.equal(before.price, 12700);
+  assert.ok(after.price >= 13400 && after.price <= 13600, `price ${after.price}`);
+  assert.ok(after.commission > before.commission, `${before.commission} -> ${after.commission}`);
+  // The item itself now leaves about R12-13 after Payfast (target R11.50 + rounding up): half is ~R6. (This test's courier
+  // option charges exactly what it costs, so the Payfast fee on delivery comes off too; SMD's R157 vs R150 covers it.)
+  assert.ok(after.commission - before.commission >= 250, `commission ${before.commission} -> ${after.commission}`);
+});
+
+test('the fee-in-price preview reports what would change without changing anything', () => {
+  finance.updateFinanceSettings({ payfastFees: { methods: finance.DEFAULT_PAYFAST_METHODS.map((m) => ({ key: m.key, pct: m.pct, fixedCents: m.fixedCents })) } }, db);
+  product();
+  const pv = catalog.previewFeePricing(db);
+  assert.equal(pv.products, 1);
+  assert.equal(pv.changed, 1);
+  assert.ok(pv.avgCents > 0 && pv.samples[0].toCents > pv.samples[0].fromCents);
+  assert.equal(db.prepare("SELECT price_cents FROM products WHERE name = 'Test Mouse'").get().price_cents, 12700);
 });

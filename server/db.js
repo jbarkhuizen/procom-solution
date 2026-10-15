@@ -353,6 +353,9 @@ export const DEFAULT_SETTINGS = {
   defaultMarkupPct: 10,
   // Every auto-priced item keeps at least this much (rand) above cost incl VAT.
   minProfitRand: 10,
+  // Owner 2026-10-15: gross every auto price up so the Payfast fee (dearest enabled method) is paid by the price, not by the
+  // markup. Off in code until the owner ticks it in Site settings (that reprices the live shop, with a preview).
+  priceIncludesPayfastFee: false,
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
   // Esquire / SMD sync report emails (with the Word overview); comma-separated.
