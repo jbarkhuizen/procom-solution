@@ -14,6 +14,7 @@ import { getDb } from '../db.js';
 import { parseRandToCents, clampInt } from '../util.js';
 import { floorCents, floorContext, todaySast, normDate, windowState, descendantMap, brandKey, productsForTarget, brandList } from './discount-common.js';
 import { specialPriceCents } from './specials.js';
+import { repCodeInfo } from './reps.js';
 
 export const KINDS = ['percent', 'fixed'];
 const now = () => new Date().toISOString();
@@ -111,6 +112,9 @@ export function priceAdjustments({ items, subtotalCents, promoCode, email }, db 
 export function checkPromo({ code, items, email } = {}, db = getDb()) {
   const promoCode = String(code || '').trim().slice(0, 40);
   if (!promoCode) return { ok: false, code: '', discountCents: 0, message: 'Enter a promo code.' };
+  // A sales partner's code: no discount, it only credits the sale to the partner.
+  const partner = repCodeInfo(promoCode, db);
+  if (partner) return { ok: true, code: partner.code, discountCents: 0, partner: true, message: `Partner code ${partner.code} applied.` };
   const lines = [];
   for (const it of Array.isArray(items) ? items.slice(0, 100) : []) {
     const p = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(String(it?.productId || ''));

@@ -455,7 +455,7 @@ admin.post('/orders/:id/cancel', wrap((req) => {
 }));
 
 // Feature modules (server/features/README.md) add their own routes.
-for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing', 'ops', 'governance', 'pricedrops']) {
+for (const name of ['accounts', 'invoices', 'promos', 'specials', 'analytics', 'newsletters', 'finance', 'marketing', 'ops', 'governance', 'pricedrops', 'reps']) {
   (await import(`./features/${name}.js`)).register({ app, admin, wrap, rateLimit, express, siteUrl: SITE_URL });
 }
 
@@ -482,6 +482,7 @@ resumePendingDownloads();
 esquire.startEsquireSchedule();
 smdApi.startSmdSchedule();
 supplierDigest.startSupplierDigestSchedule();
+(await import('./features/reps.js')).startRepSchedule();
 mailer.startMailOutbox();
 startPaymentWatch();
 

@@ -7,6 +7,7 @@
 import { api, formatRand } from './api.js';
 import { getCart } from './cart.js';
 import { setHtml } from './dom.js';
+import { rememberedRef } from './ref-capture.js';
 
 const STORE_KEY = 'procom-promo';
 let applied = null; // { code, discountCents, message }
@@ -44,7 +45,7 @@ function showApplied() {
   els.remove.classList.toggle('hidden', !on);
   if (on) {
     els.input.value = applied.code;
-    showMessage(`${applied.message} You save ${formatRand(applied.discountCents)}.`, 'ok');
+    showMessage(applied.discountCents > 0 ? `${applied.message} You save ${formatRand(applied.discountCents)}.` : applied.message, 'ok');
   }
 }
 
@@ -89,7 +90,7 @@ export function initPromo({ onChange } = {}) {
   notify = typeof onChange === 'function' ? onChange : () => {};
   setHtml(
     slot,
-    `<label class="form-label" for="promo-code">Promo code</label>
+    `<label class="form-label" for="promo-code">Promo or partner code</label>
     <div class="flex gap-2">
       <input class="form-input flex-1 min-w-0 !py-2 uppercase" id="promo-code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="Enter code">
       <button type="button" id="promo-apply" class="shrink-0 bg-charcoal text-cream rounded-full px-4 py-2 text-sm font-semibold hover:bg-terracotta transition-colors disabled:opacity-50">Apply</button>
@@ -136,6 +137,8 @@ export function initPromo({ onChange } = {}) {
   // Keep an applied code across a page reload in the same tab.
   let saved = '';
   try { saved = sessionStorage.getItem(STORE_KEY) || ''; } catch { /* storage blocked */ }
+  // A partner's ?ref= link (remembered 30 days by ref-capture.js) fills the box when nothing else is there.
+  if (!saved) saved = rememberedRef();
   if (saved) {
     els.input.value = saved;
     check(saved, { quiet: true });
