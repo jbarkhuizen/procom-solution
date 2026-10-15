@@ -29,6 +29,7 @@ const { escapeHtml } = await import('./util.js');
 const { startImageDownloads, resumePendingDownloads } = await import('./remote-images.js');
 const governance = await import('./features/governance.js');
 const { liveDropIds } = await import('./features/pricedrops.js');
+const { floorContext, payfastFeeCents } = await import('./features/discount-common.js');
 const { markReturnSeen, startPaymentWatch } = await import('./payment-watch.js');
 const { loginLocked, noteLogin } = await import('./login-guard.js');
 
@@ -312,7 +313,12 @@ admin.post('/categories', wrap((req) => catalog.saveCategory(req.body || {})));
 admin.put('/categories/:id', wrap((req) => orNotFound(catalog.saveCategory(req.body || {}, req.params.id))));
 admin.delete('/categories/:id', wrap((req) => ({ ok: orNotFound(catalog.deleteCategory(req.params.id)) })));
 
-admin.get('/products', wrap((req) => catalog.queryProducts({ ...req.query, admin: true, pageSize: req.query.pageSize || 50, sort: req.query.sort || 'newest' })));
+admin.get('/products', wrap((req) => {
+  const res = catalog.queryProducts({ ...req.query, admin: true, pageSize: req.query.pageSize || 50, sort: req.query.sort || 'newest' });
+  // Estimated Payfast fee on each selling price (dearest enabled method, incl VAT) for the Products table.
+  const ctx = floorContext(getDb());
+  return { ...res, items: res.items.map((p) => ({ ...p, payfastFeeCents: payfastFeeCents(p.priceCents, ctx) })) };
+}));
 admin.get('/products/:id', wrap((req) => orNotFound(catalog.getProduct(req.params.id))));
 admin.post('/products', wrap((req) => catalog.saveProduct(req.body || {})));
 admin.put('/products/:id', wrap((req) => orNotFound(catalog.saveProduct(req.body || {}, req.params.id))));
