@@ -14,10 +14,11 @@ import * as marketingSchema from './features/marketing.schema.js';
 import * as opsSchema from './features/ops.schema.js';
 import * as governanceSchema from './features/governance.schema.js';
 import * as pricedropsSchema from './features/pricedrops.schema.js';
+import * as repsSchema from './features/reps.schema.js';
 
 // Feature modules' tables (server/features/README.md). Run after migrate(),
 // so their indexes may use columns the migrations add.
-const FEATURE_SCHEMAS = [accountsSchema, invoicesSchema, promosSchema, specialsSchema, analyticsSchema, newslettersSchema, financeSchema, marketingSchema, opsSchema, governanceSchema, pricedropsSchema];
+const FEATURE_SCHEMAS = [accountsSchema, invoicesSchema, promosSchema, specialsSchema, analyticsSchema, newslettersSchema, financeSchema, marketingSchema, opsSchema, governanceSchema, pricedropsSchema, repsSchema];
 
 let db = null;
 
@@ -352,6 +353,9 @@ export const DEFAULT_SETTINGS = {
   defaultMarkupPct: 10,
   // Every auto-priced item keeps at least this much (rand) above cost incl VAT.
   minProfitRand: 10,
+  // Owner 2026-10-15: gross every auto price up so the Payfast fee (dearest enabled method) is paid by the price, not by the
+  // markup. Off in code until the owner ticks it in Site settings (that reprices the live shop, with a preview).
+  priceIncludesPayfastFee: false,
   defaultWeightG: 1000,
   ownerNotifyEmail: 'procompretoria@gmail.com',
   // Esquire / SMD sync report emails (with the Word overview); comma-separated.

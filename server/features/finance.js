@@ -282,6 +282,18 @@ function orderFigures(row, ctx) {
   };
 }
 
+// Profit of one order by the same rule as the Financial overview (income - cost x VAT - delivery cost to us -
+// Payfast fee; expenses are not shared out). Used by the sales rep commission. Null for an unknown order.
+export function orderProfit(orderId, db = getDb()) {
+  const row = db.prepare(`SELECT o.*,
+      (SELECT COALESCE(SUM(unit_cost_cents * quantity), 0) FROM order_items WHERE order_id = o.id) AS cost_excl_cents,
+      fdc.cost_cents AS override_cost_cents
+    FROM orders o LEFT JOIN finance_delivery_costs fdc ON fdc.order_id = o.id WHERE o.id = ?`).get(orderId);
+  if (!row) return null;
+  const f = orderFigures(row, context(db));
+  return { ...f, profitCents: f.incomeCents - f.cogsCents - f.deliveryCostCents - f.payfastFeesCents };
+}
+
 // Paid orders whose payment falls in [fromYmd, toYmd] (SAST, inclusive),
 // cancelled ones included (callers split them out).
 // Paid orders that need the owner's eyes (item gone, paid after cancellation, paid twice ...).

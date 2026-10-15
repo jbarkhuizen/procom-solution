@@ -43,6 +43,13 @@ test('minimum profit per item: price is at least cost incl VAT + R10 (Site setti
   assert.equal(computeRetailCents(1976, 10, 15, 1000), 3300); // plug top: R22.72 + R10 = R32.72 -> R33 (markup alone gave R25)
   assert.equal(computeRetailCents(10000, 10, 15, 1000), 12700); // R100 cost: 10% markup (R11.50) already beats R10
   assert.equal(computeRetailCents(0, 10, 15, 1000), 0); // no cost, no price
+  // Payfast fee built into the price (owner 2026-10-15): dearest method, e.g. debit 3.5% + R2, both + 15% VAT.
+  const fee = { pct: 3.5, fixedCents: 200, vatFactor: 1.15 };
+  assert.equal(computeRetailCents(10000, 10, 15, 0, fee), 13500); // (126.50 + 2.30) / (1 - 0.04025) = 134.2 -> R135
+  assert.equal(computeRetailCents(10000, 10, 15, 0, null), 12700);
+  assert.equal(computeRetailCents(0, 10, 15, 0, fee), 0);
+  // the minimum profit is what is kept AFTER the fee, so it is grossed up too
+  assert.ok(computeRetailCents(1976, 10, 15, 1000, fee) > computeRetailCents(1976, 10, 15, 1000));
   assert.equal(product({ costCents: 1976 }).priceCents, 3300, 'auto-priced products use the setting');
   updateSettings({ minProfitRand: 0 });
   assert.equal(catalog.repriceProducts() > 0, true);

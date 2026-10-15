@@ -31,12 +31,23 @@ export function roundRetail(rawCents) {
 // minProfitCents (owner rule 2026-09-30, Site settings "Minimum profit per item"):
 // the price is at least cost incl VAT + that amount, so cheap items still cover
 // Payfast's fixed fee (a R25 plug at 10% markup made R2.27 and lost money on a card sale).
-export function computeRetailCents(costCents, markupPct, vatRatePct = 15, minProfitCents = 0) {
+//
+// fee (owner 2026-10-15, Site settings "Add the Payfast fee to every price"): { pct, fixedCents, vatFactor } of the dearest
+// enabled Payfast method. The price is grossed up so that AFTER Payfast takes its fee on the full price, the markup
+// (and the minimum profit) is still what the owner keeps:
+//   price = (cost x (1 + VAT) x (1 + markup) + fixed x feeVat) / (1 - pct x feeVat)
+// null = no fee (the older behaviour; tests and the setting switched off).
+export function computeRetailCents(costCents, markupPct, vatRatePct = 15, minProfitCents = 0, fee = null) {
   const cost = Number(costCents) || 0;
   const withVat = cost * (1 + (Number(vatRatePct) || 0) / 100);
   const raw = withVat * (1 + (Number(markupPct) || 0) / 100);
   const min = cost > 0 ? withVat + Math.max(0, Number(minProfitCents) || 0) : 0;
-  return roundRetail(Math.round(Math.max(raw, min)));
+  let target = Math.max(raw, min);
+  if (fee && cost > 0) {
+    const vf = Number(fee.vatFactor) || 1;
+    target = (target + (Number(fee.fixedCents) || 0) * vf) / (1 - ((Number(fee.pct) || 0) / 100) * vf);
+  }
+  return roundRetail(Math.round(target));
 }
 
 // Gross profit per unit. Not VAT-registered: supplier VAT is a cost we absorb.

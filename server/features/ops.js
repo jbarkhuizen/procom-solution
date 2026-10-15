@@ -449,6 +449,7 @@ const SUITE_DESCRIPTIONS = {
   'server/features/phase1.test.js': 'Accounts, invoices, promos and specials working together in one order.',
   'server/features/promos.test.js': 'Promo codes: validity, usage limits, discount never takes a sale below cost incl VAT.',
   'server/features/pricedrops.test.js': 'Price drops page: which supplier-sync drops qualify (5% and R10), 7-day window, off the page the moment the price is back up, sold-out items greyed, hide/pin, admin figures.',
+  'server/features/reps.test.js': 'Sales reps: partner codes give no discount, commission = rep share of the real order profit (frozen at payment, never negative), customer stays with the rep, 48 hour hold, cancel/refund reversal and deduction, payouts and minimum, reports, monthly statement.',
   'server/features/specials.test.js': 'Specials: sale prices, dates, never below cost incl VAT, struck-through normal price.',
   'server/api-run-log.test.js': 'API run log (Admin -> System): every Esquire / SMD run is logged with its status and a one-line overview; filters, summary and seeding from the report history.',
   'server/order-safety.test.js': 'Orders: cancel and refund (stock back, refund and lost Payfast fee recorded), paid-twice/oversold/paid-after-cancel orders flagged, supplier stock goes down with sales.',

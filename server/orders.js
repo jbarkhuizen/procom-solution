@@ -6,6 +6,7 @@ import { specialPriceCents } from './features/specials.js';
 import { priceAdjustments } from './features/promos.js';
 import { onOrderCreated } from './features/accounts.js';
 import { onOrderPaid } from './features/invoices.js';
+import { resolveRepForOrder, onOrderPaid as repOnOrderPaid, onOrderCancelled as repOnOrderCancelled } from './features/reps.js';
 import { paymentMethodProblem } from './features/finance.js';
 import { classifyChannel, cleanTag } from './features/channels.js';
 
@@ -204,7 +205,9 @@ export function createOrder(input, db = getDb()) {
 
   const subtotal = items.reduce((s, i) => s + i.line, 0);
   // Promo code: validated and capped (never below cost incl VAT) by the promos feature.
-  const promo = priceAdjustments({ items, subtotalCents: subtotal, promoCode: str(input.promoCode, 40), email: customer.email }, db) || {};
+  // A sales rep's code is not a promo code: it gives no discount, it only credits the sale to the rep (features/reps.js).
+  const rep = resolveRepForOrder({ code: str(input.promoCode, 40), email: customer.email }, db);
+  const promo = priceAdjustments({ items, subtotalCents: subtotal, promoCode: rep?.byCode ? '' : str(input.promoCode, 40), email: customer.email }, db) || {};
   const discount = Math.max(0, Math.min(subtotal, Math.round(promo.discountCents || 0)));
   const weight = items.reduce((s, i) => s + i.p.weight_g * i.quantity, 0);
 
@@ -239,10 +242,10 @@ export function createOrder(input, db = getDb()) {
     const orderNumber = nextOrderNumber(db);
     db.prepare(`INSERT INTO orders (id, order_number, status, payment_status, payment_method, first_name, last_name, email, phone,
       address_line1, address_line2, suburb, city, province, postal_code, pudo_locker, customer_notes,
-      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, collection, fulfilment_json, discount_cents, promo_code, source_channel, source_detail, created_at, updated_at)
+      shipping_option_id, shipping_name, shipping_cents, subtotal_cents, total_cents, total_weight_g, delivery_quote, collection, fulfilment_json, discount_cents, promo_code, rep_id, rep_code, source_channel, source_detail, created_at, updated_at)
       VALUES (@id, @orderNumber, 'pending_payment', 'pending', @paymentMethod, @firstName, @lastName, @email, @phone,
       @line1, @line2, @suburb, @city, @province, @postalCode, @pudoLocker, @notes,
-      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @collection, @shipments, @discount, @promoCode, @sourceChannel, @sourceDetail, @ts, @ts)`).run({
+      @shipId, @shipName, @shipCents, @subtotal, @total, @weight, @deliveryQuote, @collection, @shipments, @discount, @promoCode, @repId, @repCode, @sourceChannel, @sourceDetail, @ts, @ts)`).run({
       id,
       orderNumber,
       paymentMethod,
@@ -256,6 +259,8 @@ export function createOrder(input, db = getDb()) {
       subtotal,
       discount,
       promoCode: discount ? String(promo.promoCode || '') : '',
+      repId: rep ? rep.repId : '',
+      repCode: rep ? rep.code : '',
       ...orderSource(input.source),
       total: subtotal - discount + ship.priceCents,
       weight,
@@ -310,7 +315,9 @@ export function markOrderPaid(id, { pfPaymentId = '', feeCents = null } = {}, db
     }
   });
   tx();
-  onOrderPaid(getOrder(id, db), db);
+  const paidOrder = getOrder(id, db);
+  onOrderPaid(paidOrder, db);
+  repOnOrderPaid(paidOrder, db);
   return { changed: true, order: getOrder(id, db) };
 }
 
@@ -347,6 +354,7 @@ export function cancelOrder(id, { refundCents = null, reason = '', actor = 'admi
     logOrderEvent(id, paid ? `Order cancelled; refund of R ${(refund / 100).toFixed(2)} recorded${reason ? ` (${str(reason, 300)})` : ''}. Return the money in your Payfast dashboard.` : 'Order cancelled', actor, db);
   });
   tx();
+  if (paid) repOnOrderCancelled(id, db);
   return getOrder(id, db);
 }
 
