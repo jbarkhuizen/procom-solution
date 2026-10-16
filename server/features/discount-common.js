@@ -30,6 +30,9 @@ export function floorContext(db) {
   return { vatRatePct, fee: { pct: r.pct, fixedCents: r.fixedCents, vatFactor: fees.addVat ? 1 + vatRatePct / 100 : 1, name: r.name } };
 }
 
+// What Payfast would take on a one-item order at this price (dearest enabled method, incl VAT), for estimates.
+export const payfastFeeCents = (priceCents, ctx) => (ctx?.fee && priceCents > 0 ? Math.round(((priceCents * ctx.fee.pct) / 100 + ctx.fee.fixedCents) * ctx.fee.vatFactor) : 0);
+
 // Room to discount one unit without going below the floor.
 export const headroomCents = (unitCents, costCents, vatRatePct) => Math.max(0, (Number(unitCents) || 0) - floorCents(costCents, vatRatePct));
 

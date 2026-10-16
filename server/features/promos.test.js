@@ -177,3 +177,13 @@ test('admin: unique codes, rename blocked once used, usage and floor stats', () 
   assert.throws(() => code({ code: 'X', percentOff: 5 }), /2–40/);
   assert.throws(() => code({ code: 'TOOMUCH', percentOff: 95 }), /between 0 and 90/);
 });
+
+test('payfastFeeCents estimates the fee on a selling price with the dearest method incl VAT', async () => {
+  const { floorContext, payfastFeeCents } = await import('./discount-common.js');
+  finance.updateFinanceSettings({ payfastFees: { methods: finance.DEFAULT_PAYFAST_METHODS.map((m) => ({ key: m.key, pct: m.pct, fixedCents: m.fixedCents })) } }, db);
+  const ctx = floorContext(db);
+  const fee = payfastFeeCents(13500, ctx);
+  assert.equal(fee, Math.round(((13500 * ctx.fee.pct) / 100 + ctx.fee.fixedCents) * ctx.fee.vatFactor));
+  assert.ok(fee > 600 && fee < 900, `fee ${fee}`); // about R7 on R135
+  assert.equal(payfastFeeCents(0, ctx), 0);
+});

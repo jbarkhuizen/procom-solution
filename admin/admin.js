@@ -292,7 +292,7 @@ routes.products = async (id, arg) => {
     <div id="bulk"></div>
     <div class="panel table-wrap">
       <table class="catalog">
-        <thead><tr><th class="check"><input type="checkbox" id="p-all" aria-label="Select all"></th><th></th><th>Product</th><th>Category</th><th class="num">Cost excl VAT</th><th class="num">VAT ${cfg.vatRatePct}%</th><th class="num">Purchase price</th><th class="num">Profit</th><th class="num">Selling price</th><th>Availability</th><th>Status</th></tr></thead>
+        <thead><tr><th class="check"><input type="checkbox" id="p-all" aria-label="Select all"></th><th></th><th>Product</th><th>Category</th><th class="num">Cost excl VAT</th><th class="num">VAT ${cfg.vatRatePct}%</th><th class="num">Purchase price</th><th class="num">Profit</th><th class="num">Selling price</th><th class="num" title="What Payfast would take on this price: the dearest payment method switched on in Financial overview, incl VAT">Est. Payfast fee</th><th>Availability</th><th>Status</th></tr></thead>
         <tbody>${
           res.items
             .map(
@@ -307,13 +307,14 @@ routes.products = async (id, arg) => {
           <td class="num muted">${rand(b.vat)}</td>
           <td class="num">${rand(b.purchase)}</td>
           <td class="num ${b.profit < 0 ? 'money-up' : 'money-down'}">${rand(b.profit)}<br><span class="muted">${b.profitPct}</span></td>
-          <td class="num"><strong>${rand(b.price)}</strong>${p.priceMode === 'manual' ? '<br><span class="muted">manual</span>' : ''}</td>`;
+          <td class="num"><strong>${rand(b.price)}</strong>${p.priceMode === 'manual' ? '<br><span class="muted">manual</span>' : ''}</td>
+          <td class="num muted">${rand(p.payfastFeeCents)}</td>`;
           })()}
           <td>${availability(p)}</td>
           <td>${p.active ? '<span class="badge published">Live</span>' : '<span class="badge draft">Hidden</span>'}</td>
         </tr>`,
             )
-            .join('') || '<tr><td colspan="11" class="empty">No products match. Use the Warehouse feed to list items quickly.</td></tr>'
+            .join('') || '<tr><td colspan="12" class="empty">No products match. Use the Warehouse feed to list items quickly.</td></tr>'
         }</tbody>
       </table>
     </div>
